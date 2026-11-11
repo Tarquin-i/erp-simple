@@ -1,18 +1,11 @@
 import { Hono } from "hono";
-import { createDatabase } from "@repo/db";
+import { auth, database } from "./modules/identity/auth/better-auth";
 
 const app = new Hono();
 
-app.get("/", (c) => {
-  return c.text("Hello Hono!");
-});
+app.get("/", (c) => c.text("Hello Hono!"));
+app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error("Set DATABASE_URL in apps/server/.env");
-}
-
-const database = createDatabase(databaseUrl);
 try {
   await database.checkConnection();
 } catch (error) {
