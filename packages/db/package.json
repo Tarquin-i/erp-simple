@@ -3,7 +3,8 @@
   "private": true,
   "exports": "./index.ts",
   "scripts": {
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
