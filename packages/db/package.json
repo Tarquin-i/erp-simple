@@ -2,6 +2,9 @@
   "name": "@repo/db",
   "private": true,
   "exports": "./index.ts",
+  "scripts": {
+    "db:push": "drizzle-kit push"
+  },
   "dependencies": {
     "drizzle-orm": "0.45.2",
     "postgres": "3.4.9"

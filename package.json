@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
+    "db:push": "turbo run db:push --filter=@repo/db",
     "dev": "turbo run dev",
     "dev:server": "turbo run dev --filter=server",
     "lint": "turbo run lint",
