@@ -5,7 +5,6 @@ import {
   customerTag,
   customerTagAssignment,
   member,
-  organization,
   user,
 } from "@repo/db/schema";
 import {
@@ -16,18 +15,18 @@ import {
   eq,
   exists,
   inArray,
-  ne,
   or,
   sql,
 } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 
-import { businessScopeWhere } from "../business/access";
+import { businessScopeWhere, readBusinessAccess } from "../business/access";
 import type { BusinessAccess } from "../business/access";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
+import { lockDepartment } from "../organization/departments";
 import { fail } from "../organization/errors";
-import { isConstraintError } from "./input";
+import { failVersionConflict, isConstraintError } from "./input";
 
 type DepartmentAccess = Exclude<BusinessAccess, { scope: "company" }>;
 
@@ -36,7 +35,6 @@ export interface CustomerWriteInput {
   remark?: string | null;
   channelCodes?: string[];
   tagIds?: string[];
-  forceDuplicate: boolean;
 }
 
 interface CustomerFilters {
@@ -60,6 +58,7 @@ function selectCustomers(tx: DatabaseTransaction) {
       ownerName: user.name,
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt,
+      version: customer.version,
     })
     .from(customer)
     .innerJoin(user, eq(customer.ownerUserId, user.id));
@@ -210,62 +209,44 @@ export function getCustomer(access: BusinessAccess, id: string) {
   );
 }
 
-async function lockDepartment(tx: DatabaseTransaction, departmentId: string) {
-  // Serialize name checks and writes in a department without blocking its foreign keys.
-  const [department] = await tx
-    .select({ id: organization.id })
-    .from(organization)
-    .where(eq(organization.id, departmentId))
-    .for("no key update");
-  if (!department) fail(404, "部门不存在。");
-}
-
-function duplicateCustomer(sameOwner: boolean): never {
-  const code = sameOwner
-    ? "duplicate_customer_same_owner"
-    : "duplicate_customer";
-  const message = sameOwner
-    ? "该业务员已有同名客户。"
-    : "发现疑似重复客户，请确认是否继续保存。";
+function duplicateCustomer(): never {
   throw new HTTPException(409, {
-    res: Response.json({ code, message }, { status: 409 }),
+    res: Response.json(
+      { code: "duplicate_customer", message: "该部门已有同名客户。" },
+      { status: 409 }
+    ),
   });
 }
 
-async function checkDuplicateName(
+export async function lockCustomerForWrite(
   tx: DatabaseTransaction,
-  target: { departmentId: string; ownerUserId: string; id?: string },
-  companyName: string,
-  forceDuplicate: boolean
+  access: BusinessAccess,
+  customerId: string
 ) {
-  const name = sql`lower(btrim(${companyName}::text))`;
-  const existingName = customer.normalizedCompanyName;
-  const exact = eq(existingName, name);
-  const sameOwner = sql<boolean>`(${exact} and ${eq(customer.ownerUserId, target.ownerUserId)})`;
-  const fuzzy = and(
-    sql`char_length(${name}) >= 4`,
-    or(
-      sql`position(${name} in ${existingName}) > 0`,
-      and(
-        sql`char_length(${existingName}) >= 4`,
-        sql`position(${existingName} in ${name}) > 0`
-      )
-    )
-  );
-  const [duplicate] = await tx
-    .select({ sameOwner })
+  const [target] = await tx
+    .select({ departmentId: customer.departmentId })
+    .from(customer)
+    .where(
+      and(eq(customer.id, customerId), businessScopeWhere(access, customer))
+    );
+  if (!target) fail(404, "客户不存在。");
+
+  await lockDepartment(tx, target.departmentId);
+  // A supervisor can lose department-wide access while waiting for the lock.
+  const freshAccess = await readBusinessAccess(tx, access.userId);
+  const [record] = await tx
+    .select()
     .from(customer)
     .where(
       and(
+        eq(customer.id, customerId),
         eq(customer.departmentId, target.departmentId),
-        target.id ? ne(customer.id, target.id) : undefined,
-        or(exact, fuzzy)
+        businessScopeWhere(freshAccess, customer)
       )
     )
-    .orderBy(desc(sameOwner))
-    .limit(1);
-  if (duplicate?.sameOwner) duplicateCustomer(true);
-  if (duplicate && !forceDuplicate) duplicateCustomer(false);
+    .for("no key update");
+  if (!record) fail(404, "客户不存在。");
+  return { access: freshAccess, record };
 }
 
 async function insertAssignments(
@@ -289,10 +270,9 @@ async function insertAssignments(
 }
 
 function translateWriteError(error: unknown): never {
-  if (
-    isConstraintError(error, "23505", "customer_department_name_owner_unique")
-  )
-    duplicateCustomer(true);
+  if (isConstraintError(error, "23505", "customer_department_name_unique")) {
+    duplicateCustomer();
+  }
   if (
     isConstraintError(
       error,
@@ -336,12 +316,6 @@ export async function createCustomer(
           )
           .for("share");
         if (!membership) fail(403, "加入部门后才能新建客户。");
-        await checkDuplicateName(
-          tx,
-          target,
-          input.companyName,
-          input.forceDuplicate
-        );
         const [record] = await tx
           .insert(customer)
           .values({
@@ -364,35 +338,18 @@ export async function createCustomer(
 export async function updateCustomer(
   access: BusinessAccess,
   id: string,
-  input: CustomerWriteInput
+  input: CustomerWriteInput,
+  expectedVersion: number
 ) {
-  const scope = and(eq(customer.id, id), businessScopeWhere(access, customer));
-
   try {
     return await database.db.transaction(async (tx) => {
-      const [target] = await tx
-        .select({ departmentId: customer.departmentId })
-        .from(customer)
-        .where(scope);
-      if (!target) fail(404, "客户不存在。");
-      await lockDepartment(tx, target.departmentId);
-      const [current] = await tx
-        .select()
-        .from(customer)
-        .where(scope)
-        .for("no key update");
-      if (!current) fail(404, "客户不存在。");
-
-      if (
-        input.companyName !== undefined &&
-        input.companyName !== current.companyName
-      ) {
-        await checkDuplicateName(
-          tx,
-          current,
-          input.companyName,
-          input.forceDuplicate
-        );
+      const { access: freshAccess, record } = await lockCustomerForWrite(
+        tx,
+        access,
+        id
+      );
+      if (record.version !== expectedVersion) {
+        failVersionConflict(await readCustomer(tx, freshAccess, id));
       }
 
       await tx
@@ -401,8 +358,11 @@ export async function updateCustomer(
           companyName: input.companyName,
           remark: input.remark,
           updatedAt: new Date(),
+          version: sql`${customer.version} + 1`,
         })
-        .where(scope);
+        .where(
+          and(eq(customer.id, id), businessScopeWhere(freshAccess, customer))
+        );
       if (input.channelCodes !== undefined) {
         await tx
           .delete(customerChannelAssignment)
@@ -414,7 +374,7 @@ export async function updateCustomer(
           .where(eq(customerTagAssignment.customerId, id));
       }
       await insertAssignments(tx, id, input);
-      return readCustomer(tx, access, id);
+      return readCustomer(tx, freshAccess, id);
     });
   } catch (error) {
     translateWriteError(error);

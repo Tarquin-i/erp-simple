@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { HTTPException } from "hono/http-exception";
 
 import { fail } from "../organization/errors";
 
@@ -54,6 +55,31 @@ export function readPositiveInteger(
     fail(400, `${label}须为 1 至 ${maximum} 的整数。`);
   }
   return number;
+}
+
+export function readExpectedVersion(value: unknown) {
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > 2_147_483_647
+  ) {
+    fail(400, "请提交有效的记录版本。");
+  }
+  return value;
+}
+
+export function failVersionConflict(current: unknown): never {
+  throw new HTTPException(409, {
+    res: Response.json(
+      {
+        code: "version_conflict",
+        message: "资料已被更新，请查看最新资料后确认是否覆盖。",
+        current,
+      },
+      { status: 409 }
+    ),
+  });
 }
 
 export function isConstraintError(

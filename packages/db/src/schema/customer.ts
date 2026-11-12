@@ -3,6 +3,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -43,6 +44,7 @@ export const customer = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
     remark: text("remark"),
+    version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -53,10 +55,9 @@ export const customer = pgTable(
   },
   (table) => [
     uniqueIndex("customer_customer_no_unique").on(table.customerNo),
-    uniqueIndex("customer_department_name_owner_unique").on(
+    uniqueIndex("customer_department_name_unique").on(
       table.departmentId,
-      table.normalizedCompanyName,
-      table.ownerUserId
+      table.normalizedCompanyName
     ),
     index("customer_department_owner_idx").on(
       table.departmentId,

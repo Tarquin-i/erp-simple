@@ -4,7 +4,7 @@ import {
   customerContactMethod,
   customerContactMethodType,
 } from "@repo/db/schema";
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { businessScopeWhere } from "../business/access";
@@ -12,7 +12,15 @@ import type { BusinessAccess, BusinessAccessEnv } from "../business/access";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
-import { isConstraintError, readObject, readString, readUuid } from "./input";
+import { lockCustomerForWrite } from "./customers";
+import {
+  failVersionConflict,
+  isConstraintError,
+  readExpectedVersion,
+  readObject,
+  readString,
+  readUuid,
+} from "./input";
 
 type Contact = typeof customerContact.$inferSelect;
 type Method = typeof customerContactMethod.$inferSelect;
@@ -21,6 +29,10 @@ type MethodType = Method["type"];
 type MethodInput = Pick<Method, "type" | "value"> & { isPrimary?: boolean };
 
 const methodFields = ["type", "value", "isPrimary"] as const;
+const versionedMethodFields = [...methodFields, "expectedVersion"] as const;
+const mainlandMobilePattern = /^(?:\+86[ -]?)?(1[3-9]\d{9})$/;
+const emailPattern =
+  /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i;
 
 function readMethodType(value: unknown): MethodType {
   const type = customerContactMethodType.enumValues.find(
@@ -37,10 +49,24 @@ function readPrimary(value: unknown): boolean | undefined {
   return value;
 }
 
+function readMethodValue(type: MethodType, raw: unknown): string {
+  const value = readString(raw, "联系方式", 320);
+  if (type === "phone" || type === "whatsapp") {
+    const mobile = mainlandMobilePattern.exec(value)?.[1];
+    if (!mobile) fail(400, "请输入有效的中国大陆手机号码。");
+    return mobile;
+  }
+  if (type === "email" && !emailPattern.test(value)) {
+    fail(400, "请输入有效的邮箱地址。");
+  }
+  return value;
+}
+
 function readMethod(input: Record<string, unknown>): MethodInput {
+  const type = readMethodType(input.type);
   return {
-    type: readMethodType(input.type),
-    value: readString(input.value, "联系方式", 320),
+    type,
+    value: readMethodValue(type, input.value),
     isPrimary: readPrimary(input.isPrimary),
   };
 }
@@ -138,12 +164,7 @@ async function createContact(
   methods: MethodInput[]
 ) {
   return database.db.transaction(async (tx) => {
-    const [parent] = await tx
-      .select({ id: customer.id })
-      .from(customer)
-      .where(scopedCustomer(access, customerId))
-      .for("key share");
-    if (!parent) fail(404, "客户不存在。");
+    await lockCustomerForWrite(tx, access, customerId);
 
     const [contact] = await tx
       .insert(customerContact)
@@ -160,28 +181,39 @@ async function changeContact(
   access: BusinessAccess,
   customerId: string,
   contactId: string,
+  expectedVersion: number,
   change: (tx: DatabaseTransaction) => Promise<void | { name: string }>
 ) {
   try {
     return await database.db.transaction(async (tx) => {
+      await lockCustomerForWrite(tx, access, customerId);
       // Serialize changes to one contact before reading or changing its primary method.
       const [locked] = await tx
-        .select({ id: customerContact.id })
+        .select()
         .from(customerContact)
-        .innerJoin(customer, eq(customer.id, customerContact.customerId))
         .where(
           and(
-            scopedCustomer(access, customerId),
+            eq(customerContact.customerId, customerId),
             eq(customerContact.id, contactId)
           )
         )
-        .for("update", { of: customerContact });
+        .for("update");
       if (!locked) fail(404, "联系人不存在。");
+      if (locked.version !== expectedVersion) {
+        failVersionConflict({
+          ...locked,
+          methods: await listMethods(tx, contactId),
+        });
+      }
 
       const fields = await change(tx);
       const [contact] = await tx
         .update(customerContact)
-        .set({ ...fields, updatedAt: new Date() })
+        .set({
+          ...fields,
+          updatedAt: new Date(),
+          version: sql`${customerContact.version} + 1`,
+        })
         .where(
           and(
             eq(customerContact.id, contactId),
@@ -262,12 +294,13 @@ customerContactRoutes.post("/:customerId/contacts", async (c) => {
 customerContactRoutes.patch("/:customerId/contacts/:contactId", async (c) => {
   const customerId = readUuid(c.req.param("customerId"), "客户 ID");
   const contactId = readUuid(c.req.param("contactId"), "联系人 ID");
-  const body = await readObject(c, ["name"]);
+  const body = await readObject(c, ["name", "expectedVersion"]);
   const name = readString(body.name, "联系人姓名", 128);
   const contact = await changeContact(
     c.get("businessAccess"),
     customerId,
     contactId,
+    readExpectedVersion(body.expectedVersion),
     async () => ({ name })
   );
   return c.json({ contact });
@@ -278,11 +311,13 @@ customerContactRoutes.post(
   async (c) => {
     const customerId = readUuid(c.req.param("customerId"), "客户 ID");
     const contactId = readUuid(c.req.param("contactId"), "联系人 ID");
-    const method = readMethod(await readObject(c, methodFields));
+    const body = await readObject(c, versionedMethodFields);
+    const method = readMethod(body);
     const contact = await changeContact(
       c.get("businessAccess"),
       customerId,
       contactId,
+      readExpectedVersion(body.expectedVersion),
       async (tx) => {
         const methods = await listMethods(tx, contactId);
         const isPrimary =
@@ -304,25 +339,29 @@ customerContactRoutes.patch(
     const customerId = readUuid(c.req.param("customerId"), "客户 ID");
     const contactId = readUuid(c.req.param("contactId"), "联系人 ID");
     const methodId = readUuid(c.req.param("methodId"), "联系方式 ID");
-    const body = await readObject(c, methodFields);
-    if (Object.keys(body).length === 0)
+    const body = await readObject(c, versionedMethodFields);
+    if (methodFields.every((field) => body[field] === undefined))
       fail(400, "请填写要修改的联系方式字段。");
 
     const type =
       body.type === undefined ? undefined : readMethodType(body.type);
-    const value =
-      body.value === undefined
-        ? undefined
-        : readString(body.value, "联系方式", 320);
     const isPrimary = readPrimary(body.isPrimary);
     const contact = await changeContact(
       c.get("businessAccess"),
       customerId,
       contactId,
+      readExpectedVersion(body.expectedVersion),
       async (tx) => {
         const methods = await listMethods(tx, contactId);
         const current = methods.find((method) => method.id === methodId);
         if (!current) fail(404, "联系方式不存在。");
+        const value =
+          type !== undefined || body.value !== undefined
+            ? readMethodValue(
+                type ?? current.type,
+                body.value === undefined ? current.value : body.value
+              )
+            : undefined;
 
         const replacement =
           isPrimary === false && current.isPrimary
@@ -350,10 +389,15 @@ customerContactRoutes.delete(
     const customerId = readUuid(c.req.param("customerId"), "客户 ID");
     const contactId = readUuid(c.req.param("contactId"), "联系人 ID");
     const methodId = readUuid(c.req.param("methodId"), "联系方式 ID");
+    const version = c.req.query("expectedVersion");
+    const expectedVersion = readExpectedVersion(
+      version && /^\d+$/.test(version) ? Number(version) : undefined
+    );
     const contact = await changeContact(
       c.get("businessAccess"),
       customerId,
       contactId,
+      expectedVersion,
       async (tx) => {
         const [deleted] = await tx
           .delete(customerContactMethod)

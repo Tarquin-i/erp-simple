@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   pgEnum,
   pgTable,
   timestamp,
@@ -35,6 +36,7 @@ export const customerContact = pgTable(
       .notNull()
       .references(() => customer.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 128 }).notNull(),
+    version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
