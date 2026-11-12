@@ -8,12 +8,12 @@
     "dev": "turbo run dev",
     "dev:server": "turbo run dev --filter=server",
     "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.7",
-    "prettier": "3.9.6",
+    "@biomejs/biome": "2.6.7",
     "turbo": "^2.11.10",
     "typescript": "7.0.2"
   },

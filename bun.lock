@@ -5,8 +5,7 @@
     "": {
       "name": "my-turborepo",
       "devDependencies": {
-        "@biomejs/biome": "^2.6.7",
-        "prettier": "3.9.6",
+        "@biomejs/biome": "2.6.7",
         "turbo": "^2.11.10",
         "typescript": "7.0.2",
       },
