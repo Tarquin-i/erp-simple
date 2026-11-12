@@ -5,12 +5,11 @@ node_modules
 .pnp
 .pnp.js
 
-# Local env files
+# Local env files and committed templates
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+!.env.*.example
 
 # Testing
 coverage
@@ -27,6 +26,10 @@ out/
 build
 dist
 
+# Vite and TypeScript caches
+.vite/
+.vite-temp/
+*.tsbuildinfo
 
 # Debug
 npm-debug.log*
