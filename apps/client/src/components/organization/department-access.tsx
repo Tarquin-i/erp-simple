@@ -4,10 +4,12 @@ import { useState } from "react";
 import { AuthPageShell } from "@/components/auth/auth-page-shell";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
+import { canEnterWorkspace } from "@/lib/auth/workspace-access";
 import { signOut } from "@/request/auth";
 import {
   type Department,
   type Viewer,
+  getViewer,
   submitDepartmentApplication,
 } from "@/request/organization";
 
@@ -25,6 +27,9 @@ export function DepartmentAccess({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [checkedApplicationId, setCheckedApplicationId] = useState<
+    string | null
+  >(null);
   const { application } = viewer;
   const pending = application?.status === "pending";
   const rejected = application?.status === "rejected";
@@ -44,6 +49,26 @@ export function DepartmentAccess({
     }
   }
 
+  function checkApproval() {
+    return run(async () => {
+      setCheckedApplicationId(null);
+      const latestViewer = await getViewer().catch(() => {
+        throw new Error("暂时无法检查审批结果，请重试。");
+      });
+
+      if (
+        latestViewer?.application?.status === "pending" &&
+        latestViewer.application.id === application?.id &&
+        !canEnterWorkspace(latestViewer)
+      ) {
+        setCheckedApplicationId(latestViewer.application.id);
+        return;
+      }
+
+      await router.invalidate({ sync: true });
+    });
+  }
+
   return (
     <AuthPageShell
       title={pending ? "等待审批" : "选择部门"}
@@ -54,7 +79,8 @@ export function DepartmentAccess({
           <DepartmentApplicationStatus
             departmentName={application.department.name}
             busy={busy}
-            onRefresh={() => void run(() => router.invalidate())}
+            checked={checkedApplicationId === application.id}
+            onRefresh={() => void checkApproval()}
           />
         ) : (
           <>

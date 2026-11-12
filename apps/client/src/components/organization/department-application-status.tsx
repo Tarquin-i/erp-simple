@@ -3,12 +3,14 @@ import { Button } from "@/components/ui/button";
 interface DepartmentApplicationStatusProps {
   departmentName: string;
   busy: boolean;
+  checked: boolean;
   onRefresh: () => void;
 }
 
 export function DepartmentApplicationStatus({
   departmentName,
   busy,
+  checked,
   onRefresh,
 }: DepartmentApplicationStatusProps) {
   return (
@@ -24,10 +26,18 @@ export function DepartmentApplicationStatus({
           </dd>
         </dl>
         <p className="text-sm text-muted-foreground">
-          部门主管审批通过后即可进入工作台。
+          {checked
+            ? "申请仍在等待审批。"
+            : "部门主管审批通过后即可进入工作台。"}
         </p>
       </div>
-      <Button className="min-h-11 w-full" disabled={busy} onClick={onRefresh}>
+      <Button
+        type="button"
+        className="min-h-11 w-full"
+        aria-busy={busy}
+        disabled={busy}
+        onClick={onRefresh}
+      >
         {busy ? "正在检查…" : "检查审批结果"}
       </Button>
     </div>
