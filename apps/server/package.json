@@ -3,7 +3,7 @@
   "scripts": {
     "auth:init-admin": "bun src/scripts/init-admin.ts",
     "dev": "bun run --hot src/index.ts",
-    "seed:local": "bun src/scripts/seed-local.ts",
+    "seed": "bun src/scripts/seed-local.ts",
     "check-types": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

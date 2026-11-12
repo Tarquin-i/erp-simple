@@ -1,10 +1,18 @@
 import {
   companyAdministrator,
+  customerChannel,
   departmentApplication,
   organization,
   user,
 } from "@repo/db/schema";
 import { eq, sql } from "drizzle-orm";
+
+const seedCustomerChannels = [
+  { code: "huivo_international_station", name: "汇合国际站" },
+  { code: "kingwin_international_station", name: "将为国际站" },
+  { code: "huivo_alibaba", name: "汇合阿里巴巴" },
+  { code: "kingwin_alibaba", name: "将为阿里巴巴" },
+];
 
 const seedDepartments = [
   { key: "a", name: "业务一部" },
@@ -56,7 +64,7 @@ const seedAccounts: readonly SeedAccount[] = [
 
 function assertLocalDatabase() {
   if (process.env.NODE_ENV?.trim().toLowerCase() === "production") {
-    throw new Error("生产环境不能创建本地种子账号。");
+    throw new Error("生产环境不能初始化本地种子数据。");
   }
   const url = URL.parse(process.env.DATABASE_URL ?? "");
   if (
@@ -71,7 +79,7 @@ function assertLocalDatabase() {
   }
 }
 
-async function seedLocalAccounts() {
+async function seedLocalData() {
   assertLocalDatabase();
   const { database, createProvisioningAuth } = await import(
     "../modules/identity/auth/better-auth"
@@ -103,7 +111,7 @@ async function seedLocalAccounts() {
       }
 
       const provisioningAuth = createProvisioningAuth(tx);
-      let created = 0;
+      let createdAccounts = 0;
       for (const definition of seedAccounts) {
         const email = `${definition.login}@e.test`;
         const [existing] = await tx
@@ -135,13 +143,20 @@ async function seedLocalAccounts() {
             });
           }
         }
-        created++;
+        createdAccounts++;
       }
-      return created;
+
+      const createdChannels = await tx
+        .insert(customerChannel)
+        .values(seedCustomerChannels)
+        .onConflictDoNothing({ target: customerChannel.code })
+        .returning({ code: customerChannel.code });
+
+      return { createdAccounts, createdChannels: createdChannels.length };
     });
   } catch {
     throw new Error(
-      "创建本地种子账号失败。请检查数据库表结构和种子部门的成员配置。"
+      "初始化本地种子数据失败。请先同步数据库表结构，再检查种子部门的成员配置。"
     );
   } finally {
     await database.close();
@@ -149,9 +164,9 @@ async function seedLocalAccounts() {
 }
 
 try {
-  const created = await seedLocalAccounts();
+  const { createdAccounts, createdChannels } = await seedLocalData();
   console.log(
-    `本地种子已就绪。新增账号 ${created} 个，保留已有账号 ${seedAccounts.length - created} 个。`
+    `本地种子已就绪。新增账号 ${createdAccounts} 个，保留已有账号 ${seedAccounts.length - createdAccounts} 个，新增客户渠道 ${createdChannels} 项。`
   );
 } catch (error) {
   console.error(
