@@ -3,7 +3,11 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { database } from "../identity/auth/better-auth";
-import { appointSupervisor, createDepartment } from "./departments";
+import {
+  appointSupervisor,
+  createDepartment,
+  listDepartmentRoster,
+} from "./departments";
 import { fail } from "./errors";
 import { readText, requireAccountId } from "./request";
 
@@ -19,6 +23,12 @@ async function requireCompanyAdministrator(headers: Headers) {
 }
 
 export const departmentAdminRoutes = new Hono();
+
+departmentAdminRoutes.get("/departments", async (c) => {
+  await requireCompanyAdministrator(c.req.raw.headers);
+  c.header("Cache-Control", "no-store");
+  return c.json(await listDepartmentRoster());
+});
 
 departmentAdminRoutes.post("/departments", async (c) => {
   await requireCompanyAdministrator(c.req.raw.headers);

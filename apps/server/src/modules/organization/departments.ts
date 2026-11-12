@@ -5,17 +5,77 @@ import {
   organization,
   user,
 } from "@repo/db/schema";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 
 import { createProvisioningAuth, database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "./errors";
 
-export function listDepartments() {
-  return database.db
+export function listDepartments(
+  db: typeof database.db | DatabaseTransaction = database.db
+) {
+  return db
     .select({ id: organization.id, name: organization.name })
     .from(organization)
     .orderBy(asc(organization.name), asc(organization.id));
+}
+
+export function listDepartmentRoster() {
+  return database.db.transaction(
+    async (tx) => {
+      const departments = await listDepartments(tx);
+      const account = { id: user.id, name: user.name, email: user.email };
+      const memberships = await tx
+        .select({
+          departmentId: member.organizationId,
+          account: { ...account, role: member.role },
+        })
+        .from(member)
+        .innerJoin(user, eq(member.userId, user.id))
+        .leftJoin(
+          companyAdministrator,
+          eq(companyAdministrator.userId, user.id)
+        )
+        .where(isNull(companyAdministrator.userId))
+        .orderBy(asc(user.name), asc(user.email), asc(user.id));
+      const applications = await tx
+        .select({ departmentId: departmentApplication.organizationId, account })
+        .from(departmentApplication)
+        .innerJoin(user, eq(departmentApplication.userId, user.id))
+        .leftJoin(member, eq(member.userId, user.id))
+        .leftJoin(
+          companyAdministrator,
+          eq(companyAdministrator.userId, user.id)
+        )
+        .where(
+          and(
+            eq(departmentApplication.status, "pending"),
+            isNull(member.id),
+            isNull(companyAdministrator.userId)
+          )
+        )
+        .orderBy(asc(user.name), asc(user.email), asc(user.id));
+
+      const roster = new Map(
+        departments.map((department) => [
+          department.id,
+          {
+            ...department,
+            members: [] as (typeof memberships)[number]["account"][],
+            pendingApplicants: [] as (typeof applications)[number]["account"][],
+          },
+        ])
+      );
+      for (const { departmentId, account } of memberships) {
+        roster.get(departmentId)?.members.push(account);
+      }
+      for (const { departmentId, account } of applications) {
+        roster.get(departmentId)?.pendingApplicants.push(account);
+      }
+      return [...roster.values()];
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" }
+  );
 }
 
 export async function createDepartment(name: string) {
