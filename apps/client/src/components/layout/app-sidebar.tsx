@@ -1,8 +1,8 @@
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { ChevronsUpDown, LayoutDashboard, LogOut } from "lucide-react";
+import { Link, useMatchRoute, useNavigate } from "@tanstack/react-router";
+import { ChevronsUpDown, LogOut } from "lucide-react";
 import { useState } from "react";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,17 +23,16 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { ROUTES } from "@/constants/route";
 import { signOut } from "@/request/auth";
 
 export function AppSidebar({
   account,
 }: {
-  account: { name: string; email: string };
+  account: { name: string; email: string; image?: string | null };
 }) {
   const navigate = useNavigate();
-  const isHome = useRouterState({
-    select: (state) => state.location.pathname === "/",
-  });
+  const matchRoute = useMatchRoute();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const displayName = account.name.trim() || account.email;
@@ -56,31 +55,50 @@ export function AppSidebar({
 
   return (
     <Sidebar>
-      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border px-4">
-        <span className="text-sm font-semibold tracking-tight">ERP Simple</span>
+      <SidebarHeader className="h-16 justify-center px-4">
+        <span className="text-base font-semibold tracking-tight">
+          ERP Simple
+        </span>
       </SidebarHeader>
 
-      <SidebarContent>
-        <nav aria-label="主导航">
-          <SidebarGroup>
-            <SidebarGroupLabel>导航</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isHome}>
-                    <Link to="/" activeOptions={{ exact: true }}>
-                      <LayoutDashboard aria-hidden="true" />
-                      <span>工作台</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+      <SidebarContent className="px-2 pt-6">
+        <nav className="space-y-5" aria-label="主导航">
+          {Object.entries(ROUTES).map(([key, group]) => (
+            <SidebarGroup key={key} className="px-0">
+              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {group.items.map(({ label, path, icon: Icon, exact }) => (
+                    <SidebarMenuItem key={path}>
+                      <SidebarMenuButton
+                        asChild
+                        className="min-h-9 gap-2.5"
+                        isActive={Boolean(
+                          matchRoute({
+                            to: path,
+                            fuzzy: !exact,
+                            includeSearch: false,
+                          })
+                        )}
+                      >
+                        <Link
+                          to={path}
+                          activeOptions={{ exact, includeSearch: false }}
+                        >
+                          <Icon aria-hidden="true" />
+                          <span>{label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
         </nav>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border">
+      <SidebarFooter className="px-3 pb-4">
         {signOutError && (
           <p className="px-2 text-sm text-destructive" role="alert">
             {signOutError}
@@ -96,15 +114,28 @@ export function AppSidebar({
                   aria-busy={isSigningOut}
                   disabled={isSigningOut}
                 >
-                  <Avatar aria-hidden="true">
-                    <AvatarFallback>
+                  <Avatar
+                    aria-hidden="true"
+                    className="rounded-lg after:rounded-lg"
+                  >
+                    {account.image && (
+                      <AvatarImage
+                        src={account.image}
+                        alt=""
+                        className="rounded-lg"
+                      />
+                    )}
+                    <AvatarFallback className="rounded-lg">
                       {displayName.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="min-w-0 flex-1 truncate">
+                  <span className="min-w-0 flex-1 truncate font-medium">
                     {isSigningOut ? "正在退出…" : displayName}
                   </span>
-                  <ChevronsUpDown aria-hidden="true" />
+                  <ChevronsUpDown
+                    aria-hidden="true"
+                    className="opacity-0 group-hover/menu-button:opacity-100 group-focus-visible/menu-button:opacity-100"
+                  />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" side="right" sideOffset={8}>
