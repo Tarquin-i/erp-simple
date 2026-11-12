@@ -55,7 +55,7 @@ export function EmailPasswordForm({ mode }: { mode: "login" | "register" }) {
         return;
       }
 
-      await navigate({ to: "/" });
+      await navigate({ to: "/", replace: true });
     } catch {
       setError("请求失败，请稍后重试。");
     } finally {
