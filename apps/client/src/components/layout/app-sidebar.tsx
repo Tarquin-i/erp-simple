@@ -55,24 +55,25 @@ export function AppSidebar({
 
   return (
     <Sidebar>
-      <SidebarHeader className="h-16 justify-center px-4">
+      <SidebarHeader className="h-12 shrink-0 justify-center px-3.5">
         <span className="text-base font-semibold tracking-tight">
           ERP Simple
         </span>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 pt-6">
-        <nav className="space-y-5" aria-label="主导航">
+      <SidebarContent className="pt-3 pr-4 pl-0.5">
+        <nav className="flex flex-col gap-2.5" aria-label="主导航">
           {Object.entries(ROUTES).map(([key, group]) => (
-            <SidebarGroup key={key} className="px-0">
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
+            <SidebarGroup key={key} className="p-0">
+              <SidebarGroupLabel className="h-6">
+                {group.label}
+              </SidebarGroupLabel>
+              <SidebarGroupContent className="mt-0.5">
+                <SidebarMenu className="gap-0.5">
                   {group.items.map(({ label, path, icon: Icon, exact }) => (
                     <SidebarMenuItem key={path}>
                       <SidebarMenuButton
                         asChild
-                        className="min-h-9 gap-2.5"
                         isActive={Boolean(
                           matchRoute({
                             to: path,
@@ -98,7 +99,7 @@ export function AppSidebar({
         </nav>
       </SidebarContent>
 
-      <SidebarFooter className="px-3 pb-4">
+      <SidebarFooter className="px-1.5 pb-4">
         {signOutError && (
           <p className="px-2 text-sm text-destructive" role="alert">
             {signOutError}
