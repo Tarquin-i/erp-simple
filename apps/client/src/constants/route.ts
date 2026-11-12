@@ -27,31 +27,24 @@ type RouteGroup = {
   items: RouteItem[];
 };
 
+export const ACCOUNT_ROUTES: RouteItem[] = [
+  { label: "工作台", path: "/", icon: LayoutDashboard, exact: true },
+  {
+    label: "部门管理",
+    path: "/department-management",
+    icon: Building2,
+    role: "company-admin",
+  },
+  {
+    label: "入部审批",
+    path: "/department-approvals",
+    icon: ClipboardCheck,
+    role: "supervisor",
+  },
+];
+
 // 按显示顺序配置侧栏分组和菜单。业务页面建好路由后，在这里添加入口。
 export const ROUTES: Record<string, RouteGroup> = {
-  workspace: {
-    label: "导航",
-    items: [
-      {
-        label: "工作台",
-        path: "/",
-        icon: LayoutDashboard,
-        exact: true,
-      },
-      {
-        label: "部门管理",
-        path: "/department-management",
-        icon: Building2,
-        role: "company-admin",
-      },
-      {
-        label: "入部审批",
-        path: "/department-approvals",
-        icon: ClipboardCheck,
-        role: "supervisor",
-      },
-    ],
-  },
   sales: {
     label: "业务",
     items: [

@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -22,8 +23,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
-import { ROUTES } from "@/constants/route";
+import { ACCOUNT_ROUTES, ROUTES } from "@/constants/route";
 import { signOut } from "@/request/auth";
 import type { Viewer } from "@/request/organization";
 
@@ -36,6 +38,7 @@ export function AppSidebar({
 }) {
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
+  const { isMobile, setOpenMobile } = useSidebar();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const displayName = account.name.trim() || account.email;
@@ -144,12 +147,42 @@ export function AppSidebar({
                   />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" side="right" sideOffset={8}>
+              <DropdownMenuContent
+                align={isMobile ? "start" : "end"}
+                side={isMobile ? "top" : "right"}
+                sideOffset={8}
+              >
                 <DropdownMenuLabel className="truncate">
                   {account.email}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => void handleSignOut()}>
+                <DropdownMenuGroup>
+                  {ACCOUNT_ROUTES.filter(
+                    (item) => !item.role || item.role === role
+                  ).map(({ label, path, icon: Icon, exact }) => (
+                    <DropdownMenuItem
+                      asChild
+                      className="min-h-9 cursor-pointer px-2 aria-[current=page]:bg-accent"
+                      key={path}
+                      onSelect={() => {
+                        if (isMobile) setOpenMobile(false);
+                      }}
+                    >
+                      <Link
+                        to={path}
+                        activeOptions={{ exact, includeSearch: false }}
+                      >
+                        <Icon aria-hidden="true" />
+                        {label}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="min-h-9 cursor-pointer px-2"
+                  onSelect={() => void handleSignOut()}
+                >
                   <LogOut aria-hidden="true" />
                   退出登录
                 </DropdownMenuItem>
