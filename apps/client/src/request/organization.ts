@@ -1,5 +1,12 @@
 export type Department = { id: string; name: string };
 
+type DepartmentAccount = { id: string; name: string; email: string };
+
+export type DepartmentRoster = Department & {
+  members: (DepartmentAccount & { role: "member" | "supervisor" })[];
+  pendingApplicants: DepartmentAccount[];
+};
+
 export type PendingApplication = {
   id: string;
   name: string;
@@ -38,6 +45,12 @@ export async function getViewer(): Promise<Viewer | null> {
 
 export function listDepartments() {
   return fetch(`${basePath}/departments`).then(readResponse<Department[]>);
+}
+
+export function listDepartmentRosters() {
+  return fetch(`${basePath}/admin/departments`).then(
+    readResponse<DepartmentRoster[]>
+  );
 }
 
 function post<T = unknown>(path: string, body: Record<string, string>) {
