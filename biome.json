@@ -15,9 +15,10 @@
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "single",
+      "quoteStyle": "double",
       "jsxQuoteStyle": "double",
-      "semicolons": "always"
+      "semicolons": "always",
+      "trailingCommas": "es5"
     }
   },
   "css": {
