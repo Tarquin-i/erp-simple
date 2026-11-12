@@ -1,162 +1,66 @@
-# Turborepo starter
-
-This Turborepo starter is maintained by the Turborepo core team.
-
-## Using this example
-
-Run the following command:
-
-```sh
-npx create-turbo@latest
-```
-
-## What's inside?
-
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `@next/eslint-plugin-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Biome](https://biomejs.dev) for code formatting (`bun run format:check` to check, `bun run format` to write)
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo build
-bun exec turbo build
-bun exec turbo build
-```
-
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo build --filter=docs
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo build --filter=docs
-bun exec turbo build --filter=docs
-bun exec turbo build --filter=docs
-```
-
-### Develop
-
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo dev
-bun exec turbo dev
-bun exec turbo dev
-```
-
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo dev --filter=web
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-bun exec turbo dev --filter=web
-bun exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-bun exec turbo login
-bun exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-bun exec turbo link
-bun exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
 # erp-simple
-# erp-simple
-# erp-simple
+
+一个用 Bun 和 Turborepo 管理的 ERP 项目。目前后端已接入 Better Auth 的邮箱密码注册和登录，前端的登录、注册页面已有路由，表单还未接入接口。
+
+## 项目结构
+
+| 目录          | 用途                                            |
+| ------------- | ----------------------------------------------- |
+| `apps/client` | Vite、React、TanStack Router 和 shadcn/ui 前端  |
+| `apps/server` | Bun 上运行的 Hono API，包含 Better Auth         |
+| `packages/db` | PostgreSQL 连接、Drizzle 表定义和数据库工具配置 |
+
+## 本地启动
+
+需要 Bun 1.3.14、Node.js 24 或更高版本，以及 Docker Compose。以下命令都在仓库根目录执行。
+
+1. 安装依赖并启动 PostgreSQL。
+
+   ```sh
+   bun install
+   docker compose up -d postgres
+   docker compose exec postgres pg_isready -U postgres -d erp-simple
+   ```
+
+   等 PostgreSQL 显示 `accepting connections` 后继续。
+
+2. 首次运行时，复制后端环境变量示例。
+
+   ```sh
+   cp -n apps/server/.env.example apps/server/.env
+   openssl rand -base64 32
+   ```
+
+   把生成的随机值填入 `apps/server/.env` 的 `BETTER_AUTH_SECRET`。示例中的 `DATABASE_URL` 对应 Docker Compose 的本地数据库配置，`BETTER_AUTH_URL` 使用浏览器访问的前端地址。
+
+3. 同步数据库表，再启动前后端。
+
+   ```sh
+   bun run db:push
+   bun run dev
+   ```
+
+   `db:push` 会把 `packages/db` 中的 Drizzle 表定义应用到本地数据库。
+
+| 服务       | 本地地址              |
+| ---------- | --------------------- |
+| 前端       | http://localhost:4200 |
+| 后端       | http://localhost:4201 |
+| PostgreSQL | `127.0.0.1:5434`      |
+
+打开后端地址，看到 `Hello Hono!` 即表示后端已启动并通过数据库连接检查。前端开发服务会把 `/api` 请求转发到后端。若修改 `SERVER_PORT`，同步更新 `apps/client/vite.config.ts` 的代理目标。
+
+## 常用命令
+
+| 命令                   | 用途                                       |
+| ---------------------- | ------------------------------------------ |
+| `bun run dev`          | 同时启动前端和后端                         |
+| `bun run dev:server`   | 只启动后端                                 |
+| `bun run db:push`      | 将 Drizzle 表定义同步到本地数据库          |
+| `bun run db:studio`    | 打开 Drizzle Studio                        |
+| `bun run format`       | 用 Biome 格式化代码                        |
+| `bun run format:check` | 检查格式                                   |
+| `bun run check-types`  | 检查前端、后端和数据库包的 TypeScript 类型 |
+| `bun run build`        | 构建前端                                   |
+
+也可以进入 `apps/client` 或 `apps/server`，在各自目录运行 `bun run dev`。
