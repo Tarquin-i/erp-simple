@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { customerRoutes } from "./modules/customer/routes";
 import { auth, database } from "./modules/identity/auth/better-auth";
 import { departmentAdminRoutes } from "./modules/organization/admin-routes";
 import { departmentApplicationRoutes } from "./modules/organization/application-routes";
@@ -11,6 +12,7 @@ app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
 app.route("/api/organization/admin", departmentAdminRoutes);
 app.route("/api/organization", departmentApplicationRoutes);
 app.route("/api/organization", organizationReadRoutes);
+app.route("/api/customers", customerRoutes);
 
 try {
   await database.checkConnection();
