@@ -112,30 +112,58 @@ export async function listPendingApplications(supervisorId: string) {
   );
 }
 
-async function requireSupervisorDepartment(
-  tx: DatabaseTransaction,
-  userId: string
-) {
-  const [supervisor] = await tx
-    .select({ departmentId: member.organizationId })
-    .from(member)
-    .where(and(eq(member.userId, userId), eq(member.role, "supervisor")))
+async function requireReviewScope(tx: DatabaseTransaction, userId: string) {
+  const [reviewer] = await tx
+    .select({
+      adminId: companyAdministrator.userId,
+      departmentId: member.organizationId,
+      role: member.role,
+    })
+    .from(user)
+    .leftJoin(member, eq(member.userId, user.id))
+    .leftJoin(companyAdministrator, eq(companyAdministrator.userId, user.id))
+    .where(eq(user.id, userId))
     .limit(1);
-  if (!supervisor) fail(403, "只有部门主管可以审核本部门的入部申请。");
-  return supervisor.departmentId;
+  if (reviewer?.adminId) return { scope: "company" as const };
+  if (reviewer?.role === "supervisor" && reviewer.departmentId) {
+    return {
+      scope: "department" as const,
+      departmentId: reviewer.departmentId,
+    };
+  }
+  fail(403, "只有公司管理员或部门主管可以审核入部申请。");
+}
+
+async function requireApplicationDepartment(
+  tx: DatabaseTransaction,
+  applicationId: string
+) {
+  const [application] = await tx
+    .select({ departmentId: departmentApplication.organizationId })
+    .from(departmentApplication)
+    .where(eq(departmentApplication.id, applicationId))
+    .limit(1);
+  if (!application) fail(404, "未找到入部申请。");
+  return application.departmentId;
 }
 
 export function reviewApplication(
-  supervisorId: string,
+  reviewerId: string,
   applicationId: string,
   decision: "approve" | "reject"
 ) {
   return database.db.transaction(async (tx) => {
-    const departmentId = await requireSupervisorDepartment(tx, supervisorId);
+    const scope = await requireReviewScope(tx, reviewerId);
+    const departmentId =
+      scope.scope === "company"
+        ? await requireApplicationDepartment(tx, applicationId)
+        : scope.departmentId;
     await lockDepartment(tx, departmentId);
-    // The current supervisor may have changed while this request waited for the lock.
+    // The reviewer's permissions may have changed while waiting for the lock.
+    const currentScope = await requireReviewScope(tx, reviewerId);
     if (
-      (await requireSupervisorDepartment(tx, supervisorId)) !== departmentId
+      currentScope.scope === "department" &&
+      currentScope.departmentId !== departmentId
     ) {
       fail(403, "只有部门主管可以审核本部门的入部申请。");
     }
@@ -153,7 +181,14 @@ export function reviewApplication(
         )
       )
       .limit(1);
-    if (!application) fail(404, "未找到本部门的入部申请。");
+    if (!application) {
+      fail(
+        404,
+        currentScope.scope === "company"
+          ? "未找到入部申请。"
+          : "未找到本部门的入部申请。"
+      );
+    }
     if (application.status !== "pending") fail(409, "该申请已处理。");
 
     await lockApplicant(tx, application.userId);
@@ -165,7 +200,7 @@ export function reviewApplication(
       .set({
         status: decision === "approve" ? "approved" : "rejected",
         reviewedAt: new Date(),
-        reviewedByUserId: supervisorId,
+        reviewedByUserId: reviewerId,
       })
       .where(
         and(

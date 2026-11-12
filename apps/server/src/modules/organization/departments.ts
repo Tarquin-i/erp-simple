@@ -39,7 +39,10 @@ export function listDepartmentRoster() {
         .where(isNull(companyAdministrator.userId))
         .orderBy(asc(user.name), asc(user.email), asc(user.id));
       const applications = await tx
-        .select({ departmentId: departmentApplication.organizationId, account })
+        .select({
+          departmentId: departmentApplication.organizationId,
+          account: { ...account, applicationId: departmentApplication.id },
+        })
         .from(departmentApplication)
         .innerJoin(user, eq(departmentApplication.userId, user.id))
         .leftJoin(member, eq(member.userId, user.id))
