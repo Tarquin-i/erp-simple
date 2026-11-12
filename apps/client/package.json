@@ -9,6 +9,7 @@
     "dev": "vite dev --port 4200",
     "generate-routes": "tsr generate",
     "build": "vite build",
+    "check-types": "tsc -p tsconfig.json --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {

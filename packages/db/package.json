@@ -7,7 +7,8 @@
   },
   "scripts": {
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "check-types": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
