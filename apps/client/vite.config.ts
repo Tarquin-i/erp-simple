@@ -8,6 +8,12 @@ import tailwindcss from '@tailwindcss/vite'
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
+  server: {
+    strictPort: true,
+    proxy: {
+      '/api': 'http://127.0.0.1:4201',
+    },
+  },
   plugins: [
     devtools(),
     tailwindcss(),
