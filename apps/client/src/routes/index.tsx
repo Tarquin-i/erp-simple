@@ -1,12 +1,12 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
+import { useAuthSession } from "@/request/auth";
 
 export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
-  const { data: session, error, isPending } = authClient.useSession();
+  const { data: session, error, isPending } = useAuthSession();
 
   return (
     <main className="mx-auto max-w-3xl space-y-4 px-4 py-12">
