@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import { auth, database } from "./modules/identity/auth/better-auth";
+import { departmentAdminRoutes } from "./modules/organization/admin-routes";
 
 const app = new Hono();
 
 app.get("/", (c) => c.text("Hello Hono!"));
 app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
+app.route("/api/organization/admin", departmentAdminRoutes);
 
 try {
   await database.checkConnection();
