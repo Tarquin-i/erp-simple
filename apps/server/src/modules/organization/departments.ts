@@ -5,11 +5,18 @@ import {
   organization,
   user,
 } from "@repo/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import { createProvisioningAuth, database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "./errors";
+
+export function listDepartments() {
+  return database.db
+    .select({ id: organization.id, name: organization.name })
+    .from(organization)
+    .orderBy(asc(organization.name), asc(organization.id));
+}
 
 export async function createDepartment(name: string) {
   // A stable URL-safe slug also makes a retry with the same name hit the unique key.
