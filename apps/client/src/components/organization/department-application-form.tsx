@@ -1,10 +1,14 @@
-import type { FormEvent } from "react";
+import { type FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { FieldGroup, FieldSet } from "@/components/ui/field";
+import {
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
 import type { Department } from "@/request/organization";
-
-import { DepartmentSelect } from "./department-select";
 
 interface DepartmentApplicationFormProps {
   departments: Department[];
@@ -19,34 +23,49 @@ export function DepartmentApplicationForm({
   busy,
   onSubmit,
 }: DepartmentApplicationFormProps) {
-  const disabled = busy || departments.length === 0;
+  const [departmentId, setDepartmentId] = useState(defaultDepartmentId ?? "");
+  const selectedDepartment = departments.find(({ id }) => id === departmentId);
+  const empty = departments.length === 0;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (disabled) return;
-
-    const departmentId = new FormData(event.currentTarget).get("departmentId");
-    if (
-      typeof departmentId === "string" &&
-      departments.some(({ id }) => id === departmentId)
-    ) {
-      onSubmit(departmentId);
-    }
+    if (!busy && selectedDepartment) onSubmit(selectedDepartment.id);
   }
 
   return (
     <form onSubmit={handleSubmit} aria-busy={busy}>
-      <FieldSet className="min-w-0" disabled={disabled}>
-        <FieldGroup>
-          <DepartmentSelect
-            departments={departments}
-            defaultDepartmentId={defaultDepartmentId}
-            emptyDescription="请联系公司管理员创建部门后再提交申请。"
-          />
-          <Button className="min-h-11" type="submit" disabled={disabled}>
-            {busy ? "正在提交…" : "提交申请"}
-          </Button>
-        </FieldGroup>
+      <FieldSet className="min-w-0 gap-3" disabled={busy || empty}>
+        <FieldLegend variant="label">部门</FieldLegend>
+        {empty ? (
+          <FieldDescription>暂无可选部门，请联系公司管理员。</FieldDescription>
+        ) : (
+          <FieldGroup className="gap-2">
+            {departments.map(({ id, name }) => (
+              <FieldLabel
+                key={id}
+                className="min-h-11 w-full cursor-pointer gap-3 rounded-lg border border-input px-3 py-2 leading-5 transition-colors hover:bg-muted/50 has-[:checked]:border-ring has-[:checked]:bg-muted has-[:disabled]:cursor-default focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
+              >
+                <input
+                  type="radio"
+                  name="departmentId"
+                  value={id}
+                  checked={departmentId === id}
+                  onChange={() => setDepartmentId(id)}
+                  className="size-4 shrink-0 accent-primary"
+                  required
+                />
+                <span className="min-w-0 [overflow-wrap:anywhere]">{name}</span>
+              </FieldLabel>
+            ))}
+          </FieldGroup>
+        )}
+        <Button
+          className="min-h-11 w-full"
+          type="submit"
+          disabled={!selectedDepartment || busy}
+        >
+          {busy ? "正在提交…" : "提交申请"}
+        </Button>
       </FieldSet>
     </form>
   );
