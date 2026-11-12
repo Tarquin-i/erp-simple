@@ -7,11 +7,21 @@ import { FieldError } from "@/components/ui/field";
 import {
   type DepartmentRoster,
   appointDepartmentSupervisor,
+  reviewDepartmentApplication,
 } from "@/request/organization";
 
-type RosterAccount =
-  | DepartmentRoster["members"][number]
-  | (DepartmentRoster["pendingApplicants"][number] & { role: "pending" });
+type PendingAccount = DepartmentRoster["pendingApplicants"][number] & {
+  role: "pending";
+};
+type RosterAccount = DepartmentRoster["members"][number] | PendingAccount;
+type ReviewDecision = "approve" | "reject";
+type RosterAction = "appoint" | ReviewDecision;
+
+const successMessages = {
+  appoint: "主管已任命。",
+  approve: "入部申请已通过。",
+  reject: "入部申请已驳回。",
+};
 
 const roleLabels = {
   member: "普通成员",
@@ -37,45 +47,66 @@ export function DepartmentRosterCard({
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(
     null
   );
-  const [workingEmail, setWorkingEmail] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{
+  const [workingAction, setWorkingAction] = useState<{
     email: string;
-    kind: "success" | "error";
+    action: RosterAction;
+  } | null>(null);
+  const [actionError, setActionError] = useState<{
+    email: string;
     message: string;
   } | null>(null);
+  const [successMessage, setSuccessMessage] = useState("");
   const supervisor = department.members.find(
     ({ role }) => role === "supervisor"
   );
-  const busy = workingEmail !== null;
+  const busy = workingAction !== null;
 
-  async function appoint(email: string) {
+  async function runAction(
+    email: string,
+    action: RosterAction,
+    request: () => Promise<unknown>
+  ) {
     if (busy) return;
-    setWorkingEmail(email);
-    setFeedback(null);
+    setWorkingAction({ email, action });
+    setActionError(null);
+    setSuccessMessage("");
 
     try {
-      await appointDepartmentSupervisor(department.id, email);
+      await request();
       setConfirmationEmail(null);
       await router.invalidate({ sync: true });
-      setFeedback({ email, kind: "success", message: "主管已任命。" });
+      setSuccessMessage(successMessages[action]);
       headingRef.current?.focus();
     } catch (error) {
-      setFeedback({
+      setActionError({
         email,
-        kind: "error",
         message:
-          error instanceof Error ? error.message : "任命失败，请稍后重试。",
+          error instanceof Error ? error.message : "操作失败，请稍后重试。",
       });
     } finally {
-      setWorkingEmail(null);
+      setWorkingAction(null);
     }
+  }
+
+  function appoint(email: string) {
+    void runAction(email, "appoint", () =>
+      appointDepartmentSupervisor(department.id, email)
+    );
+  }
+
+  function review(account: PendingAccount, decision: ReviewDecision) {
+    setConfirmationEmail(null);
+    void runAction(account.email, decision, () =>
+      reviewDepartmentApplication(account.applicationId, decision)
+    );
   }
 
   function startAppointment(
     account: RosterAccount,
     event: MouseEvent<HTMLButtonElement>
   ) {
-    setFeedback(null);
+    setActionError(null);
+    setSuccessMessage("");
     if (account.role === "pending" || supervisor) {
       confirmationTrigger.current = event.currentTarget;
       setConfirmationEmail(account.email);
@@ -83,25 +114,31 @@ export function DepartmentRosterCard({
     }
 
     setConfirmationEmail(null);
-    void appoint(account.email);
+    appoint(account.email);
   }
 
   function cancelAppointment() {
     setConfirmationEmail(null);
-    setFeedback(null);
+    setActionError(null);
     confirmationTrigger.current?.focus();
   }
 
   function renderAccount(account: RosterAccount) {
     const { id, name, email, role } = account;
     const confirming = confirmationEmail === email;
-    const saving = workingEmail === email;
-    const result = feedback?.email === email ? feedback : null;
+    const saving = workingAction?.email === email ? workingAction.action : null;
+    const error = actionError?.email === email ? actionError.message : null;
     const actionLabel = role === "pending" ? "通过并任命" : "任命主管";
 
     return (
       <li key={id} className="px-4 py-3">
-        <div className="flex min-w-0 items-center justify-between gap-3">
+        <div
+          className={
+            role === "pending"
+              ? "flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+              : "flex min-w-0 items-center justify-between gap-3"
+          }
+        >
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <p className="min-w-0 wrap-anywhere font-medium">{name}</p>
@@ -116,19 +153,44 @@ export function DepartmentRosterCard({
             </p>
           </div>
           {role !== "supervisor" && (
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-10 sm:min-h-8"
-              aria-label={`${actionLabel}（${name}）`}
-              aria-expanded={
-                role === "pending" || supervisor ? confirming : undefined
-              }
-              disabled={busy}
-              onClick={(event) => startAppointment(account, event)}
-            >
-              {saving ? "正在任命…" : actionLabel}
-            </Button>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              {account.role === "pending" && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11 sm:min-h-8"
+                    aria-label={`驳回（${name}）`}
+                    disabled={busy}
+                    onClick={() => review(account, "reject")}
+                  >
+                    {saving === "reject" ? "驳回中…" : "驳回"}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="min-h-11 sm:min-h-8"
+                    aria-label={`通过（${name}）`}
+                    disabled={busy}
+                    onClick={() => review(account, "approve")}
+                  >
+                    {saving === "approve" ? "通过中…" : "通过"}
+                  </Button>
+                </>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 sm:min-h-8"
+                aria-label={`${actionLabel}（${name}）`}
+                aria-expanded={
+                  role === "pending" || supervisor ? confirming : undefined
+                }
+                disabled={busy}
+                onClick={(event) => startAppointment(account, event)}
+              >
+                {saving === "appoint" ? "正在任命…" : actionLabel}
+              </Button>
+            </div>
           )}
         </div>
         {confirming && (
@@ -152,22 +214,16 @@ export function DepartmentRosterCard({
               <Button
                 type="button"
                 disabled={busy}
-                onClick={() => void appoint(email)}
+                onClick={() => appoint(email)}
               >
-                {saving ? "正在任命…" : "确认任命"}
+                {saving === "appoint" ? "正在任命…" : "确认任命"}
               </Button>
             </div>
           </div>
         )}
-        {result && (
+        {error && (
           <div className="mt-2">
-            {result.kind === "error" ? (
-              <FieldError>{result.message}</FieldError>
-            ) : (
-              <p className="text-sm text-muted-foreground" role="status">
-                {result.message}
-              </p>
-            )}
+            <FieldError>{error}</FieldError>
           </div>
         )}
       </li>
@@ -188,6 +244,12 @@ export function DepartmentRosterCard({
               {department.name}
             </h2>
           </CardTitle>
+          <p
+            className="text-sm text-muted-foreground empty:sr-only"
+            role="status"
+          >
+            {successMessage}
+          </p>
         </CardHeader>
         <CardContent className="px-0">
           {department.members.length === 0 ? (

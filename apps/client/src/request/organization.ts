@@ -4,7 +4,7 @@ type DepartmentAccount = { id: string; name: string; email: string };
 
 export type DepartmentRoster = Department & {
   members: (DepartmentAccount & { role: "member" | "supervisor" })[];
-  pendingApplicants: DepartmentAccount[];
+  pendingApplicants: (DepartmentAccount & { applicationId: string })[];
 };
 
 export type PendingApplication = {
