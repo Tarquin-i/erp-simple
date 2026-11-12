@@ -50,6 +50,22 @@
 
 打开后端地址，看到 `Hello Hono!` 即表示后端已启动并通过数据库连接检查。前端开发服务会把 `/api` 请求转发到后端。若修改 `SERVER_PORT`，同步更新 `apps/client/vite.config.ts` 的代理目标。
 
+## 本地种子账号
+
+执行 `bun run db:push` 同步数据库表后，在仓库根目录运行 `bun run seed:local`。以下固定账号仅供本地和测试使用，命令会拒绝在生产环境执行或连接远程数据库。重复运行会补建缺失的种子部门和账号。已有账号按邮箱跳过，密码、角色和申请记录会保留。
+
+| 邮箱                         | 密码                | 部门          | 身份       |
+| ---------------------------- | ------------------- | ------------- | ---------- |
+| `staff-a1@example.test`      | `ErpLocalSeed#2026` | 测试 A 部     | 普通员工   |
+| `staff-a2@example.test`      | `ErpLocalSeed#2026` | 测试 A 部     | 普通员工   |
+| `lead-a@example.test`        | `ErpLocalSeed#2026` | 测试 A 部     | 主管       |
+| `staff-b1@example.test`      | `ErpLocalSeed#2026` | 测试 B 部     | 普通员工   |
+| `lead-b@example.test`        | `ErpLocalSeed#2026` | 测试 B 部     | 主管       |
+| `company-admin@example.test` | `ErpLocalSeed#2026` | 无部门        | 公司管理员 |
+| `pending-b@example.test`     | `ErpLocalSeed#2026` | 申请测试 B 部 | 待审       |
+
+首次运行后，可以用 `pending-b@example.test` 登录并留在待审页面。再用 `lead-b@example.test` 通过该申请。申请人在原登录会话中刷新审批状态即可进入工作台。如果申请已处理，重复运行种子命令会保留审批结果。
+
 ## 常用命令
 
 | 命令                   | 用途                                       |
