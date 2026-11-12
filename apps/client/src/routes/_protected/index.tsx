@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export const Route = createFileRoute("/_protected/")({ component: Home });
 
 function Home() {
-  const { session } = Route.useRouteContext();
+  const { viewer } = Route.useRouteContext();
 
   return (
     <section
@@ -24,10 +24,11 @@ function Home() {
             <h2>当前账号</h2>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-1">
           <p className="break-all text-muted-foreground">
-            {session.user.email}
+            {viewer.account.email}
           </p>
+          <p className="text-sm">{viewer.department?.name ?? "公司管理员"}</p>
         </CardContent>
       </Card>
     </section>

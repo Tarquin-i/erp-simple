@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
+import { Route as DepartmentAccessIndexRouteImport } from './routes/department-access/index'
 import { Route as AuthFotgotPasswordIndexRouteImport } from './routes/_auth/fotgot-password/index'
 import { Route as AuthLoginIndexRouteImport } from './routes/_auth/login/index'
 import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/index'
@@ -34,6 +35,11 @@ const ProtectedIndexRoute = ProtectedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ProtectedRoute,
+} as any)
+const DepartmentAccessIndexRoute = DepartmentAccessIndexRouteImport.update({
+  id: '/department-access/',
+  path: '/department-access/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthFotgotPasswordIndexRoute = AuthFotgotPasswordIndexRouteImport.update({
   id: '/fotgot-password/',
@@ -84,6 +90,7 @@ const ProtectedProductsIndexRoute = ProtectedProductsIndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedIndexRoute
+  '/department-access/': typeof DepartmentAccessIndexRoute
   '/fotgot-password/': typeof AuthFotgotPasswordIndexRoute
   '/login/': typeof AuthLoginIndexRoute
   '/register/': typeof AuthRegisterIndexRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof ProtectedIndexRoute
+  '/department-access': typeof DepartmentAccessIndexRoute
   '/fotgot-password': typeof AuthFotgotPasswordIndexRoute
   '/login': typeof AuthLoginIndexRoute
   '/register': typeof AuthRegisterIndexRoute
@@ -111,6 +119,7 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/_protected': typeof ProtectedRouteWithChildren
   '/_protected/': typeof ProtectedIndexRoute
+  '/department-access/': typeof DepartmentAccessIndexRoute
   '/_auth/fotgot-password/': typeof AuthFotgotPasswordIndexRoute
   '/_auth/login/': typeof AuthLoginIndexRoute
   '/_auth/register/': typeof AuthRegisterIndexRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/department-access/'
     | '/fotgot-password/'
     | '/login/'
     | '/register/'
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/department-access'
     | '/fotgot-password'
     | '/login'
     | '/register'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/_protected'
     | '/_protected/'
+    | '/department-access/'
     | '/_auth/fotgot-password/'
     | '/_auth/login/'
     | '/_auth/register/'
@@ -165,6 +177,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   ProtectedRoute: typeof ProtectedRouteWithChildren
+  DepartmentAccessIndexRoute: typeof DepartmentAccessIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -189,6 +202,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof ProtectedIndexRouteImport
       parentRoute: typeof ProtectedRoute
+    }
+    '/department-access/': {
+      id: '/department-access/'
+      path: '/department-access'
+      fullPath: '/department-access/'
+      preLoaderRoute: typeof DepartmentAccessIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_auth/fotgot-password/': {
       id: '/_auth/fotgot-password/'
@@ -297,6 +317,7 @@ const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   ProtectedRoute: ProtectedRouteWithChildren,
+  DepartmentAccessIndexRoute: DepartmentAccessIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
