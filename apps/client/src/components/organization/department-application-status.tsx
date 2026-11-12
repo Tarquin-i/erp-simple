@@ -26,9 +26,7 @@ export function DepartmentApplicationStatus({
           </dd>
         </dl>
         <p className="text-sm text-muted-foreground">
-          {checked
-            ? "申请仍在等待审批。"
-            : "部门主管审批通过后即可进入工作台。"}
+          {checked ? "申请仍在等待审批。" : "审批通过后即可进入工作台。"}
         </p>
       </div>
       <Button

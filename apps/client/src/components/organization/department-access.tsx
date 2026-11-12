@@ -72,7 +72,7 @@ export function DepartmentAccess({
   return (
     <AuthPageShell
       title={pending ? "等待审批" : "选择部门"}
-      description={pending ? undefined : "提交后由所选部门的主管审批。"}
+      description={pending ? undefined : "提交后由部门主管或公司管理员审批。"}
     >
       <div className="space-y-4">
         {pending ? (
