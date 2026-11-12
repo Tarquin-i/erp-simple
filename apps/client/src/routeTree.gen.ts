@@ -15,6 +15,12 @@ import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
 import { Route as AuthFotgotPasswordIndexRouteImport } from './routes/_auth/fotgot-password/index'
 import { Route as AuthLoginIndexRouteImport } from './routes/_auth/login/index'
 import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/index'
+import { Route as ProtectedAddressesIndexRouteImport } from './routes/_protected/addresses/index'
+import { Route as ProtectedCommunicationIndexRouteImport } from './routes/_protected/communication/index'
+import { Route as ProtectedCustomersIndexRouteImport } from './routes/_protected/customers/index'
+import { Route as ProtectedOrdersIndexRouteImport } from './routes/_protected/orders/index'
+import { Route as ProtectedPayoutsIndexRouteImport } from './routes/_protected/payouts/index'
+import { Route as ProtectedProductsIndexRouteImport } from './routes/_protected/products/index'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -44,18 +50,61 @@ const AuthRegisterIndexRoute = AuthRegisterIndexRouteImport.update({
   path: '/register/',
   getParentRoute: () => AuthRoute,
 } as any)
+const ProtectedAddressesIndexRoute = ProtectedAddressesIndexRouteImport.update({
+  id: '/addresses/',
+  path: '/addresses/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedCommunicationIndexRoute =
+  ProtectedCommunicationIndexRouteImport.update({
+    id: '/communication/',
+    path: '/communication/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedCustomersIndexRoute = ProtectedCustomersIndexRouteImport.update({
+  id: '/customers/',
+  path: '/customers/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedOrdersIndexRoute = ProtectedOrdersIndexRouteImport.update({
+  id: '/orders/',
+  path: '/orders/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedPayoutsIndexRoute = ProtectedPayoutsIndexRouteImport.update({
+  id: '/payouts/',
+  path: '/payouts/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedProductsIndexRoute = ProtectedProductsIndexRouteImport.update({
+  id: '/products/',
+  path: '/products/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedIndexRoute
   '/fotgot-password/': typeof AuthFotgotPasswordIndexRoute
   '/login/': typeof AuthLoginIndexRoute
   '/register/': typeof AuthRegisterIndexRoute
+  '/addresses/': typeof ProtectedAddressesIndexRoute
+  '/communication/': typeof ProtectedCommunicationIndexRoute
+  '/customers/': typeof ProtectedCustomersIndexRoute
+  '/orders/': typeof ProtectedOrdersIndexRoute
+  '/payouts/': typeof ProtectedPayoutsIndexRoute
+  '/products/': typeof ProtectedProductsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof ProtectedIndexRoute
   '/fotgot-password': typeof AuthFotgotPasswordIndexRoute
   '/login': typeof AuthLoginIndexRoute
   '/register': typeof AuthRegisterIndexRoute
+  '/addresses': typeof ProtectedAddressesIndexRoute
+  '/communication': typeof ProtectedCommunicationIndexRoute
+  '/customers': typeof ProtectedCustomersIndexRoute
+  '/orders': typeof ProtectedOrdersIndexRoute
+  '/payouts': typeof ProtectedPayoutsIndexRoute
+  '/products': typeof ProtectedProductsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -65,12 +114,38 @@ export interface FileRoutesById {
   '/_auth/fotgot-password/': typeof AuthFotgotPasswordIndexRoute
   '/_auth/login/': typeof AuthLoginIndexRoute
   '/_auth/register/': typeof AuthRegisterIndexRoute
+  '/_protected/addresses/': typeof ProtectedAddressesIndexRoute
+  '/_protected/communication/': typeof ProtectedCommunicationIndexRoute
+  '/_protected/customers/': typeof ProtectedCustomersIndexRoute
+  '/_protected/orders/': typeof ProtectedOrdersIndexRoute
+  '/_protected/payouts/': typeof ProtectedPayoutsIndexRoute
+  '/_protected/products/': typeof ProtectedProductsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/fotgot-password/' | '/login/' | '/register/'
+  fullPaths:
+    | '/'
+    | '/fotgot-password/'
+    | '/login/'
+    | '/register/'
+    | '/addresses/'
+    | '/communication/'
+    | '/customers/'
+    | '/orders/'
+    | '/payouts/'
+    | '/products/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/fotgot-password' | '/login' | '/register'
+  to:
+    | '/'
+    | '/fotgot-password'
+    | '/login'
+    | '/register'
+    | '/addresses'
+    | '/communication'
+    | '/customers'
+    | '/orders'
+    | '/payouts'
+    | '/products'
   id:
     | '__root__'
     | '/_auth'
@@ -79,6 +154,12 @@ export interface FileRouteTypes {
     | '/_auth/fotgot-password/'
     | '/_auth/login/'
     | '/_auth/register/'
+    | '/_protected/addresses/'
+    | '/_protected/communication/'
+    | '/_protected/customers/'
+    | '/_protected/orders/'
+    | '/_protected/payouts/'
+    | '/_protected/products/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -130,6 +211,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRegisterIndexRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_protected/addresses/': {
+      id: '/_protected/addresses/'
+      path: '/addresses'
+      fullPath: '/addresses/'
+      preLoaderRoute: typeof ProtectedAddressesIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/communication/': {
+      id: '/_protected/communication/'
+      path: '/communication'
+      fullPath: '/communication/'
+      preLoaderRoute: typeof ProtectedCommunicationIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/customers/': {
+      id: '/_protected/customers/'
+      path: '/customers'
+      fullPath: '/customers/'
+      preLoaderRoute: typeof ProtectedCustomersIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/orders/': {
+      id: '/_protected/orders/'
+      path: '/orders'
+      fullPath: '/orders/'
+      preLoaderRoute: typeof ProtectedOrdersIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/payouts/': {
+      id: '/_protected/payouts/'
+      path: '/payouts'
+      fullPath: '/payouts/'
+      preLoaderRoute: typeof ProtectedPayoutsIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/products/': {
+      id: '/_protected/products/'
+      path: '/products'
+      fullPath: '/products/'
+      preLoaderRoute: typeof ProtectedProductsIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
   }
 }
 
@@ -149,10 +272,22 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface ProtectedRouteChildren {
   ProtectedIndexRoute: typeof ProtectedIndexRoute
+  ProtectedAddressesIndexRoute: typeof ProtectedAddressesIndexRoute
+  ProtectedCommunicationIndexRoute: typeof ProtectedCommunicationIndexRoute
+  ProtectedCustomersIndexRoute: typeof ProtectedCustomersIndexRoute
+  ProtectedOrdersIndexRoute: typeof ProtectedOrdersIndexRoute
+  ProtectedPayoutsIndexRoute: typeof ProtectedPayoutsIndexRoute
+  ProtectedProductsIndexRoute: typeof ProtectedProductsIndexRoute
 }
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedIndexRoute: ProtectedIndexRoute,
+  ProtectedAddressesIndexRoute: ProtectedAddressesIndexRoute,
+  ProtectedCommunicationIndexRoute: ProtectedCommunicationIndexRoute,
+  ProtectedCustomersIndexRoute: ProtectedCustomersIndexRoute,
+  ProtectedOrdersIndexRoute: ProtectedOrdersIndexRoute,
+  ProtectedPayoutsIndexRoute: ProtectedPayoutsIndexRoute,
+  ProtectedProductsIndexRoute: ProtectedProductsIndexRoute,
 }
 
 const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(

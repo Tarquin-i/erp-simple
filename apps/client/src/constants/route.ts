@@ -1,4 +1,13 @@
-import { LayoutDashboard, type LucideIcon } from "lucide-react";
+import {
+  CircleDollarSign,
+  ContactRound,
+  LayoutDashboard,
+  type LucideIcon,
+  MapPin,
+  MessagesSquare,
+  Package,
+  ReceiptText,
+} from "lucide-react";
 
 import type { FileRouteTypes } from "@/routeTree.gen";
 
@@ -26,5 +35,19 @@ export const ROUTES: Record<string, RouteGroup> = {
         exact: true,
       },
     ],
+  },
+  sales: {
+    label: "业务",
+    items: [
+      { label: "客户", path: "/customers", icon: ContactRound },
+      { label: "沟通", path: "/communication", icon: MessagesSquare },
+      { label: "地址", path: "/addresses", icon: MapPin },
+      { label: "产品", path: "/products", icon: Package },
+      { label: "Payout", path: "/payouts", icon: CircleDollarSign },
+    ],
+  },
+  orders: {
+    label: "订单",
+    items: [{ label: "订单", path: "/orders", icon: ReceiptText }],
   },
 };
