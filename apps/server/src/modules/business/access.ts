@@ -5,6 +5,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 
 import { database } from "../identity/auth/better-auth";
+import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
 import { requireAccountId } from "../organization/request";
 
@@ -17,34 +18,37 @@ export type BusinessAccessEnv = {
   Variables: { businessAccess: BusinessAccess };
 };
 
+export async function readBusinessAccess(
+  db: typeof database.db | DatabaseTransaction,
+  userId: string
+): Promise<BusinessAccess> {
+  const [identity] = await db
+    .select({
+      adminId: companyAdministrator.userId,
+      membership: { departmentId: member.organizationId, role: member.role },
+    })
+    .from(user)
+    .leftJoin(companyAdministrator, eq(companyAdministrator.userId, user.id))
+    .leftJoin(member, eq(member.userId, user.id))
+    .where(eq(user.id, userId))
+    .limit(1);
+
+  if (!identity) fail(401, "请先登录。");
+  if (identity.adminId) return { scope: "company", userId };
+  if (!identity.membership) fail(403, "加入部门后才能访问业务数据。");
+
+  const { departmentId, role } = identity.membership;
+  return {
+    scope: role === "supervisor" ? "department" : "own",
+    userId,
+    departmentId,
+  };
+}
+
 export const requireBusinessAccess = createMiddleware<BusinessAccessEnv>(
   async (c, next) => {
     const userId = await requireAccountId(c.req.raw.headers);
-    const [identity] = await database.db
-      .select({
-        adminId: companyAdministrator.userId,
-        membership: { departmentId: member.organizationId, role: member.role },
-      })
-      .from(user)
-      .leftJoin(companyAdministrator, eq(companyAdministrator.userId, user.id))
-      .leftJoin(member, eq(member.userId, user.id))
-      .where(eq(user.id, userId))
-      .limit(1);
-
-    if (!identity) fail(401, "请先登录。");
-    if (identity.adminId) {
-      c.set("businessAccess", { scope: "company", userId });
-    } else if (identity.membership) {
-      const { departmentId, role } = identity.membership;
-      c.set("businessAccess", {
-        scope: role === "supervisor" ? "department" : "own",
-        userId,
-        departmentId,
-      });
-    } else {
-      fail(403, "加入部门后才能访问业务数据。");
-    }
-
+    c.set("businessAccess", await readBusinessAccess(database.db, userId));
     await next();
   }
 );
