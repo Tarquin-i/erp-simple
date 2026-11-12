@@ -13,9 +13,11 @@ if (!databaseUrl) {
 export const database = createDatabase(databaseUrl);
 
 type Database = typeof database.db;
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type DatabaseTransaction = Parameters<
+  Parameters<Database["transaction"]>[0]
+>[0];
 
-function createAdapter(db: Database | Transaction) {
+function createAdapter(db: Database | DatabaseTransaction) {
   return drizzleAdapter(db, { provider: "pg", schema, transaction: true });
 }
 
@@ -34,7 +36,7 @@ const departments = organization({
 });
 
 // Only the server API of this instance is used, within the caller's transaction.
-export function createProvisioningAuth(tx: Transaction) {
+export function createProvisioningAuth(tx: DatabaseTransaction) {
   return betterAuth({
     database: createAdapter(tx),
     emailAndPassword: { enabled: true, autoSignIn: false },

@@ -8,6 +8,7 @@ import {
 import { and, eq } from "drizzle-orm";
 
 import { createProvisioningAuth, database } from "../identity/auth/better-auth";
+import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "./errors";
 
 export async function createDepartment(name: string) {
@@ -22,20 +23,27 @@ export async function createDepartment(name: string) {
   return department;
 }
 
+export async function lockDepartment(
+  tx: DatabaseTransaction,
+  departmentId: string
+) {
+  // Reviews and supervisor changes use the same lock, which allows FK references.
+  const [department] = await tx
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, departmentId))
+    .for("no key update")
+    .limit(1);
+  if (!department) fail(404, "该部门不存在。");
+}
+
 export function appointSupervisor(
   departmentId: string,
   email: string,
   adminId: string
 ) {
   return database.db.transaction(async (tx) => {
-    // Serialize supervisor changes for this department without blocking FK references.
-    const [department] = await tx
-      .select({ id: organization.id })
-      .from(organization)
-      .where(eq(organization.id, departmentId))
-      .for("no key update")
-      .limit(1);
-    if (!department) fail(404, "该部门不存在。");
+    await lockDepartment(tx, departmentId);
 
     const [candidate] = await tx
       .select({ id: user.id })
