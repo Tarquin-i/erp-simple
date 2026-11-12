@@ -6,50 +6,49 @@ import {
 } from "@repo/db/schema";
 import { eq, sql } from "drizzle-orm";
 
-const departmentNames = { a: "测试 A 部", b: "测试 B 部" } as const;
-type DepartmentKey = keyof typeof departmentNames;
+const seedDepartments = [
+  { key: "a", name: "业务一部" },
+  { key: "b", name: "业务二部" },
+  { key: "engineering", name: "技术部" },
+  { key: "product", name: "产品部" },
+] as const;
+type DepartmentKey = (typeof seedDepartments)[number]["key"];
 type SeedAccount = { login: string; name: string } & (
   | { role: "company-admin" }
   | { role: "member" | "supervisor" | "applicant"; department: DepartmentKey }
 );
 
 // These credentials are intentionally public fixtures for local testing.
-const seedPassword = "ErpLocalSeed#2026";
+const seedPassword = "12345678";
 const seedAccounts: readonly SeedAccount[] = [
-  { login: "company-admin", name: "测试公司管理员", role: "company-admin" },
+  { login: "a", name: "公司管理员", role: "company-admin" },
   {
-    login: "lead-a",
-    name: "测试 A 部主管",
+    login: "a1",
+    name: "业务一部主管",
     role: "supervisor",
     department: "a",
   },
   {
-    login: "staff-a1",
-    name: "测试 A 部员工 1",
+    login: "a2",
+    name: "业务一部员工",
     role: "member",
     department: "a",
   },
   {
-    login: "staff-a2",
-    name: "测试 A 部员工 2",
-    role: "member",
-    department: "a",
-  },
-  {
-    login: "lead-b",
-    name: "测试 B 部主管",
+    login: "b1",
+    name: "业务二部主管",
     role: "supervisor",
     department: "b",
   },
   {
-    login: "staff-b1",
-    name: "测试 B 部员工 1",
+    login: "b2",
+    name: "业务二部员工",
     role: "member",
     department: "b",
   },
   {
-    login: "pending-b",
-    name: "测试 B 部待审员工",
+    login: "p",
+    name: "业务二部待审员工",
     role: "applicant",
     department: "b",
   },
@@ -85,11 +84,11 @@ async function seedLocalAccounts() {
         sql`select pg_advisory_xact_lock(hashtext('erp:init-company-admin'))`
       );
       const departmentIds = new Map<DepartmentKey, string>();
-      for (const key of ["a", "b"] as const) {
+      for (const { key, name } of seedDepartments) {
         const slug = `erp-local-seed-${key}`;
         const [created] = await tx
           .insert(organization)
-          .values({ id: crypto.randomUUID(), name: departmentNames[key], slug })
+          .values({ id: crypto.randomUUID(), name, slug })
           .onConflictDoNothing({ target: organization.slug })
           .returning({ id: organization.id });
         const [department] = created
@@ -106,7 +105,7 @@ async function seedLocalAccounts() {
       const provisioningAuth = createProvisioningAuth(tx);
       let created = 0;
       for (const definition of seedAccounts) {
-        const email = `${definition.login}@example.test`;
+        const email = `${definition.login}@e.test`;
         const [existing] = await tx
           .select({ id: user.id })
           .from(user)
