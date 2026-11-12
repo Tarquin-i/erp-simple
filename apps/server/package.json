@@ -1,6 +1,7 @@
 {
   "name": "server",
   "scripts": {
+    "auth:init-admin": "bun src/scripts/init-admin.ts",
     "dev": "bun run --hot src/index.ts",
     "check-types": "tsc -p tsconfig.json --noEmit"
   },

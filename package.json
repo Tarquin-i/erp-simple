@@ -2,6 +2,7 @@
   "name": "my-turborepo",
   "private": true,
   "scripts": {
+    "auth:init-admin": "bun run --cwd apps/server auth:init-admin",
     "build": "turbo run build",
     "db:push": "turbo run db:push --filter=@repo/db",
     "db:studio": "turbo run db:studio --filter=@repo/db",
