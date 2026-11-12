@@ -1,5 +1,7 @@
 import {
+  Building2,
   CircleDollarSign,
+  ClipboardCheck,
   ContactRound,
   LayoutDashboard,
   type LucideIcon,
@@ -10,12 +12,14 @@ import {
 } from "lucide-react";
 
 import type { FileRouteTypes } from "@/routeTree.gen";
+import type { Viewer } from "@/request/organization";
 
 type RouteItem = {
   label: string;
   path: FileRouteTypes["to"];
   icon: LucideIcon;
   exact?: boolean;
+  role?: Viewer["role"];
 };
 
 type RouteGroup = {
@@ -33,6 +37,18 @@ export const ROUTES: Record<string, RouteGroup> = {
         path: "/",
         icon: LayoutDashboard,
         exact: true,
+      },
+      {
+        label: "部门管理",
+        path: "/department-management",
+        icon: Building2,
+        role: "company-admin",
+      },
+      {
+        label: "入部审批",
+        path: "/department-approvals",
+        icon: ClipboardCheck,
+        role: "supervisor",
       },
     ],
   },

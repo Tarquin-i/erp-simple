@@ -19,6 +19,8 @@ import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/i
 import { Route as ProtectedAddressesIndexRouteImport } from './routes/_protected/addresses/index'
 import { Route as ProtectedCommunicationIndexRouteImport } from './routes/_protected/communication/index'
 import { Route as ProtectedCustomersIndexRouteImport } from './routes/_protected/customers/index'
+import { Route as ProtectedDepartmentApprovalsIndexRouteImport } from './routes/_protected/department-approvals/index'
+import { Route as ProtectedDepartmentManagementIndexRouteImport } from './routes/_protected/department-management/index'
 import { Route as ProtectedOrdersIndexRouteImport } from './routes/_protected/orders/index'
 import { Route as ProtectedPayoutsIndexRouteImport } from './routes/_protected/payouts/index'
 import { Route as ProtectedProductsIndexRouteImport } from './routes/_protected/products/index'
@@ -72,6 +74,18 @@ const ProtectedCustomersIndexRoute = ProtectedCustomersIndexRouteImport.update({
   path: '/customers/',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedDepartmentApprovalsIndexRoute =
+  ProtectedDepartmentApprovalsIndexRouteImport.update({
+    id: '/department-approvals/',
+    path: '/department-approvals/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedDepartmentManagementIndexRoute =
+  ProtectedDepartmentManagementIndexRouteImport.update({
+    id: '/department-management/',
+    path: '/department-management/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedOrdersIndexRoute = ProtectedOrdersIndexRouteImport.update({
   id: '/orders/',
   path: '/orders/',
@@ -97,6 +111,8 @@ export interface FileRoutesByFullPath {
   '/addresses/': typeof ProtectedAddressesIndexRoute
   '/communication/': typeof ProtectedCommunicationIndexRoute
   '/customers/': typeof ProtectedCustomersIndexRoute
+  '/department-approvals/': typeof ProtectedDepartmentApprovalsIndexRoute
+  '/department-management/': typeof ProtectedDepartmentManagementIndexRoute
   '/orders/': typeof ProtectedOrdersIndexRoute
   '/payouts/': typeof ProtectedPayoutsIndexRoute
   '/products/': typeof ProtectedProductsIndexRoute
@@ -110,6 +126,8 @@ export interface FileRoutesByTo {
   '/addresses': typeof ProtectedAddressesIndexRoute
   '/communication': typeof ProtectedCommunicationIndexRoute
   '/customers': typeof ProtectedCustomersIndexRoute
+  '/department-approvals': typeof ProtectedDepartmentApprovalsIndexRoute
+  '/department-management': typeof ProtectedDepartmentManagementIndexRoute
   '/orders': typeof ProtectedOrdersIndexRoute
   '/payouts': typeof ProtectedPayoutsIndexRoute
   '/products': typeof ProtectedProductsIndexRoute
@@ -126,6 +144,8 @@ export interface FileRoutesById {
   '/_protected/addresses/': typeof ProtectedAddressesIndexRoute
   '/_protected/communication/': typeof ProtectedCommunicationIndexRoute
   '/_protected/customers/': typeof ProtectedCustomersIndexRoute
+  '/_protected/department-approvals/': typeof ProtectedDepartmentApprovalsIndexRoute
+  '/_protected/department-management/': typeof ProtectedDepartmentManagementIndexRoute
   '/_protected/orders/': typeof ProtectedOrdersIndexRoute
   '/_protected/payouts/': typeof ProtectedPayoutsIndexRoute
   '/_protected/products/': typeof ProtectedProductsIndexRoute
@@ -141,6 +161,8 @@ export interface FileRouteTypes {
     | '/addresses/'
     | '/communication/'
     | '/customers/'
+    | '/department-approvals/'
+    | '/department-management/'
     | '/orders/'
     | '/payouts/'
     | '/products/'
@@ -154,6 +176,8 @@ export interface FileRouteTypes {
     | '/addresses'
     | '/communication'
     | '/customers'
+    | '/department-approvals'
+    | '/department-management'
     | '/orders'
     | '/payouts'
     | '/products'
@@ -169,6 +193,8 @@ export interface FileRouteTypes {
     | '/_protected/addresses/'
     | '/_protected/communication/'
     | '/_protected/customers/'
+    | '/_protected/department-approvals/'
+    | '/_protected/department-management/'
     | '/_protected/orders/'
     | '/_protected/payouts/'
     | '/_protected/products/'
@@ -252,6 +278,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedCustomersIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/department-approvals/': {
+      id: '/_protected/department-approvals/'
+      path: '/department-approvals'
+      fullPath: '/department-approvals/'
+      preLoaderRoute: typeof ProtectedDepartmentApprovalsIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/department-management/': {
+      id: '/_protected/department-management/'
+      path: '/department-management'
+      fullPath: '/department-management/'
+      preLoaderRoute: typeof ProtectedDepartmentManagementIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/orders/': {
       id: '/_protected/orders/'
       path: '/orders'
@@ -295,6 +335,8 @@ interface ProtectedRouteChildren {
   ProtectedAddressesIndexRoute: typeof ProtectedAddressesIndexRoute
   ProtectedCommunicationIndexRoute: typeof ProtectedCommunicationIndexRoute
   ProtectedCustomersIndexRoute: typeof ProtectedCustomersIndexRoute
+  ProtectedDepartmentApprovalsIndexRoute: typeof ProtectedDepartmentApprovalsIndexRoute
+  ProtectedDepartmentManagementIndexRoute: typeof ProtectedDepartmentManagementIndexRoute
   ProtectedOrdersIndexRoute: typeof ProtectedOrdersIndexRoute
   ProtectedPayoutsIndexRoute: typeof ProtectedPayoutsIndexRoute
   ProtectedProductsIndexRoute: typeof ProtectedProductsIndexRoute
@@ -305,6 +347,10 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedAddressesIndexRoute: ProtectedAddressesIndexRoute,
   ProtectedCommunicationIndexRoute: ProtectedCommunicationIndexRoute,
   ProtectedCustomersIndexRoute: ProtectedCustomersIndexRoute,
+  ProtectedDepartmentApprovalsIndexRoute:
+    ProtectedDepartmentApprovalsIndexRoute,
+  ProtectedDepartmentManagementIndexRoute:
+    ProtectedDepartmentManagementIndexRoute,
   ProtectedOrdersIndexRoute: ProtectedOrdersIndexRoute,
   ProtectedPayoutsIndexRoute: ProtectedPayoutsIndexRoute,
   ProtectedProductsIndexRoute: ProtectedProductsIndexRoute,

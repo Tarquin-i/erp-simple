@@ -38,7 +38,7 @@ function WorkspaceLayout() {
   return (
     <TooltipProvider>
       <SidebarProvider>
-        <AppSidebar account={viewer.account} />
+        <AppSidebar account={viewer.account} role={viewer.role} />
         <SidebarInset className="min-w-0 bg-muted/30">
           <header className="flex h-14 shrink-0 items-center border-b bg-background px-4">
             <SidebarTrigger aria-label="切换侧边栏" />

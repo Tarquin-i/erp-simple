@@ -25,11 +25,14 @@ import {
 } from "@/components/ui/sidebar";
 import { ROUTES } from "@/constants/route";
 import { signOut } from "@/request/auth";
+import type { Viewer } from "@/request/organization";
 
 export function AppSidebar({
   account,
+  role,
 }: {
   account: { name: string; email: string; image?: string | null };
+  role: Viewer["role"];
 }) {
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
@@ -70,28 +73,30 @@ export function AppSidebar({
               </SidebarGroupLabel>
               <SidebarGroupContent className="mt-0.5">
                 <SidebarMenu className="gap-0.5">
-                  {group.items.map(({ label, path, icon: Icon, exact }) => (
-                    <SidebarMenuItem key={path}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={Boolean(
-                          matchRoute({
-                            to: path,
-                            fuzzy: !exact,
-                            includeSearch: false,
-                          })
-                        )}
-                      >
-                        <Link
-                          to={path}
-                          activeOptions={{ exact, includeSearch: false }}
+                  {group.items
+                    .filter((item) => !item.role || item.role === role)
+                    .map(({ label, path, icon: Icon, exact }) => (
+                      <SidebarMenuItem key={path}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={Boolean(
+                            matchRoute({
+                              to: path,
+                              fuzzy: !exact,
+                              includeSearch: false,
+                            })
+                          )}
                         >
-                          <Icon aria-hidden="true" />
-                          <span>{label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                          <Link
+                            to={path}
+                            activeOptions={{ exact, includeSearch: false }}
+                          >
+                            <Icon aria-hidden="true" />
+                            <span>{label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>

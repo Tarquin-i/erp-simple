@@ -1,5 +1,12 @@
 export type Department = { id: string; name: string };
 
+export type PendingApplication = {
+  id: string;
+  name: string;
+  email: string;
+  submittedAt: string;
+};
+
 export type Viewer = {
   account: { id: string; name: string; email: string; image: string | null };
   role: "company-admin" | "supervisor" | "member" | "applicant";
@@ -33,11 +40,41 @@ export function listDepartments() {
   return fetch(`${basePath}/departments`).then(readResponse<Department[]>);
 }
 
-export async function submitDepartmentApplication(departmentId: string) {
-  const response = await fetch(`${basePath}/applications`, {
+function post<T = unknown>(path: string, body: Record<string, string>) {
+  return fetch(`${basePath}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ departmentId }),
-  });
-  await readResponse(response);
+    body: JSON.stringify(body),
+  }).then(readResponse<T>);
+}
+
+export async function submitDepartmentApplication(departmentId: string) {
+  await post("/applications", { departmentId });
+}
+
+export function createDepartment(name: string) {
+  return post<Department>("/admin/departments", { name });
+}
+
+export function appointDepartmentSupervisor(
+  departmentId: string,
+  email: string
+) {
+  return post(
+    `/admin/departments/${encodeURIComponent(departmentId)}/supervisor`,
+    { email }
+  );
+}
+
+export function listPendingApplications() {
+  return fetch(`${basePath}/applications`).then(
+    readResponse<PendingApplication[]>
+  );
+}
+
+export function reviewDepartmentApplication(
+  id: string,
+  decision: "approve" | "reject"
+) {
+  return post(`/applications/${encodeURIComponent(id)}/review`, { decision });
 }
