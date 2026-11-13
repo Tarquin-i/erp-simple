@@ -109,22 +109,24 @@ export async function createDepartment(name: string) {
 }
 
 /**
- * 为部门加行锁，使该部门的申请审核、主管任命和客户写入串行执行。
+ * 为部门加行锁，协调成员权限变更与客户写入。
  * @param tx 当前数据库事务，行锁持有至事务结束。
  * @param departmentId 要锁定的部门 ID。
+ * @param mode 审核和任命使用默认的 `no key update`。客户写入使用可并行的 `share`，两种模式互斥。
  * @returns 锁定后完成，无业务数据。
  * @throws 部门不存在时抛出 HTTP 404 异常。
  */
 export async function lockDepartment(
   tx: DatabaseTransaction,
-  departmentId: string
+  departmentId: string,
+  mode: "share" | "no key update" = "no key update"
 ) {
-  // FOR NO KEY UPDATE 会互斥这些操作，同时允许外键引用部门。
+  // 两种模式都允许外键检查获取 FOR KEY SHARE。
   const [department] = await tx
     .select({ id: organization.id })
     .from(organization)
     .where(eq(organization.id, departmentId))
-    .for("no key update")
+    .for(mode)
     .limit(1);
   if (!department) fail(404, "该部门不存在。");
 }

@@ -336,7 +336,7 @@ function duplicateCustomer(): never {
 }
 
 /**
- * 写入前先锁部门，再核对实时权限并锁定客户记录。
+ * 写入前先共享锁定部门，再核对实时权限并锁定客户记录。
  * @param tx 调用方已经开启的写入事务。
  * @param access 调用方身份及最初的业务范围。
  * @param customerId 待修改的客户 ID。
@@ -356,7 +356,7 @@ export async function lockCustomerForWrite(
     );
   if (!target) fail(404, "客户不存在。");
 
-  await lockDepartment(tx, target.departmentId);
+  await lockDepartment(tx, target.departmentId, "share");
   // 等待部门锁期间，主管可能已失去部门级访问权限。
   const freshAccess = await readBusinessAccess(tx, access.userId);
   const [record] = await tx
@@ -446,7 +446,7 @@ export async function createCustomer(
   for (let attempt = 1; ; attempt++) {
     try {
       return await database.db.transaction(async (tx) => {
-        await lockDepartment(tx, departmentId);
+        await lockDepartment(tx, departmentId, "share");
         const freshAccess = await readBusinessAccess(tx, access.userId);
         if (input.departmentId !== undefined) {
           if (freshAccess.scope !== "company")

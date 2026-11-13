@@ -14,7 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
-import { organization } from "./organization";
+import { member, organization } from "./organization";
 
 /**
  * 生成供 PostgreSQL 随机抽取一个字母的 SQL 表达式。
@@ -73,6 +73,14 @@ export const customer = pgTable(
       table.ownerUserId
     ),
     index("customer_owner_user_idx").on(table.ownerUserId),
+    // 负责人必须属于客户部门，有客户归属的成员不能移除或转部。
+    foreignKey({
+      name: "customer_department_owner_member_fk",
+      columns: [table.departmentId, table.ownerUserId],
+      foreignColumns: [member.organizationId, member.userId],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     check(
       "customer_company_name_nonempty",
       sql`${table.normalizedCompanyName} <> ''`

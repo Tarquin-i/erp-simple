@@ -5,6 +5,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -42,6 +43,11 @@ export const member = pgTable(
       .notNull(),
   },
   (table) => [
+    // 客户负责人外键同时引用成员的部门和用户 ID。
+    unique("member_organization_user_unique").on(
+      table.organizationId,
+      table.userId
+    ),
     index("member_organization_id_idx").on(table.organizationId),
     uniqueIndex("member_department_supervisor_unique")
       .on(table.organizationId)
