@@ -11,6 +11,12 @@ import {
 import { fail } from "./errors";
 import { readText, requireAccountId } from "./request";
 
+/**
+ * 校验当前登录账号能否调用公司级部门管理接口。
+ * @param headers 包含会话凭据的请求头。
+ * @returns 公司管理员的账号 ID。
+ * @throws 无有效会话时抛出 HTTP 401，账号不是公司管理员时抛出 HTTP 403。
+ */
 async function requireCompanyAdministrator(headers: Headers) {
   const accountId = await requireAccountId(headers);
   const [admin] = await database.db

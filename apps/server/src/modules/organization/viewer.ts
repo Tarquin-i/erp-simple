@@ -13,6 +13,12 @@ import { fail } from "./errors";
 
 const requestedDepartment = alias(organization, "requested_department");
 
+/**
+ * 查询当前账号在工作台中的身份及入部状态，公司管理员身份优先于部门角色。
+ * @param accountId 当前登录账号的 ID。
+ * @returns 账号资料、角色、所属部门和最近一次入部申请。缺少部门或申请时，对应字段为 `null`。
+ * @throws 账号不存在时抛出 HTTP 401 异常。
+ */
 export async function getViewer(accountId: string) {
   const latestApplication = database.db
     .select({
@@ -31,7 +37,7 @@ export async function getViewer(accountId: string) {
     .limit(1)
     .as("latest_application");
 
-  // Read both membership and application status from the same snapshot.
+  // 在同一条查询中读取部门身份和申请状态，避免跨快照读到不一致的结果。
   const [viewer] = await database.db
     .select({
       account: {
