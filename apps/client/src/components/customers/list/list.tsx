@@ -1,12 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ContactRound,
-  Filter,
-  Plus,
-  Search,
-} from "lucide-react";
+import { ContactRound, Filter, Plus, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -38,6 +31,7 @@ import {
 import { listCustomers } from "@/request/customers";
 import type { CustomerListQuery } from "@/request/customers";
 
+import { CustomerPagination } from "../pagination";
 import { CustomerListFilters } from "./list-filters";
 
 type CustomerPage = Awaited<ReturnType<typeof listCustomers>>;
@@ -293,50 +287,19 @@ export function CustomerList({
               </TableRow>
             ))}
           </CustomerTable>
-          <nav
-            aria-label="客户列表分页"
-            className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground"
-          >
-            <span
-              className="tabular-nums"
-              title={`共 ${customerPage.total} 条`}
-            >
-              第 {customerPage.page} 页，共 {pageCount} 页
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                className="h-10 px-4"
-                aria-label="上一页"
-                disabled={customerPage.page <= 1}
-                onClick={() =>
-                  onQueryChange((previous) => ({
-                    ...previous,
-                    page:
-                      customerPage.page > 2 ? customerPage.page - 1 : undefined,
-                  }))
-                }
-              >
-                <ChevronLeft data-icon="inline-start" />
-                上一页
-              </Button>
-              <Button
-                variant="outline"
-                className="h-10 px-4"
-                aria-label="下一页"
-                disabled={customerPage.page >= pageCount}
-                onClick={() =>
-                  onQueryChange((previous) => ({
-                    ...previous,
-                    page: customerPage.page + 1,
-                  }))
-                }
-              >
-                下一页
-                <ChevronRight data-icon="inline-end" />
-              </Button>
-            </div>
-          </nav>
+          <CustomerPagination
+            label="客户列表分页"
+            page={customerPage.page}
+            pageCount={pageCount}
+            total={customerPage.total}
+            className="mt-4"
+            onPageChange={(page) =>
+              onQueryChange((previous) => ({
+                ...previous,
+                page: page > 1 ? page : undefined,
+              }))
+            }
+          />
         </>
       )}
     </main>
