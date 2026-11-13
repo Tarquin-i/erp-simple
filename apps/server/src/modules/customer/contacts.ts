@@ -165,6 +165,12 @@ async function listContacts(access: BusinessAccess, customerId: string) {
   return [...contacts.values()];
 }
 
+/**
+ * 读取联系人的联系方式。主要项排在最前，其余按创建时间和 ID 升序排列，供主要项递补使用。
+ * @param tx 调用方已经开启的事务。
+ * @param contactId 联系人 ID。
+ * @returns 按上述顺序排列的联系方式，没有记录时返回空数组。
+ */
 async function listMethods(tx: DatabaseTransaction, contactId: string) {
   return tx
     .select()
@@ -306,6 +312,14 @@ async function clearPrimary(
     );
 }
 
+/**
+ * 将指定联系方式设为主要项。
+ * @param tx 已锁定联系人的事务。调用方须先在该事务内取消或删除原主要项。
+ * @param contactId 联系人 ID。
+ * @param methodId 要设为主要项的联系方式 ID。
+ * @returns 更新完成后结束，无返回数据。
+ * @throws 仍有另一条主要项时，数据库唯一约束会拒绝更新。
+ */
 async function promoteMethod(
   tx: DatabaseTransaction,
   contactId: string,

@@ -26,7 +26,7 @@ const randomLetter = (letters: string) =>
 
 const customerNumberSyllable = `${randomLetter("BDFGHJKLMNPRSTVZ")}, ${randomLetter("AEIOU")}`;
 
-// 编号由 C、两组辅音加元音和两位数字组成，插入时由 PostgreSQL 生成。
+// 插入时未提供编号，PostgreSQL 默认生成 C、两组辅音加元音及两位数字组成的编号。
 // 沿用 huivo-erp 的 PostgreSQL 17 表达式，便于 Drizzle 和 pg_get_expr 的结果比较。
 const customerNumberDefault = sql.raw(
   `concat('C', ${customerNumberSyllable}, ${customerNumberSyllable}, lpad((random(0, 99))::text, 2, '0'::text))`

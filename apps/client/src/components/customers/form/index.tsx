@@ -31,6 +31,12 @@ import { conflictDifferences, isCustomerSnapshot } from "./edit-conflict";
 import { customerDraft, getChangedFields } from "./form-payload";
 import { CustomerOwnerFields } from "./owner-fields";
 
+/**
+ * 渲染新建和编辑共用的客户表单，并处理保存与版本冲突。
+ * @param props `customer` 有值时进入编辑模式，省略时新建。`owner` 提供初始业务员，`assignableOwners` 提供可选名单。
+ * `departments` 供管理员新建时选部门，`channels` 提供渠道选项，`onCancel` 和 `onSaved` 由路由决定页面去向。
+ * @returns 客户表单及版本冲突弹窗，保存失败时在表单中显示错误。
+ */
 export function CustomerForm({
   customer,
   owner,

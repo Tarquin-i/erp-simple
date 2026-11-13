@@ -203,6 +203,14 @@ export function listCustomers(
   }, readOnlySnapshot);
 }
 
+/**
+ * 在调用方事务内读取可见客户的完整资料，可用于返回刚写入的结果或版本冲突快照。
+ * @param tx 调用方已经开启的事务。
+ * @param access 调用方可查看的业务范围。
+ * @param id 客户 ID。
+ * @returns 客户基本资料和渠道、标签关联。
+ * @throws 客户不存在或超出可见范围时抛出 HTTP 404。
+ */
 async function readCustomer(
   tx: DatabaseTransaction,
   access: BusinessAccess,
@@ -251,10 +259,10 @@ function selectAssignableOwners(
 }
 
 /**
- * 按最新权限查询可指派的业务员。按客户查询时使用客户现有部门。
- * @param access 调用方身份及原有业务范围。
- * @param options 管理员新建时传部门 ID，编辑时传客户 ID。两者都省略时，主管使用本部门。
- * @returns 可选成员的 ID 和姓名，排除公司管理员。普通员工没有可指派选项。
+ * 在同一只读快照中重新读取权限，并查询可指派的业务员。
+ * @param access 调用方的业务权限，用其中的用户 ID 重新查询权限。
+ * @param options 管理员可传部门 ID，优先按指定部门查询。仅传客户 ID 时使用客户现有部门。两者都省略时，主管使用本部门。
+ * @returns 可指派成员的 ID 和姓名，排除公司管理员。普通员工以及未指定部门或客户的公司管理员得到空数组。
  * @throws 账号不存在时抛出 HTTP 401，权限不足时抛出 HTTP 403，部门不存在或客户不可见时抛出 HTTP 404。
  */
 export function listAssignableCustomerOwners(

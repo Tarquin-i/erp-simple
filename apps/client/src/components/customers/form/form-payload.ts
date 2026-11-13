@@ -16,9 +16,9 @@ export type Draft = {
 
 /**
  * 将客户资料转换为表单初始值，统一渠道和标签的选项结构。
- * @param customer 编辑时传入的客户详情，新建时省略。
+ * @param customer 编辑时传客户详情，新建时传 `undefined`。
  * @param owner 表单使用的初始业务员，可由详情或当前账号提供。
- * @returns 可直接填入表单的草稿，缺失的文本和选项使用空值。
+ * @returns 可直接填入表单的草稿。缺失的文本用空字符串，缺失的渠道和标签用空数组。
  */
 export function customerDraft(
   customer: Customer | undefined,

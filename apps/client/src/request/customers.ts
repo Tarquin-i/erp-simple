@@ -123,6 +123,13 @@ const contactsPath = (customerId: string) =>
 const contactPath = (customerId: string, contactId: string) =>
   `${contactsPath(customerId)}/${encodeURIComponent(contactId)}`;
 
+/**
+ * 按搜索、筛选和分页条件请求当前账号可见的客户。
+ * @param query 搜索词、渠道、标签、业务员、页码和每页条数，均可省略。
+ * @param signal 可选的请求取消信号，供列表切换查询条件时使用。
+ * @returns 当前页的 `customers`、总数 `total`、页码 `page` 和每页条数 `pageSize`。
+ * @throws HTTP 失败时抛出 `CustomerApiError`，取消或网络异常由调用方处理。
+ */
 export function listCustomers(query: CustomerListQuery, signal?: AbortSignal) {
   return request<PageMetadata & { customers: Customer[] }>(queryString(query), {
     signal,
@@ -170,6 +177,13 @@ export function listCustomerTags(query: PageQuery = {}, signal?: AbortSignal) {
   );
 }
 
+/**
+ * 按 ID 读取单个客户标签，供筛选器补查已选标签。
+ * @param id 要查找的标签 ID。
+ * @param signal 可选的请求取消信号。
+ * @returns `{ tag }`，包含标签 ID、名称和颜色。
+ * @throws HTTP 失败时抛出 `CustomerApiError`，标签不存在时状态码为 404。请求取消异常会传给调用方。
+ */
 export function getCustomerTag(id: string, signal?: AbortSignal) {
   return request<{ tag: CustomerTag }>(`/tags/${encodeURIComponent(id)}`, {
     signal,
@@ -191,11 +205,11 @@ export function listCustomerOwners(signal?: AbortSignal) {
 }
 
 /**
- * 查询客户表单可指派的业务员选项。
+ * 查询客户表单可指派的业务员选项。`customerId` 和 `departmentId` 按使用场景择一传入。
  * @param customerId 编辑时传入，按该客户原部门查询。
  * @param signal 可选的请求取消信号。
- * @param departmentId 公司管理员新建时选择的部门 ID。两种 ID 都省略时，主管按本人部门查询。
- * @returns `{ owners }`，包含服务端允许指派的成员 ID 和姓名。
+ * @param departmentId 公司管理员新建时选择的部门 ID。
+ * @returns `{ owners }`，包含可指派成员的 ID 和姓名。两个 ID 都省略时，主管取得本部门名单，管理员和普通员工取得空数组。
  * @throws HTTP 失败时抛出 `CustomerApiError`。请求被取消时向调用方抛出取消异常。
  */
 export function listAssignableCustomerOwners(
@@ -216,6 +230,13 @@ export function listCustomerContacts(customerId: string, signal?: AbortSignal) {
   });
 }
 
+/**
+ * 一并提交新联系人和首批联系方式。
+ * @param customerId 所属客户 ID。
+ * @param input 联系人姓名和至少一条联系方式，同一类型只能提交一条。
+ * @returns `{ contact }`，包含新联系人的资料、版本和联系方式。
+ * @throws HTTP 失败时抛出 `CustomerApiError`，无效输入为 400，客户不存在或不可见为 404，联系方式类型重复为 409。
+ */
 export function createCustomerContact(
   customerId: string,
   input: { name: string; methods: CustomerContactMethodInput[] }

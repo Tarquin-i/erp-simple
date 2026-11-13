@@ -89,9 +89,9 @@ export function readPositiveInteger(
 }
 
 /**
- * 校验客户端提交的记录版本，使其能存入 PostgreSQL 的 `integer` 列。
- * @param value 客户端提交的版本值。
- * @returns 1 至 2147483647 之间的整数版本号。
+ * 校验客户端提交的期望版本，供写入前与数据库中的版本比较。
+ * @param value 客户端读取记录时取得的版本号。
+ * @returns PostgreSQL `integer` 列可表示的正整数，即 1 至 2147483647。
  * @throws 版本缺失或不是范围内的整数时抛出 HTTP 400。
  */
 export function readExpectedVersion(value: unknown) {

@@ -137,6 +137,13 @@ type TagPage = {
   total: number;
 };
 
+/**
+ * 渲染可搜索、可分页的标签多选框，并按配置提供新建弹窗。
+ * @param props `id` 和 `label` 用于关联标签字段。`value` 是已选标签，`onChange` 接收更新后的选项。
+ * `allowCreate` 控制新建入口，`disabled` 控制选择操作。
+ * `onCreatingChange` 通知父表单创建开始和结束，供父表单在创建期间暂停保存。
+ * @returns 标签选择器和新建弹窗。创建成功后自动选中新标签，失败时保留输入并显示错误。
+ */
 export function CustomerTagPicker({
   allowCreate,
   onCreatingChange,

@@ -19,6 +19,12 @@ type DepartmentRoster = { departmentId: string } & (
   | { owners?: never; error: string }
 );
 
+/**
+ * 展示客户表单的部门和业务员字段。
+ * @param props `departments` 和 `departmentId` 供管理员新建时按部门加载业务员。其他场景使用传入的 `assignableOwners`。
+ * `owner` 是当前业务员，`onDepartmentChange` 和 `onOwnerChange` 通知表单更新，`disabled` 控制选择操作。
+ * @returns 传入 `departments` 时展示部门选择。业务员默认展示下拉框，未传 `departments` 和 `assignableOwners` 时展示只读字段。
+ */
 export function CustomerOwnerFields({
   departments,
   departmentId,
