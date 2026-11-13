@@ -15,7 +15,7 @@ export const user = pgTable("user", {
     .notNull(),
 });
 
-/** 登录会话，记录会话令牌、有效期和当前选中的部门。 */
+/** 登录会话，保存会话令牌和有效期。 */
 export const session = pgTable(
   "session",
   {
@@ -28,6 +28,7 @@ export const session = pgTable(
       .notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
+    // 组织插件预留的可空字段，当前登录流程不写入部门 ID。
     activeOrganizationId: text("active_organization_id"),
     userId: text("user_id")
       .notNull()

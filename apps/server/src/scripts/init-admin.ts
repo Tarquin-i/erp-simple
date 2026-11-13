@@ -1,3 +1,8 @@
+/**
+ * `bun run auth:init-admin` 的入口。读取 `BOOTSTRAP_ADMIN_EMAIL`，首次创建时也读取 `BOOTSTRAP_ADMIN_PASSWORD`。
+ * 账号注册和管理员写入在同一事务内完成，事务锁与本地种子脚本共用，避免同时初始化。
+ * 邮箱已对应公司管理员时直接成功。否则，已有其他管理员或邮箱已被注册时报告错误并设置退出码 1。
+ */
 import { companyAdministrator, user } from "@repo/db/schema";
 import { APIError } from "better-auth/api";
 import { eq, sql } from "drizzle-orm";
