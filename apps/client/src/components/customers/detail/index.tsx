@@ -17,9 +17,6 @@ const relatedTabs = [
   { value: "addresses", label: "地址" },
 ];
 
-const tabTriggerClass =
-  "min-w-[88px] focus-visible:border-transparent focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-offset-1";
-
 function DetailField({
   label,
   children,
@@ -86,6 +83,8 @@ function CustomerRemark({ remark }: { remark: string | null }) {
 export function CustomerDetail({ customer }: { customer: Customer }) {
   const [contactAddButtonSlot, setContactAddButtonSlot] =
     useState<HTMLDivElement | null>(null);
+  const [pointerFocus, setPointerFocus] = useState(false);
+  const tabTriggerClass = `min-w-[88px] focus-visible:border-transparent focus-visible:ring-0 ${pointerFocus ? "focus-visible:outline-none" : "focus-visible:outline-2 focus-visible:outline-offset-1"}`;
   const listQuery = readListQueryFromState(
     useRouterState({ select: (state) => state.location.state })
   );
@@ -144,7 +143,25 @@ export function CustomerDetail({ customer }: { customer: Customer }) {
       <Tabs defaultValue="contacts" className="mt-6 gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="min-w-0 overflow-x-auto overflow-y-hidden py-1">
-            <TabsList aria-label="客户关联信息">
+            <TabsList
+              aria-label="客户关联信息"
+              onPointerDownCapture={(event) => {
+                if (
+                  event.button === 0 &&
+                  !event.ctrlKey &&
+                  event.target instanceof Element &&
+                  event.target.closest('[role="tab"]')
+                ) {
+                  setPointerFocus(true);
+                }
+              }}
+              onKeyDownCapture={() => setPointerFocus(false)}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                  setPointerFocus(false);
+                }
+              }}
+            >
               <TabsTrigger className={tabTriggerClass} value="contacts">
                 联系方式
               </TabsTrigger>

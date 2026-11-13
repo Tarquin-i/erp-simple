@@ -152,17 +152,10 @@ export function CustomerForm({
   return (
     <main className="flex-1 bg-background px-5 py-6 sm:px-7 lg:px-8">
       <form onSubmit={submit} className="space-y-5">
-        <div
-          className={`flex flex-wrap justify-between gap-4 ${isEdit ? "items-start" : "items-center"}`}
-        >
-          <div className="min-w-0 space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight break-words">
-              {customer?.companyName ?? "新建客户"}
-            </h1>
-            {isEdit && (
-              <p className="text-sm text-muted-foreground">编辑客户</p>
-            )}
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="min-w-0 text-2xl font-semibold tracking-tight break-words">
+            {isEdit ? "编辑客户" : "新建客户"}
+          </h1>
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -192,10 +185,7 @@ export function CustomerForm({
         ) : null}
 
         <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
-          <Field
-            data-invalid={Boolean(nameError)}
-            className={isEdit ? "min-w-0 md:col-span-2" : "min-w-0"}
-          >
+          <Field data-invalid={Boolean(nameError)} className="min-w-0">
             <FieldLabel htmlFor="customer-form-name">客户名称</FieldLabel>
             <Input
               id="customer-form-name"
