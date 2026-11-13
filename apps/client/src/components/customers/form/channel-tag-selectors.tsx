@@ -1,5 +1,11 @@
 import { Plus } from "lucide-react";
-import { type ComponentPropsWithRef, useEffect, useRef, useState } from "react";
+import {
+  type ComponentPropsWithRef,
+  type FormEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +21,16 @@ import {
   ComboboxValue,
   useComboboxAnchor,
 } from "@/components/ui/combobox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { createCustomerTag, listCustomerTags } from "@/request/customers";
 
 export type CustomerFormOption = { id: string; name: string };
@@ -46,11 +61,7 @@ function SelectionControl({
   anchor: ReturnType<typeof useComboboxAnchor>;
   inputProps?: Pick<
     ComponentPropsWithRef<typeof ComboboxChipsInput>,
-    | "ref"
-    | "placeholder"
-    | "onCompositionStart"
-    | "onCompositionEnd"
-    | "onKeyDown"
+    "ref" | "onCompositionStart" | "onCompositionEnd" | "onKeyDown"
   >;
 }) {
   return (
@@ -138,7 +149,7 @@ export function CustomerTagPicker({
   const input = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
   const [open, setOpen] = useState(false);
-  const [enteringName, setEnteringName] = useState(false);
+  const [tagName, setTagName] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [results, setResults] = useState<TagPage | null>(null);
@@ -147,6 +158,7 @@ export function CustomerTagPicker({
   const [searchError, setSearchError] = useState("");
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
+  const tagNameId = `${props.id}-new-name`;
   const keyword = search.trim();
   const currentResult = results?.keyword === keyword ? results : null;
   const matchingTags = currentResult?.items ?? [];
@@ -161,7 +173,7 @@ export function CustomerTagPicker({
     !exactMatch &&
     !searchError;
   const items =
-    allowCreate && !keyword && !enteringName
+    allowCreate && !keyword
       ? [{ id: createTagOptionId, name: "" }, ...matchingTags]
       : canCreate
         ? [...matchingTags, { id: createTagOptionId, name: keyword }]
@@ -220,25 +232,27 @@ export function CustomerTagPicker({
     if (creating) return;
     if (value.trim() !== keyword) setPage(1);
     setSearch(value);
-    setCreateError("");
   }
 
-  async function createTag(name: string) {
+  async function submitTag(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    // A portaled form still bubbles through the customer form in React.
+    event.stopPropagation();
+    const name = tagName?.trim();
+    if (!name || creating) return;
+
     setCreateError("");
     setCreating(true);
     onCreatingChange(true);
     try {
       const { tag } = await createCustomerTag({ name });
       props.onChange([...props.value, { id: tag.id, name: tag.name }]);
-      setEnteringName(false);
-      setSearch("");
-      setPage(1);
       setReload((attempt) => attempt + 1);
+      setTagName(null);
     } catch (error) {
       setCreateError(
         error instanceof Error ? error.message : "标签新建失败，请重试。"
       );
-      setReload((attempt) => attempt + 1);
     } finally {
       setCreating(false);
       onCreatingChange(false);
@@ -273,12 +287,10 @@ export function CustomerTagPicker({
             return;
           }
           details.cancel();
-          if (createTagOption.name) {
-            void createTag(createTagOption.name);
-          } else {
-            setEnteringName(true);
-            input.current?.focus();
-          }
+          setOpen(false);
+          changeSearch("");
+          setCreateError("");
+          setTagName(createTagOption.name);
         }}
         itemToStringLabel={optionLabel}
         isItemEqualToValue={isSameOption}
@@ -288,10 +300,7 @@ export function CustomerTagPicker({
             return;
           }
           setOpen(next);
-          if (!next) {
-            setEnteringName(false);
-            changeSearch("");
-          }
+          if (!next) changeSearch("");
         }}
       >
         <SelectionControl
@@ -299,7 +308,6 @@ export function CustomerTagPicker({
           anchor={anchor}
           inputProps={{
             ref: input,
-            ...(enteringName && { placeholder: "输入标签名称" }),
             onCompositionStart: () => {
               composing.current = true;
             },
@@ -333,11 +341,7 @@ export function CustomerTagPicker({
                 {option.id === createTagOptionId ? (
                   <>
                     <Plus aria-hidden="true" />
-                    {creating
-                      ? "正在新建…"
-                      : option.name
-                        ? `新建标签「${option.name}」`
-                        : "新建标签"}
+                    {option.name ? `新建标签「${option.name}」` : "新建标签"}
                   </>
                 ) : (
                   option.name
@@ -345,11 +349,6 @@ export function CustomerTagPicker({
               </ComboboxItem>
             )}
           </ComboboxList>
-          {createError ? (
-            <FieldError className="border-t px-2 py-2">
-              {createError}
-            </FieldError>
-          ) : null}
           {searchError ? (
             <div className="border-t p-1">
               <Button
@@ -377,6 +376,73 @@ export function CustomerTagPicker({
           ) : null}
         </ComboboxContent>
       </Combobox>
+      <Dialog
+        open={tagName !== null}
+        onOpenChange={(next) => {
+          if (!next && !creating) setTagName(null);
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            input.current?.focus();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>新建标签</DialogTitle>
+            <DialogDescription className="sr-only">
+              创建后会自动选中这个标签。
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={submitTag}>
+            <Field data-invalid={Boolean(createError)}>
+              <FieldLabel htmlFor={tagNameId}>标签名称</FieldLabel>
+              <Input
+                id={tagNameId}
+                placeholder="输入标签名称"
+                maxLength={64}
+                value={tagName ?? ""}
+                readOnly={creating}
+                aria-required="true"
+                aria-invalid={Boolean(createError)}
+                aria-describedby={
+                  createError ? `${tagNameId}-error` : undefined
+                }
+                onChange={(event) => {
+                  setTagName(event.target.value);
+                  setCreateError("");
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    event.key === "Enter" &&
+                    (event.nativeEvent.isComposing ||
+                      event.nativeEvent.keyCode === 229)
+                  ) {
+                    event.preventDefault();
+                  }
+                }}
+              />
+              {createError && (
+                <FieldError id={`${tagNameId}-error`}>{createError}</FieldError>
+              )}
+            </Field>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={creating}
+                onClick={() => setTagName(null)}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={creating || !tagName?.trim()}>
+                {creating ? "正在创建…" : "创建"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Field>
   );
 }
