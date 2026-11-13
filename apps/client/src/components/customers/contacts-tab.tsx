@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, ContactRound, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   AlertDialog,
@@ -42,14 +43,8 @@ import type {
   CustomerContactMethod,
 } from "@/request/customers";
 
-import {
-  CustomerContactEditor,
-  contactMethodLabels,
-} from "./customer-contact-editor";
-import type {
-  ContactChange,
-  ContactEditorMode,
-} from "./customer-contact-editor";
+import { CustomerContactEditor, contactMethodLabels } from "./contact-editor";
+import type { ContactChange, ContactEditorMode } from "./contact-editor";
 import { VersionConflictDialog } from "./version-conflict-dialog";
 
 type ExistingChange = Exclude<ContactChange, { kind: "create" }>;
@@ -200,7 +195,13 @@ function contactRequest(
   }
 }
 
-export function CustomerContacts({ customerId }: { customerId: string }) {
+export function CustomerContacts({
+  customerId,
+  addButtonSlot,
+}: {
+  customerId: string;
+  addButtonSlot: HTMLDivElement | null;
+}) {
   const [contacts, setContacts] = useState<CustomerContact[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -212,7 +213,7 @@ export function CustomerContacts({ customerId }: { customerId: string }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const writing = useRef(false);
-  const trigger = useRef<HTMLButtonElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const rows = (contacts ?? []).flatMap((contact) =>
     (contact.methods.length ? contact.methods : [null]).map((method) => ({
@@ -256,7 +257,7 @@ export function CustomerContacts({ customerId }: { customerId: string }) {
 
   function restoreFocus() {
     requestAnimationFrame(() => {
-      if (trigger.current?.isConnected) trigger.current.focus();
+      if (triggerRef.current?.isConnected) triggerRef.current.focus();
       else addButton.current?.focus();
     });
   }
@@ -274,7 +275,7 @@ export function CustomerContacts({ customerId }: { customerId: string }) {
   }
 
   function openEditor(mode: ContactEditorMode, button: HTMLButtonElement) {
-    trigger.current = button;
+    triggerRef.current = button;
     setError("");
     setEditor(mode);
   }
@@ -355,7 +356,7 @@ export function CustomerContacts({ customerId }: { customerId: string }) {
     method: CustomerContactMethod,
     button: HTMLButtonElement
   ) {
-    trigger.current = button;
+    triggerRef.current = button;
     setError("");
     setDeletion({ kind: "delete", contact, method });
   }
@@ -388,19 +389,21 @@ export function CustomerContacts({ customerId }: { customerId: string }) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <Button
-          ref={addButton}
-          aria-label="添加联系方式"
-          className="h-10 px-4"
-          onClick={(event) =>
-            openEditor({ kind: "add", contacts }, event.currentTarget)
-          }
-        >
-          <Plus data-icon="inline-start" />
-          新建
-        </Button>
-      </div>
+      {addButtonSlot &&
+        createPortal(
+          <Button
+            ref={addButton}
+            aria-label="添加联系方式"
+            className="h-8 px-3"
+            onClick={(event) =>
+              openEditor({ kind: "add", contacts }, event.currentTarget)
+            }
+          >
+            <Plus data-icon="inline-start" />
+            新建
+          </Button>,
+          addButtonSlot
+        )}
       {error && !editor && !deletion && <FieldError>{error}</FieldError>}
       <p className="sr-only" role="status">
         {notice}

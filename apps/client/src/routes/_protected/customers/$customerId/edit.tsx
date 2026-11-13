@@ -4,8 +4,8 @@ import {
   CustomerForm,
   CustomerFormLoadError,
   CustomerFormPending,
-} from "@/components/customers/customer-form";
-import { getCustomerListQuery } from "@/components/customers/customer-list-query";
+} from "@/components/customers/form";
+import { readListQueryFromState } from "@/components/customers/list-query";
 import {
   getCustomer,
   listAssignableCustomerOwners,
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_protected/customers/$customerId/edit")({
 function EditCustomerPage() {
   const { customer, channels, assignableOwners } = Route.useLoaderData();
   const customerListQuery = useLocation({
-    select: (location) => getCustomerListQuery(location.state),
+    select: (location) => readListQueryFromState(location.state),
   });
   const navigate = Route.useNavigate();
 

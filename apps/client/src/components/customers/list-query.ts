@@ -13,7 +13,7 @@ function searchText(value: unknown, maximum: number) {
   return value.trim().replaceAll("\0", "").slice(0, maximum) || undefined;
 }
 
-export function parseCustomerListQuery(
+export function parseListQuery(
   search: Record<string, unknown>
 ): CustomerListQuery {
   const page =
@@ -42,11 +42,11 @@ export function parseCustomerListQuery(
   };
 }
 
-export function getCustomerListQuery(state: unknown): CustomerListQuery {
+export function readListQueryFromState(state: unknown): CustomerListQuery {
   if (!state || typeof state !== "object" || !("customerListQuery" in state))
     return {};
   const query = state.customerListQuery;
   return query && typeof query === "object"
-    ? parseCustomerListQuery(query as Record<string, unknown>)
+    ? parseListQuery(query as Record<string, unknown>)
     : {};
 }

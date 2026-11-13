@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Customer } from "@/request/customers";
 
-import { CustomerContacts } from "./customer-contacts";
-import { getCustomerListQuery } from "./customer-list-query";
+import { CustomerContacts } from "./contacts-tab";
+import { readListQueryFromState } from "./list-query";
 
 const relatedTabs = [
   { value: "communication", label: "沟通记录" },
@@ -81,7 +81,9 @@ function CustomerRemark({ remark }: { remark: string | null }) {
 }
 
 export function CustomerDetail({ customer }: { customer: Customer }) {
-  const listQuery = getCustomerListQuery(
+  const [contactAddButtonSlot, setContactAddButtonSlot] =
+    useState<HTMLDivElement | null>(null);
+  const listQuery = readListQueryFromState(
     useRouterState({ select: (state) => state.location.state })
   );
 
@@ -137,24 +139,33 @@ export function CustomerDetail({ customer }: { customer: Customer }) {
       </dl>
 
       <Tabs defaultValue="contacts" className="mt-6 gap-4">
-        <div className="overflow-x-auto">
-          <TabsList aria-label="客户关联信息">
-            <TabsTrigger className="min-w-[88px]" value="contacts">
-              联系方式
-            </TabsTrigger>
-            {relatedTabs.map((tab) => (
-              <TabsTrigger
-                className="min-w-[88px]"
-                key={tab.value}
-                value={tab.value}
-              >
-                {tab.label}
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="min-w-0 overflow-x-auto overflow-y-hidden py-1">
+            <TabsList aria-label="客户关联信息">
+              <TabsTrigger className="min-w-[88px]" value="contacts">
+                联系方式
               </TabsTrigger>
-            ))}
-          </TabsList>
+              {relatedTabs.map((tab) => (
+                <TabsTrigger
+                  className="min-w-[88px]"
+                  key={tab.value}
+                  value={tab.value}
+                >
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+          <div
+            ref={setContactAddButtonSlot}
+            className="ml-auto shrink-0 empty:hidden"
+          />
         </div>
         <TabsContent value="contacts">
-          <CustomerContacts customerId={customer.id} />
+          <CustomerContacts
+            customerId={customer.id}
+            addButtonSlot={contactAddButtonSlot}
+          />
         </TabsContent>
         {relatedTabs.map((tab) => (
           <TabsContent key={tab.value} value={tab.value}>

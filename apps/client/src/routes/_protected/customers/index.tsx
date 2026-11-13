@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 
-import { CustomerList } from "@/components/customers/customer-list";
-import { parseCustomerListQuery } from "@/components/customers/customer-list-query";
+import { CustomerList } from "@/components/customers/list";
+import { parseListQuery } from "@/components/customers/list-query";
 import type { CustomerListQuery } from "@/request/customers";
 
 export const Route = createFileRoute("/_protected/customers/")({
-  validateSearch: parseCustomerListQuery,
+  validateSearch: parseListQuery,
   component: CustomerListRoute,
 });
 
@@ -24,7 +24,7 @@ function CustomerListRoute() {
 
   return (
     <CustomerList
-      canCreate={viewer.role === "member" || viewer.role === "supervisor"}
+      canCreate={viewer.role !== "applicant"}
       query={query}
       onQueryChange={updateQuery}
       onOpenCustomer={(customerId) =>

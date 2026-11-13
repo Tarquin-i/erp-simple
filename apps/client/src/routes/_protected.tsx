@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 
 import { AppSidebar } from "@/components/layout/app-sidebar";
-import { CustomerBreadcrumbs } from "@/components/customers/customer-breadcrumbs";
+import { CustomerBreadcrumbs } from "@/components/customers/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import {
   SidebarInset,

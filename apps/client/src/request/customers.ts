@@ -127,7 +127,7 @@ export function getCustomer(id: string, signal?: AbortSignal) {
 }
 
 export function createCustomer(
-  input: CustomerWriteInput & { companyName: string }
+  input: CustomerWriteInput & { companyName: string; departmentId?: string }
 ) {
   return write<{ customer: Customer }>("", "POST", input);
 }
@@ -166,12 +166,14 @@ export function listCustomerOwners(signal?: AbortSignal) {
 
 export function listAssignableCustomerOwners(
   customerId?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  departmentId?: string
 ) {
   const path = customerId ? customerPath(customerId) : "";
-  return request<{ owners: CustomerOwner[] }>(`${path}/assignable-owners`, {
-    signal,
-  });
+  return request<{ owners: CustomerOwner[] }>(
+    `${path}/assignable-owners${queryString({ departmentId })}`,
+    { signal }
+  );
 }
 
 export function listCustomerContacts(customerId: string, signal?: AbortSignal) {

@@ -148,15 +148,15 @@ export function CustomerTagPicker({
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
   const keyword = search.trim();
-  const visible = results?.keyword === keyword ? results : null;
-  const matchingTags = visible?.items ?? [];
+  const currentResult = results?.keyword === keyword ? results : null;
+  const matchingTags = currentResult?.items ?? [];
   const exactMatch = [...matchingTags, ...props.value].some(
     (option) => option.name.toLowerCase() === keyword.toLowerCase()
   );
   const canCreate =
     allowCreate &&
     keyword &&
-    visible &&
+    currentResult &&
     !loading &&
     !exactMatch &&
     !searchError;
@@ -265,16 +265,16 @@ export function CustomerTagPicker({
             details.cancel();
             return;
           }
-          const newTag = selected.find(
+          const createTagOption = selected.find(
             (option) => option.id === createTagOptionId
           );
-          if (!newTag) {
+          if (!createTagOption) {
             props.onChange(selected);
             return;
           }
           details.cancel();
-          if (newTag.name) {
-            void createTag(newTag.name);
+          if (createTagOption.name) {
+            void createTag(createTagOption.name);
           } else {
             setEnteringName(true);
             input.current?.focus();
@@ -325,7 +325,7 @@ export function CustomerTagPicker({
         <ComboboxContent anchor={anchor}>
           <ComboboxEmpty>
             {searchError ||
-              (loading || !visible ? "正在加载标签…" : "没有匹配的标签")}
+              (loading || !currentResult ? "正在加载标签…" : "没有匹配的标签")}
           </ComboboxEmpty>
           <ComboboxList>
             {(option: CustomerFormOption) => (
@@ -361,14 +361,15 @@ export function CustomerTagPicker({
                 重试加载标签
               </Button>
             </div>
-          ) : visible && visible.page * tagPageSize < visible.total ? (
+          ) : currentResult &&
+            currentResult.page * tagPageSize < currentResult.total ? (
             <div className="border-t p-1">
               <Button
                 type="button"
                 variant="ghost"
                 className="w-full"
                 disabled={loading || creating}
-                onClick={() => setPage(visible.page + 1)}
+                onClick={() => setPage(currentResult.page + 1)}
               >
                 {loading ? "正在加载…" : "加载更多标签"}
               </Button>

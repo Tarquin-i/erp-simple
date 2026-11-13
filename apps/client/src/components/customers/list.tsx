@@ -38,13 +38,13 @@ import {
 import { listCustomers } from "@/request/customers";
 import type { CustomerListQuery } from "@/request/customers";
 
-import { CustomerListFilters } from "./customer-list-filters";
+import { CustomerListFilters } from "./list-filters";
 
 type CustomerPage = Awaited<ReturnType<typeof listCustomers>>;
 type QueryUpdater = (previous: CustomerListQuery) => CustomerListQuery;
 type ListState = {
   query: CustomerListQuery;
-  result?: CustomerPage;
+  customerPage?: CustomerPage;
   error?: string;
 };
 
@@ -61,13 +61,13 @@ export function CustomerList({
   onQueryChange: (update: QueryUpdater, replace?: boolean) => void;
   onOpenCustomer: (id: string) => void;
 }) {
-  const [list, setList] = useState<ListState>();
+  const [loadState, setLoadState] = useState<ListState>();
   const [retry, setRetry] = useState(0);
   const [filterOpen, setFilterOpen] = useState(false);
-  const state = list?.query === query ? list : undefined;
-  const result = state?.result;
-  const pageCount = result
-    ? Math.max(1, Math.ceil(result.total / result.pageSize))
+  const currentLoad = loadState?.query === query ? loadState : undefined;
+  const customerPage = currentLoad?.customerPage;
+  const pageCount = customerPage
+    ? Math.max(1, Math.ceil(customerPage.total / customerPage.pageSize))
     : 1;
   const hasFilters = Boolean(
     query.channelCode || query.tagId || query.ownerUserId
@@ -76,19 +76,19 @@ export function CustomerList({
     Number(Boolean(query.channelCode)) +
     Number(Boolean(query.tagId)) +
     Number(Boolean(query.ownerUserId));
-  const selectedTag = result?.customers
+  const selectedTag = customerPage?.customers
     .flatMap((customer) => customer.tags)
     .find((tag) => tag.id === query.tagId);
 
   useEffect(() => {
     const controller = new AbortController();
     listCustomers(query, controller.signal)
-      .then((result) => {
-        if (!controller.signal.aborted) setList({ query, result });
+      .then((customerPage) => {
+        if (!controller.signal.aborted) setLoadState({ query, customerPage });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        setList({
+        setLoadState({
           query,
           error:
             error instanceof Error ? error.message : "暂时无法加载客户列表。",
@@ -98,7 +98,7 @@ export function CustomerList({
   }, [query, retry]);
 
   useEffect(() => {
-    if (!result || result.page <= pageCount) return;
+    if (!customerPage || customerPage.page <= pageCount) return;
     onQueryChange(
       (previous) => ({
         ...previous,
@@ -106,7 +106,7 @@ export function CustomerList({
       }),
       true
     );
-  }, [result, pageCount, onQueryChange]);
+  }, [customerPage, pageCount, onQueryChange]);
 
   return (
     <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
@@ -190,23 +190,23 @@ export function CustomerList({
           )}
         </div>
       </div>
-      {state?.error ? (
+      {currentLoad?.error ? (
         <Empty className="min-h-56 border">
           <EmptyHeader>
             <EmptyTitle>客户列表加载失败</EmptyTitle>
-            <EmptyDescription>{state.error}</EmptyDescription>
+            <EmptyDescription>{currentLoad.error}</EmptyDescription>
           </EmptyHeader>
           <Button
             variant="outline"
             onClick={() => {
-              setList(undefined);
+              setLoadState(undefined);
               setRetry((value) => value + 1);
             }}
           >
             重试
           </Button>
         </Empty>
-      ) : !result || result.page > pageCount ? (
+      ) : !customerPage || customerPage.page > pageCount ? (
         <div role="status">
           <span className="sr-only">正在加载客户…</span>
           <CustomerTable>
@@ -223,7 +223,7 @@ export function CustomerList({
             ))}
           </CustomerTable>
         </div>
-      ) : result.customers.length === 0 ? (
+      ) : customerPage.customers.length === 0 ? (
         <Empty className="min-h-52 border">
           <EmptyHeader>
             <EmptyMedia
@@ -245,7 +245,7 @@ export function CustomerList({
       ) : (
         <>
           <CustomerTable>
-            {result.customers.map((customer) => (
+            {customerPage.customers.map((customer) => (
               <TableRow
                 className="cursor-pointer"
                 key={customer.id}
@@ -297,19 +297,23 @@ export function CustomerList({
             aria-label="客户列表分页"
             className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground"
           >
-            <span className="tabular-nums" title={`共 ${result.total} 条`}>
-              第 {result.page} 页，共 {pageCount} 页
+            <span
+              className="tabular-nums"
+              title={`共 ${customerPage.total} 条`}
+            >
+              第 {customerPage.page} 页，共 {pageCount} 页
             </span>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 className="h-10 px-4"
                 aria-label="上一页"
-                disabled={result.page <= 1}
+                disabled={customerPage.page <= 1}
                 onClick={() =>
                   onQueryChange((previous) => ({
                     ...previous,
-                    page: result.page > 2 ? result.page - 1 : undefined,
+                    page:
+                      customerPage.page > 2 ? customerPage.page - 1 : undefined,
                   }))
                 }
               >
@@ -320,11 +324,11 @@ export function CustomerList({
                 variant="outline"
                 className="h-10 px-4"
                 aria-label="下一页"
-                disabled={result.page >= pageCount}
+                disabled={customerPage.page >= pageCount}
                 onClick={() =>
                   onQueryChange((previous) => ({
                     ...previous,
-                    page: result.page + 1,
+                    page: customerPage.page + 1,
                   }))
                 }
               >

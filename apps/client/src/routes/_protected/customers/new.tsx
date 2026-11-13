@@ -1,35 +1,29 @@
-import { createFileRoute, redirect, useLocation } from "@tanstack/react-router";
+import { createFileRoute, useLocation } from "@tanstack/react-router";
 
 import {
   CustomerForm,
   CustomerFormLoadError,
   CustomerFormPending,
-} from "@/components/customers/customer-form";
-import { getCustomerListQuery } from "@/components/customers/customer-list-query";
+} from "@/components/customers/form";
+import { readListQueryFromState } from "@/components/customers/list-query";
 import {
   listAssignableCustomerOwners,
   listCustomerChannels,
 } from "@/request/customers";
+import { listDepartments } from "@/request/organization";
 
 export const Route = createFileRoute("/_protected/customers/new")({
-  beforeLoad: ({ context, location }) => {
-    if (context.viewer.role === "company-admin") {
-      throw redirect({
-        to: "/customers",
-        search: getCustomerListQuery(location.state),
-        replace: true,
-      });
-    }
-  },
   loader: async ({ abortController, context }) => {
     const { signal } = abortController;
-    const [{ channels }, ownerOptions] = await Promise.all([
+    const { role } = context.viewer;
+    const [{ channels }, ownerOptions, departments] = await Promise.all([
       listCustomerChannels(signal),
-      context.viewer.role === "supervisor"
+      role === "supervisor"
         ? listAssignableCustomerOwners(undefined, signal)
         : undefined,
+      role === "company-admin" ? listDepartments(signal) : undefined,
     ]);
-    return { channels, assignableOwners: ownerOptions?.owners };
+    return { channels, assignableOwners: ownerOptions?.owners, departments };
   },
   pendingComponent: CustomerFormPending,
   errorComponent: CustomerFormLoadError,
@@ -38,9 +32,9 @@ export const Route = createFileRoute("/_protected/customers/new")({
 
 function NewCustomerPage() {
   const { viewer } = Route.useRouteContext();
-  const { channels, assignableOwners } = Route.useLoaderData();
+  const { channels, assignableOwners, departments } = Route.useLoaderData();
   const customerListQuery = useLocation({
-    select: (location) => getCustomerListQuery(location.state),
+    select: (location) => readListQueryFromState(location.state),
   });
   const navigate = Route.useNavigate();
   const returnToList = () =>
@@ -48,8 +42,9 @@ function NewCustomerPage() {
 
   return (
     <CustomerForm
-      owner={viewer.account}
+      owner={departments ? undefined : viewer.account}
       assignableOwners={assignableOwners}
+      departments={departments}
       channels={channels}
       onCancel={() => void returnToList()}
       onSaved={returnToList}

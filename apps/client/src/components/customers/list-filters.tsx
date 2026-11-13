@@ -125,7 +125,7 @@ export function CustomerListFilters({
           />
         </div>
         <TagFilter
-          value={draft.tagId}
+          tagId={draft.tagId}
           selectedTag={selectedTag}
           onChange={(tagId) => setDraft((prev) => ({ ...prev, tagId }))}
         />
@@ -195,13 +195,13 @@ function FilterSelect({
 }
 
 function TagFilter({
-  value,
+  tagId,
   selectedTag,
   onChange,
 }: {
-  value?: string;
+  tagId?: string;
   selectedTag?: CustomerTag;
-  onChange: (value: string | undefined) => void;
+  onChange: (tagId: string | undefined) => void;
 }) {
   const [search, setSearch] = useState("");
   const composing = useRef(false);
@@ -246,31 +246,32 @@ function TagFilter({
   }, [keyword, page, retry]);
 
   const knownTag =
-    [retainedTag, selectedTag, lookup?.tag].find((tag) => tag?.id === value) ??
-    result?.tags.find((tag) => tag.id === value);
-  const lookupError = lookup?.id === value ? lookup : undefined;
-  const needsTagLookup = Boolean(result || error) && !knownTag && !lookupError;
+    [retainedTag, selectedTag, lookup?.tag].find((tag) => tag?.id === tagId) ??
+    result?.tags.find((tag) => tag.id === tagId);
+  const currentTagLookup = lookup?.id === tagId ? lookup : undefined;
+  const needsTagLookup =
+    Boolean(result || error) && !knownTag && !currentTagLookup;
 
   useEffect(() => {
-    if (!value || !needsTagLookup) return;
+    if (!tagId || !needsTagLookup) return;
 
     const controller = new AbortController();
-    getCustomerTag(value, controller.signal)
+    getCustomerTag(tagId, controller.signal)
       .then(({ tag }) => {
-        if (!controller.signal.aborted) setLookup({ id: value, tag });
+        if (!controller.signal.aborted) setLookup({ id: tagId, tag });
       })
       .catch((failure: unknown) => {
         if (controller.signal.aborted) return;
         const missing =
           failure instanceof CustomerApiError && failure.status === 404;
         setLookup({
-          id: value,
+          id: tagId,
           message: missing ? "所选标签不可用" : "所选标签加载失败",
           retryable: !missing,
         });
       });
     return () => controller.abort();
-  }, [value, needsTagLookup]);
+  }, [tagId, needsTagLookup]);
 
   function changePage(next: number) {
     setPage(next);
@@ -282,7 +283,7 @@ function TagFilter({
     <div className="space-y-2">
       <div className="flex min-h-5 items-center justify-between gap-2">
         <Label htmlFor="customer-tag-search">标签</Label>
-        {value && (
+        {tagId && (
           <div className="flex min-w-0 items-center gap-1">
             <Badge
               variant="secondary"
@@ -290,10 +291,12 @@ function TagFilter({
               title={knownTag?.name}
             >
               <span className="truncate">
-                {knownTag?.name ?? lookupError?.message ?? "正在读取所选标签…"}
+                {knownTag?.name ??
+                  currentTagLookup?.message ??
+                  "正在读取所选标签…"}
               </span>
             </Badge>
-            {lookupError?.retryable && !knownTag && (
+            {currentTagLookup?.retryable && !knownTag && (
               <Button
                 type="button"
                 variant="ghost"

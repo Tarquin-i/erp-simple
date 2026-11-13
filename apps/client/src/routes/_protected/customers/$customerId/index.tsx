@@ -5,8 +5,8 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 
-import { CustomerDetail } from "@/components/customers/customer-detail";
-import { getCustomerListQuery } from "@/components/customers/customer-list-query";
+import { CustomerDetail } from "@/components/customers/detail";
+import { readListQueryFromState } from "@/components/customers/list-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CustomerApiError, getCustomer } from "@/request/customers";
@@ -34,7 +34,7 @@ function CustomerDetailRoute() {
 
 function CustomerDetailError({ error }: { error: unknown }) {
   const router = useRouter();
-  const listQuery = getCustomerListQuery(
+  const listQuery = readListQueryFromState(
     useRouterState({ select: (state) => state.location.state })
   );
   const notFound = error instanceof CustomerApiError && error.status === 404;

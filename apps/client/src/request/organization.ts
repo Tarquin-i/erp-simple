@@ -43,8 +43,10 @@ export async function getViewer(): Promise<Viewer | null> {
   return readResponse<Viewer>(response);
 }
 
-export function listDepartments() {
-  return fetch(`${basePath}/departments`).then(readResponse<Department[]>);
+export function listDepartments(signal?: AbortSignal) {
+  return fetch(`${basePath}/departments`, { signal }).then(
+    readResponse<Department[]>
+  );
 }
 
 export function listDepartmentRosters() {
