@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Customer } from "@/request/customers";
 
-import { CustomerContacts } from "./contacts-tab";
-import { readListQueryFromState } from "./list-query";
+import { readListQueryFromState } from "../list/list-query";
+import { CustomerContacts } from "./contacts/contacts-tab";
 
 const relatedTabs = [
   { value: "communication", label: "沟通记录" },

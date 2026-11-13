@@ -31,37 +31,13 @@ import type {
   CustomerContactMethodType,
 } from "@/request/customers";
 
-export const contactMethodLabels: Record<CustomerContactMethodType, string> = {
-  phone: "电话",
-  email: "邮箱",
-  wechat: "微信",
-  whatsapp: "WhatsApp",
-  linkedin: "LinkedIn",
-  kingwin_alibaba: "将为阿里巴巴",
-  kingwin_international_station: "将为国际站",
-  huivo_international_station: "汇合国际站",
-};
+import { contactMethodLabels } from "./changes";
+import type { ContactChange } from "./changes";
 
 export type ContactEditorMode =
   | { kind: "add"; contacts: CustomerContact[]; selectedContactId?: string }
   | { kind: "rename"; contact: CustomerContact }
   | { kind: "edit"; contact: CustomerContact; method: CustomerContactMethod };
-
-export type ContactChange =
-  | { kind: "create"; name: string; method: CustomerContactMethodInput }
-  | {
-      kind: "add";
-      contact: CustomerContact;
-      method: CustomerContactMethodInput;
-    }
-  | { kind: "rename"; contact: CustomerContact; name: string }
-  | {
-      kind: "edit";
-      contact: CustomerContact;
-      methodId: string;
-      fields: Partial<CustomerContactMethodInput>;
-    }
-  | { kind: "delete"; contact: CustomerContact; method: CustomerContactMethod };
 
 const newContactId = "new-contact";
 
