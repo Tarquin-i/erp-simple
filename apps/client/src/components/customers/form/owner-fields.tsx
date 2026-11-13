@@ -38,6 +38,7 @@ export function CustomerOwnerFields({
 }) {
   const [ownerLookup, setOwnerLookup] = useState<DepartmentRoster>();
   const [rosterRetry, setRosterRetry] = useState(0);
+  // 结果按部门 ID 匹配，切换部门时旧名单不会显示在新部门下。
   const currentOwnerLookup =
     ownerLookup?.departmentId === departmentId ? ownerLookup : undefined;
   const loadingOwners = Boolean(departmentId && !currentOwnerLookup);
@@ -71,6 +72,7 @@ export function CustomerOwnerFields({
         });
       });
 
+    // 部门切换、重试或组件卸载时取消上一次查询。
     return () => controller.abort();
   }, [departmentId, rosterRetry]);
 

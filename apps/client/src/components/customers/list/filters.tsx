@@ -33,6 +33,7 @@ export function CustomerListFilters({
   selectedTag?: CustomerTag;
   onApply: (filters: Filters) => void;
 }) {
+  // 面板内先编辑草稿，点击应用或重置后才更新列表查询。
   const [draft, setDraft] = useState(filters);
   const [options, setOptions] = useState<{
     channels: CustomerChannel[];

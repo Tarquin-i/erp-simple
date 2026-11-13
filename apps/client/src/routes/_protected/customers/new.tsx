@@ -16,6 +16,7 @@ export const Route = createFileRoute("/_protected/customers/new")({
   loader: async ({ abortController, context }) => {
     const { signal } = abortController;
     const { role } = context.viewer;
+    // 主管直接读取本部门成员，管理员先读取部门选项，选定后再查成员。
     const [{ channels }, ownerOptions, departments] = await Promise.all([
       listCustomerChannels(signal),
       role === "supervisor"
@@ -37,6 +38,7 @@ function NewCustomerPage() {
     select: (location) => readListQueryFromState(location.state),
   });
   const navigate = Route.useNavigate();
+  // 返回列表时恢复进入表单前的搜索、筛选和页码。
   const returnToList = () =>
     navigate({ to: "/customers", search: customerListQuery, replace: true });
 

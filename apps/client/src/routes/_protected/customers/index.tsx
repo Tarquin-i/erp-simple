@@ -31,6 +31,7 @@ function CustomerListRoute() {
         void navigate({
           to: "/customers/$customerId",
           params: { customerId },
+          // 详情页返回时可用这份状态恢复列表的搜索、筛选和页码。
           state: { customerListQuery: query },
         })
       }

@@ -19,6 +19,11 @@ import {
 
 type Difference = { label: string; current: string; proposed: string };
 
+/**
+ * 展示服务端当前值和用户拟提交值，等待用户取消或确认覆盖。
+ * @param props 对比行、提交状态以及取消和覆盖回调。`differences` 为 `null` 时关闭弹窗。
+ * @returns 由调用方控制开关和异步提交状态的确认弹窗。
+ */
 export function VersionConflictDialog({
   differences,
   pending = false,
@@ -79,6 +84,7 @@ export function VersionConflictDialog({
           <AlertDialogAction
             disabled={pending}
             onClick={(event) => {
+              // 保持弹窗打开，由调用方在异步覆盖完成后更新弹窗状态。
               event.preventDefault();
               onOverwrite();
             }}

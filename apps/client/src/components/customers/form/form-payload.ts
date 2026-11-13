@@ -14,6 +14,12 @@ export type Draft = {
   tags: CustomerFormOption[];
 };
 
+/**
+ * 将客户资料转换为表单初始值，统一渠道和标签的选项结构。
+ * @param customer 编辑时传入的客户详情，新建时省略。
+ * @param owner 表单使用的初始业务员，可由详情或当前账号提供。
+ * @returns 可直接填入表单的草稿，缺失的文本和选项使用空值。
+ */
 export function customerDraft(
   customer: Customer | undefined,
   owner?: CustomerOwner
@@ -32,6 +38,12 @@ function optionIds(options: CustomerFormOption[]) {
   return options.map(({ id }) => id);
 }
 
+/**
+ * 按选项 ID 比较两组已去重的选择，忽略排列顺序和显示名称。
+ * @param before 原有选项。
+ * @param after 当前选项。
+ * @returns 两组包含相同 ID 时为 `true`。
+ */
 export function sameOptions(
   before: CustomerFormOption[],
   after: CustomerFormOption[]
@@ -41,6 +53,12 @@ export function sameOptions(
   return after.every(({ id }) => previous.has(id));
 }
 
+/**
+ * 生成只包含改动字段的客户写入参数。
+ * @param initial 打开表单时的初始草稿。
+ * @param draft 当前表单草稿。
+ * @returns 变更字段。空数组清空对应的渠道或标签，`null` 清空备注，省略字段保留原值。
+ */
 export function getChangedFields(
   initial: Draft,
   draft: Draft

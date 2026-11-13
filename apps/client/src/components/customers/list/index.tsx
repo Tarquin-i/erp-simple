@@ -44,6 +44,11 @@ type ListState = {
 
 const columnNames = ["客户编号", "客户名称", "渠道", "标签", "业务员"];
 
+/**
+ * 根据路由查询条件加载客户列表，并提供搜索、筛选和分页操作。
+ * @param props 列表条件、新建权限，以及更新路由条件和进入客户详情的回调。
+ * @returns 客户列表界面，包含加载、空列表和请求失败状态。
+ */
 export function CustomerList({
   canCreate,
   query,
@@ -74,6 +79,7 @@ export function CustomerList({
     .flatMap((customer) => customer.tags)
     .find((tag) => tag.id === query.tagId);
 
+  // 查询条件变化时取消上一次请求，避免旧响应覆盖新列表。
   useEffect(() => {
     const controller = new AbortController();
     listCustomers(query, controller.signal)
@@ -91,6 +97,7 @@ export function CustomerList({
     return () => controller.abort();
   }, [query, retry]);
 
+  // 当前页超出总页数时回到最后一页，并替换当前历史记录。
   useEffect(() => {
     if (!customerPage || customerPage.page <= pageCount) return;
     onQueryChange(
@@ -306,6 +313,11 @@ export function CustomerList({
   );
 }
 
+/**
+ * 显示客户搜索框，并将输入防抖后同步给调用方。
+ * @param props 当前路由中的搜索词，以及接收新搜索词的回调。清空时回调接收 `undefined`。
+ * @returns 按客户编号或名称搜索的输入框。
+ */
 function CustomerSearch({
   search,
   onSearch,
@@ -316,12 +328,14 @@ function CustomerSearch({
   const [draft, setDraft] = useState(search);
   const lastSubmitted = useRef<string | undefined>(undefined);
 
+  // 路由因前进或后退等外部导航变化时，用路由参数恢复输入。
   useEffect(() => {
     const submitted = lastSubmitted.current;
     lastSubmitted.current = undefined;
     if (submitted !== search) setDraft(search);
   }, [search]);
 
+  // 停止输入 300 毫秒后再更新查询条件。
   useEffect(() => {
     const value = draft.trim();
     if (value === search) return;

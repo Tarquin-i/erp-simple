@@ -20,6 +20,11 @@ import type { CustomerTag } from "@/request/customers";
 
 const tagPageSize = 20;
 
+/**
+ * 提供可搜索、可分页的单选标签筛选器，并显示已选标签。
+ * @param props 已选标签 ID、可复用的标签数据，以及通知选中或清除的回调。
+ * @returns 标签筛选界面，请求失败时显示相应提示。
+ */
 export function TagSelector({
   tagId,
   selectedTag,
@@ -45,6 +50,7 @@ export function TagSelector({
   }>();
   const keyword = search.trim();
 
+  // 有搜索词时对第一页请求做防抖，翻页立即查询，条件变化时取消旧请求。
   useEffect(() => {
     const controller = new AbortController();
     const timer = window.setTimeout(
@@ -78,6 +84,7 @@ export function TagSelector({
   const needsTagLookup =
     Boolean(result || error) && !knownTag && !currentTagLookup;
 
+  // 已选 ID 在已有数据中找不到时单独补查，返回列表或翻页后仍可显示标签名称。
   useEffect(() => {
     if (!tagId || !needsTagLookup) return;
 
@@ -188,6 +195,7 @@ export function TagSelector({
             composing.current = false;
           }}
           onKeyDown={(event) => {
+            // 输入法用回车确认文字时，暂不选中列表中的标签。
             if (
               event.key === "Enter" &&
               (composing.current ||

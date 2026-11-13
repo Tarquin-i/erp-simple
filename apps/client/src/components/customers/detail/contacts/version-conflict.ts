@@ -9,6 +9,12 @@ export type ContactConflict = {
   latest: CustomerContact;
 };
 
+/**
+ * 从版本冲突响应中提取当前联系人的最新快照。
+ * @param error 联系方式请求捕获的错误。
+ * @param contactId 本次操作的联系人 ID。
+ * @returns ID 匹配且含数值版本和联系方式数组的快照，其他情况返回 `undefined`。
+ */
 export function latestContact(error: unknown, contactId: string) {
   if (!(error instanceof CustomerApiError) || error.code !== "version_conflict")
     return;
@@ -26,6 +32,11 @@ export function latestContact(error: unknown, contactId: string) {
     return current as CustomerContact;
 }
 
+/**
+ * 生成联系人冲突弹窗中的当前值与拟提交值，标出会保留的服务端字段。
+ * @param conflict 包含待执行的操作和服务端最新联系人快照。
+ * @returns 按操作生成的对比行。待编辑的联系方式已不存在时返回空数组。
+ */
 export function conflictDifferences({ change, latest }: ContactConflict) {
   switch (change.kind) {
     case "rename":

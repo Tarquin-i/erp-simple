@@ -41,6 +41,12 @@ export type ContactEditorMode =
 
 const newContactId = "new-contact";
 
+/**
+ * 为同名联系人附上序号和主要联系方式，便于在下拉选项中区分。
+ * @param contact 要显示的联系人。
+ * @param contacts 下拉选项对应的完整联系人列表。
+ * @returns 联系人名称，存在同名项时返回带区分信息的标签。
+ */
 function contactOptionLabel(
   contact: CustomerContact,
   contacts: CustomerContact[]
@@ -110,6 +116,11 @@ export function CustomerContactEditor({
         value.trim() !== method.value ||
         isPrimary !== method.isPrimary;
 
+  /**
+   * 校验表单并通过回调提交对应操作，编辑时只提交改动字段。
+   * @param event 联系方式表单的提交事件。
+   * @returns 无返回值。校验失败时在表单内显示提示。
+   */
   function submit(event: FormEvent) {
     event.preventDefault();
     if (locked || !changed) return;

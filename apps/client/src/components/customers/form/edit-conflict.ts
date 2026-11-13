@@ -4,6 +4,12 @@ import type { CustomerFormOption } from "./channel-tag-selectors";
 import { customerDraft, sameOptions } from "./form-payload";
 import type { Draft } from "./form-payload";
 
+/**
+ * 检查版本冲突响应是否带有当前客户及对比弹窗所需的关键字段。
+ * @param value 服务端返回的 `current`，结构尚未确认。
+ * @param id 正在编辑的客户 ID。
+ * @returns ID 和关键字段匹配时为 `true`，供调用方使用该快照。
+ */
 export function isCustomerSnapshot(
   value: unknown,
   id: string
@@ -21,6 +27,14 @@ export function isCustomerSnapshot(
   );
 }
 
+/**
+ * 对比打开表单时、本地编辑后和服务端最新的客户资料。
+ * @param current 服务端返回的最新客户快照。
+ * @param changes 本次提交的变更字段。
+ * @param initial 打开表单时的初始草稿。
+ * @param draft 当前草稿，用来显示所选业务员、渠道和标签的名称。
+ * @returns 弹窗使用的差异列表。只在服务端发生变化的字段显示为「保留当前资料」。
+ */
 export function conflictDifferences(
   current: Customer,
   changes: CustomerWriteInput,

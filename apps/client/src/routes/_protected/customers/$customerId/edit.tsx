@@ -14,11 +14,13 @@ import {
 
 export const Route = createFileRoute("/_protected/customers/$customerId/edit")({
   loader: {
+    // 进入编辑页前等待资料更新，表单用加载结果建立初始草稿和版本。
     staleReloadMode: "blocking",
     handler: async ({ params, abortController, context }) => {
       const { signal } = abortController;
       const { customerId } = params;
       const { role } = context.viewer;
+      // 编辑按客户原部门查询业务员，普通员工只展示当前负责人。
       const [{ customer }, { channels }, ownerOptions] = await Promise.all([
         getCustomer(customerId, signal),
         listCustomerChannels(signal),

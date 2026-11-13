@@ -79,6 +79,12 @@ export function CustomerForm({
     requestAnimationFrame(() => nameRef.current?.focus());
   }
 
+  /**
+   * 新建或更新客户，成功后调用页面提供的保存回调。
+   * @param payload 本次提交的表单变更字段。
+   * @param expectedVersion 编辑时使用的客户版本，默认取打开表单时的版本。
+   * @returns 处理结束后完成，无业务数据。重名提示显示在名称字段，版本冲突交给对比弹窗处理。
+   */
   async function save(
     payload: CustomerWriteInput,
     expectedVersion = originalVersion
@@ -89,6 +95,7 @@ export function CustomerForm({
     setError("");
     setNameError("");
 
+    // 保存途中若路由已切换，响应到达后不再触发跳转或打开错误弹窗。
     let leftForm = false;
     const unsubscribe = router.history.subscribe(() => {
       leftForm = true;
@@ -250,6 +257,7 @@ export function CustomerForm({
             departments={departments}
             departmentId={departmentId}
             onDepartmentChange={(id) => {
+              // 新部门的业务员需要重新选择，旧部门的人选随部门切换清除。
               setDepartmentId(id);
               setNameError("");
               setError("");
@@ -295,6 +303,7 @@ export function CustomerForm({
         pending={pending}
         onCancel={() => setConflict(null)}
         onOverwrite={() => {
+          // 用刚对比过的服务端版本重试，仅提交本次修改的字段。
           if (conflict) void save(conflict.changes, conflict.current.version);
         }}
       />

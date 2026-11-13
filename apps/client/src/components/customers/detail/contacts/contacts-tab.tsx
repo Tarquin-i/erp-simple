@@ -47,6 +47,11 @@ import type { ContactConflict } from "./version-conflict";
 
 const rowsPerPage = 10;
 
+/**
+ * 展示并管理指定客户的联系人和联系方式。
+ * @param props 客户 ID 和页签栏右侧的新建按钮插槽。插槽未就绪时暂不显示按钮。
+ * @returns 分页列表、编辑弹层和删除或版本冲突确认弹窗。
+ */
 export function CustomerContacts({
   customerId,
   addButtonSlot,
@@ -67,6 +72,7 @@ export function CustomerContacts({
   const writing = useRef(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
+  // 按联系方式展开和分页，无联系方式的联系人仍保留一行，方便继续添加。
   const rows = (contacts ?? []).flatMap((contact) =>
     (contact.methods.length ? contact.methods : [null]).map((method) => ({
       contact,
@@ -83,6 +89,7 @@ export function CustomerContacts({
   }, [pageCount]);
 
   useEffect(() => {
+    // 切换客户或重新加载时取消上一笔请求，防止旧结果覆盖当前列表。
     const abort = new AbortController();
     void listCustomerContacts(customerId, abort.signal).then(
       ({ contacts: records }) => {
@@ -109,6 +116,7 @@ export function CustomerContacts({
 
   function restoreFocus() {
     requestAnimationFrame(() => {
+      // 删除后原按钮可能已离开页面，此时将焦点还给新建按钮。
       if (triggerRef.current?.isConnected) triggerRef.current.focus();
       else addButton.current?.focus();
     });
@@ -132,7 +140,14 @@ export function CustomerContacts({
     setEditor(mode);
   }
 
+  /**
+   * 提交联系人操作，用接口返回的记录更新列表，并处理失败提示和版本冲突。
+   * @param change 待提交的新增、改名、编辑或删除操作。
+   * @param expectedVersion 确认覆盖时使用的最新联系人版本，首次提交可省略。
+   * @returns 操作处理完成时结束。请求错误会显示在页面或冲突弹窗中。
+   */
   async function write(change: ContactChange, expectedVersion?: number) {
+    // 同步标记阻止 React 状态更新前的重复提交。
     if (writing.current) return;
     writing.current = true;
     setPending(true);
@@ -162,6 +177,7 @@ export function CustomerContacts({
       if (change.kind !== "create") {
         const latest = latestContact(error, change.contact.id);
         if (latest) {
+          // 先展示最新数据，再决定原操作是否还能重试。
           rememberContact(latest);
           const methodId =
             change.kind === "edit"
@@ -443,6 +459,7 @@ export function CustomerContacts({
           if (deletion) closeDelete();
         }}
         onOverwrite={() => {
+          // 以当前确认过的版本重试，期间若再次更新仍会收到冲突。
           if (conflict) void write(conflict.change, conflict.latest.version);
         }}
       />

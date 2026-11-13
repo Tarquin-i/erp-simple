@@ -172,6 +172,7 @@ export function CustomerTagPicker({
     !loading &&
     !exactMatch &&
     !searchError;
+  // 「新建标签」是下拉操作项，选中时打开弹窗，不写入已选标签。
   const items =
     allowCreate && !keyword
       ? [{ id: createTagOptionId, name: "" }, ...matchingTags]
@@ -179,6 +180,7 @@ export function CustomerTagPicker({
         ? [...matchingTags, { id: createTagOptionId, name: keyword }]
         : matchingTags;
 
+  // 仅在下拉打开时查询。搜索首屏防抖，条件变化时取消上一笔请求。
   useEffect(() => {
     if (!open) return;
 
@@ -234,9 +236,14 @@ export function CustomerTagPicker({
     setSearch(value);
   }
 
+  /**
+   * 提交标签弹窗，创建成功后自动选中新标签并关闭弹窗。
+   * @param event 标签弹窗表单的提交事件。
+   * @returns 处理结束后完成，无业务数据。创建失败时在弹窗内显示错误并保留输入。
+   */
   async function submitTag(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // A portaled form still bubbles through the customer form in React.
+    // React 会将 Portal 内的提交事件冒泡给客户表单，阻止它一并保存客户。
     event.stopPropagation();
     const name = tagName?.trim();
     if (!name || creating) return;
@@ -316,6 +323,7 @@ export function CustomerTagPicker({
             },
             onKeyDown: (event) => {
               if (event.key !== "Enter" || !open) return;
+              // 输入法选字时的回车应留给输入法，避免选中标签或提交表单。
               if (
                 composing.current ||
                 event.nativeEvent.isComposing ||

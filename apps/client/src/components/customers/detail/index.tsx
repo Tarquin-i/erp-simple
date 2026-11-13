@@ -41,6 +41,7 @@ function CustomerRemark({ remark }: { remark: string | null }) {
   const id = useId();
 
   useEffect(() => {
+    // 备注实际超出三行才显示展开按钮，容器宽度变化时重新测量。
     const element = paragraph.current;
     if (!element) return;
     function measure() {
@@ -81,8 +82,10 @@ function CustomerRemark({ remark }: { remark: string | null }) {
 }
 
 export function CustomerDetail({ customer }: { customer: Customer }) {
+  // 联系方式组件通过此插槽将新建按钮放在页签栏右侧。
   const [contactAddButtonSlot, setContactAddButtonSlot] =
     useState<HTMLDivElement | null>(null);
+  // 鼠标点击仅显示选中样式，键盘操作时保留焦点提示。
   const [pointerFocus, setPointerFocus] = useState(false);
   const tabTriggerClass = `min-w-[88px] focus-visible:border-transparent focus-visible:ring-0 ${pointerFocus ? "focus-visible:outline-none" : "focus-visible:outline-2 focus-visible:outline-offset-1"}`;
   const listQuery = readListQueryFromState(
