@@ -7,6 +7,7 @@ import { customerContactRoutes } from "./contacts";
 import {
   createCustomer,
   getCustomer,
+  listAssignableCustomerOwners,
   listCustomers,
   updateCustomer,
 } from "./customers";
@@ -22,6 +23,7 @@ import {
 
 const editableFields = [
   "companyName",
+  "ownerUserId",
   "remark",
   "channelCodes",
   "tagIds",
@@ -51,6 +53,10 @@ function readCustomerWrite(body: Record<string, unknown>): CustomerWriteInput {
       body.companyName === undefined
         ? undefined
         : readString(body.companyName, "客户名称", 256),
+    ownerUserId:
+      body.ownerUserId === undefined
+        ? undefined
+        : readString(body.ownerUserId, "业务员 ID", 128),
     remark: readRemark(body.remark),
     channelCodes: readSelection(body.channelCodes, "渠道", (value) =>
       readString(value, "渠道编码", 64)
@@ -98,6 +104,20 @@ customerRoutes.post("/", async (c) => {
     companyName: input.companyName,
   });
   return c.json({ customer }, 201);
+});
+
+customerRoutes.get("/assignable-owners", async (c) => {
+  const owners = await listAssignableCustomerOwners(c.get("businessAccess"));
+  return c.json({ owners });
+});
+
+customerRoutes.get("/:customerId/assignable-owners", async (c) => {
+  const id = readUuid(c.req.param("customerId"), "客户 ID");
+  const owners = await listAssignableCustomerOwners(
+    c.get("businessAccess"),
+    id
+  );
+  return c.json({ owners });
 });
 
 customerRoutes.get("/:customerId", async (c) => {

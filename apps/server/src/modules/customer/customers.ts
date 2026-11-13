@@ -1,4 +1,5 @@
 import {
+  companyAdministrator,
   customer,
   customerChannel,
   customerChannelAssignment,
@@ -15,6 +16,7 @@ import {
   eq,
   exists,
   inArray,
+  isNull,
   or,
   sql,
 } from "drizzle-orm";
@@ -32,6 +34,7 @@ type DepartmentAccess = Exclude<BusinessAccess, { scope: "company" }>;
 
 export interface CustomerWriteInput {
   companyName?: string;
+  ownerUserId?: string;
   remark?: string | null;
   channelCodes?: string[];
   tagIds?: string[];
@@ -209,6 +212,67 @@ export function getCustomer(access: BusinessAccess, id: string) {
   );
 }
 
+function selectAssignableOwners(
+  tx: DatabaseTransaction,
+  departmentId: string,
+  ownerUserId?: string
+) {
+  return tx
+    .select({ id: user.id, name: user.name })
+    .from(member)
+    .innerJoin(user, eq(user.id, member.userId))
+    .leftJoin(companyAdministrator, eq(companyAdministrator.userId, user.id))
+    .where(
+      and(
+        eq(member.organizationId, departmentId),
+        isNull(companyAdministrator.userId),
+        ownerUserId === undefined ? undefined : eq(member.userId, ownerUserId)
+      )
+    )
+    .orderBy(asc(user.name), asc(user.id));
+}
+
+export function listAssignableCustomerOwners(
+  access: BusinessAccess,
+  customerId?: string
+) {
+  return database.db.transaction(async (tx) => {
+    const freshAccess = await readBusinessAccess(tx, access.userId);
+    if (customerId === undefined) {
+      return freshAccess.scope === "department"
+        ? selectAssignableOwners(tx, freshAccess.departmentId)
+        : [];
+    }
+
+    const [record] = await tx
+      .select({ departmentId: customer.departmentId })
+      .from(customer)
+      .where(
+        and(
+          eq(customer.id, customerId),
+          businessScopeWhere(freshAccess, customer)
+        )
+      );
+    if (!record) fail(404, "客户不存在。");
+    return freshAccess.scope === "own"
+      ? []
+      : selectAssignableOwners(tx, record.departmentId);
+  }, readOnlySnapshot);
+}
+
+async function requireAssignableOwner(
+  tx: DatabaseTransaction,
+  departmentId: string,
+  ownerUserId: string
+) {
+  const [owner] = await selectAssignableOwners(
+    tx,
+    departmentId,
+    ownerUserId
+  ).for("share", { of: member });
+  if (!owner) fail(400, "请选择客户所属部门的成员作为业务员。");
+}
+
 function duplicateCustomer(): never {
   throw new HTTPException(409, {
     res: Response.json(
@@ -296,36 +360,39 @@ export async function createCustomer(
   access: DepartmentAccess,
   input: CustomerWriteInput & { companyName: string }
 ) {
-  const target = {
-    departmentId: access.departmentId,
-    ownerUserId: access.userId,
-  };
+  const { departmentId } = access;
 
   for (let attempt = 1; ; attempt++) {
     try {
       return await database.db.transaction(async (tx) => {
-        await lockDepartment(tx, target.departmentId);
-        const [membership] = await tx
-          .select({ id: member.id })
-          .from(member)
-          .where(
-            and(
-              eq(member.userId, target.ownerUserId),
-              eq(member.organizationId, target.departmentId)
-            )
-          )
-          .for("share");
-        if (!membership) fail(403, "加入部门后才能新建客户。");
+        await lockDepartment(tx, departmentId);
+        const freshAccess = await readBusinessAccess(tx, access.userId);
+        if (
+          freshAccess.scope === "company" ||
+          freshAccess.departmentId !== departmentId
+        ) {
+          fail(403, "请由有部门归属的业务员或主管新建客户。");
+        }
+        if (
+          input.ownerUserId !== undefined &&
+          freshAccess.scope !== "department"
+        ) {
+          fail(403, "只有部门主管可在新建时指定业务员。");
+        }
+        const ownerUserId = input.ownerUserId ?? freshAccess.userId;
+        await requireAssignableOwner(tx, departmentId, ownerUserId);
+
         const [record] = await tx
           .insert(customer)
           .values({
-            ...target,
+            departmentId,
+            ownerUserId,
             companyName: input.companyName,
             remark: input.remark,
           })
           .returning({ id: customer.id });
         await insertAssignments(tx, record.id, input);
-        return readCustomer(tx, access, record.id);
+        return readCustomer(tx, freshAccess, record.id);
       });
     } catch (error) {
       if (!isConstraintError(error, "23505", "customer_customer_no_unique"))
@@ -348,14 +415,25 @@ export async function updateCustomer(
         access,
         id
       );
+      if (input.ownerUserId !== undefined && freshAccess.scope === "own") {
+        fail(403, "只有部门主管或公司管理员可更换业务员。");
+      }
       if (record.version !== expectedVersion) {
         failVersionConflict(await readCustomer(tx, freshAccess, id));
+      }
+      if (input.ownerUserId !== undefined) {
+        await requireAssignableOwner(
+          tx,
+          record.departmentId,
+          input.ownerUserId
+        );
       }
 
       await tx
         .update(customer)
         .set({
           companyName: input.companyName,
+          ownerUserId: input.ownerUserId,
           remark: input.remark,
           updatedAt: new Date(),
           version: sql`${customer.version} + 1`,
