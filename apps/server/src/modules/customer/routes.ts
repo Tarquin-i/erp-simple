@@ -10,8 +10,8 @@ import {
   listAssignableCustomerOwners,
   listCustomers,
   updateCustomer,
-} from "./customers";
-import type { CustomerWriteInput } from "./customers";
+} from "./records";
+import type { CustomerWriteInput } from "./records";
 import { customerDictionaryRoutes } from "./dictionaries";
 import {
   readExpectedVersion,
@@ -95,28 +95,41 @@ customerRoutes.get("/", async (c) => {
 
 customerRoutes.post("/", async (c) => {
   const access = c.get("businessAccess");
-  if (access.scope === "company")
-    fail(403, "请由有部门归属的业务员或主管新建客户。");
-  const input = readCustomerWrite(await readObject(c, editableFields));
+  const body = await readObject(c, [...editableFields, "departmentId"]);
+  if (body.departmentId !== undefined && access.scope !== "company")
+    fail(403, "只有公司管理员可指定客户所属部门。");
+  const input = readCustomerWrite(body);
   if (input.companyName === undefined) fail(400, "请填写客户名称。");
   const customer = await createCustomer(access, {
     ...input,
     companyName: input.companyName,
+    departmentId:
+      body.departmentId === undefined
+        ? undefined
+        : readString(body.departmentId, "部门 ID", 128),
   });
   return c.json({ customer }, 201);
 });
 
 customerRoutes.get("/assignable-owners", async (c) => {
-  const owners = await listAssignableCustomerOwners(c.get("businessAccess"));
+  const access = c.get("businessAccess");
+  const requestedDepartment = c.req.query("departmentId");
+  if (requestedDepartment !== undefined && access.scope !== "company")
+    fail(403, "只有公司管理员可指定部门查询业务员。");
+  const owners = await listAssignableCustomerOwners(access, {
+    departmentId:
+      requestedDepartment === undefined
+        ? undefined
+        : readString(requestedDepartment, "部门 ID", 128),
+  });
   return c.json({ owners });
 });
 
 customerRoutes.get("/:customerId/assignable-owners", async (c) => {
   const id = readUuid(c.req.param("customerId"), "客户 ID");
-  const owners = await listAssignableCustomerOwners(
-    c.get("businessAccess"),
-    id
-  );
+  const owners = await listAssignableCustomerOwners(c.get("businessAccess"), {
+    customerId: id,
+  });
   return c.json({ owners });
 });
 

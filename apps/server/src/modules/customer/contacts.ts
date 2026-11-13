@@ -12,7 +12,7 @@ import type { BusinessAccess, BusinessAccessEnv } from "../business/access";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
-import { lockCustomerForWrite } from "./customers";
+import { lockCustomerForWrite } from "./records";
 import {
   failVersionConflict,
   isConstraintError,

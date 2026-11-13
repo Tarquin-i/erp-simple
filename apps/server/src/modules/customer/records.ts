@@ -6,6 +6,7 @@ import {
   customerTag,
   customerTagAssignment,
   member,
+  organization,
   user,
 } from "@repo/db/schema";
 import {
@@ -29,8 +30,6 @@ import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { lockDepartment } from "../organization/departments";
 import { fail } from "../organization/errors";
 import { failVersionConflict, isConstraintError } from "./input";
-
-type DepartmentAccess = Exclude<BusinessAccess, { scope: "company" }>;
 
 export interface CustomerWriteInput {
   companyName?: string;
@@ -234,10 +233,24 @@ function selectAssignableOwners(
 
 export function listAssignableCustomerOwners(
   access: BusinessAccess,
-  customerId?: string
+  {
+    customerId,
+    departmentId,
+  }: { customerId?: string; departmentId?: string } = {}
 ) {
   return database.db.transaction(async (tx) => {
     const freshAccess = await readBusinessAccess(tx, access.userId);
+    if (departmentId !== undefined) {
+      if (freshAccess.scope !== "company")
+        fail(403, "只有公司管理员可指定部门查询业务员。");
+      const [department] = await tx
+        .select({ id: organization.id })
+        .from(organization)
+        .where(eq(organization.id, departmentId));
+      if (!department) fail(404, "该部门不存在。");
+      return selectAssignableOwners(tx, departmentId);
+    }
+
     if (customerId === undefined) {
       return freshAccess.scope === "department"
         ? selectAssignableOwners(tx, freshAccess.departmentId)
@@ -357,27 +370,33 @@ function translateWriteError(error: unknown): never {
 }
 
 export async function createCustomer(
-  access: DepartmentAccess,
-  input: CustomerWriteInput & { companyName: string }
+  access: BusinessAccess,
+  input: CustomerWriteInput & { companyName: string; departmentId?: string }
 ) {
-  const { departmentId } = access;
+  if (input.departmentId !== undefined && access.scope !== "company")
+    fail(403, "只有公司管理员可指定客户所属部门。");
+  const departmentId =
+    access.scope === "company" ? input.departmentId : access.departmentId;
+  if (departmentId === undefined) fail(400, "请选择客户所属部门。");
+  if (access.scope === "company" && input.ownerUserId === undefined)
+    fail(400, "请选择业务员。");
 
   for (let attempt = 1; ; attempt++) {
     try {
       return await database.db.transaction(async (tx) => {
         await lockDepartment(tx, departmentId);
         const freshAccess = await readBusinessAccess(tx, access.userId);
-        if (
+        if (input.departmentId !== undefined) {
+          if (freshAccess.scope !== "company")
+            fail(403, "只有公司管理员可指定客户所属部门。");
+        } else if (
           freshAccess.scope === "company" ||
           freshAccess.departmentId !== departmentId
         ) {
-          fail(403, "请由有部门归属的业务员或主管新建客户。");
+          fail(403, "只能在当前所属部门新建客户。");
         }
-        if (
-          input.ownerUserId !== undefined &&
-          freshAccess.scope !== "department"
-        ) {
-          fail(403, "只有部门主管可在新建时指定业务员。");
+        if (input.ownerUserId !== undefined && freshAccess.scope === "own") {
+          fail(403, "只有部门主管或公司管理员可在新建时指定业务员。");
         }
         const ownerUserId = input.ownerUserId ?? freshAccess.userId;
         await requireAssignableOwner(tx, departmentId, ownerUserId);
