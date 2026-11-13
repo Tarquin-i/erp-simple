@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
 
+/** Better Auth 的用户资料，邮箱在所有用户中唯一。 */
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -14,6 +15,7 @@ export const user = pgTable("user", {
     .notNull(),
 });
 
+/** 登录会话，记录会话令牌、有效期和当前选中的部门。 */
 export const session = pgTable(
   "session",
   {
@@ -34,6 +36,7 @@ export const session = pgTable(
   (table) => [index("session_userId_idx").on(table.userId)]
 );
 
+/** 用户的登录凭据。邮箱密码登录的密码字段由 Better Auth 写入哈希。 */
 export const account = pgTable(
   "account",
   {
@@ -58,6 +61,7 @@ export const account = pgTable(
   (table) => [index("account_userId_idx").on(table.userId)]
 );
 
+/** Better Auth 的临时验证记录，保存验证值及其有效期。 */
 export const verification = pgTable(
   "verification",
   {

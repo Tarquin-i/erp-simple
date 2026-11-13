@@ -10,7 +10,7 @@ import {
 
 import { user } from "./auth";
 
-// Each Better Auth organization represents one ERP department.
+/** 每条 Better Auth 组织记录对应一个 ERP 部门。 */
 export const organization = pgTable("organization", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -22,6 +22,7 @@ export const organization = pgTable("organization", {
     .notNull(),
 });
 
+/** 部门成员及其角色。每位用户最多加入一个部门，每个部门最多一名主管。 */
 export const member = pgTable(
   "member",
   {
@@ -49,7 +50,7 @@ export const member = pgTable(
   ]
 );
 
-// Required by the Organization plugin schema. ERP applications have their own table.
+/** Better Auth 组织插件的邀请表。ERP 入部申请使用 department_application。 */
 export const invitation = pgTable(
   "invitation",
   {
