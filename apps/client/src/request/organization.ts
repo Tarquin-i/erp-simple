@@ -54,12 +54,23 @@ export async function getViewer(): Promise<Viewer | null> {
   return readResponse<Viewer>(response);
 }
 
+/**
+ * 查询可选部门。
+ * @param signal 可选的请求取消信号。
+ * @returns 部门 ID 和名称的列表。
+ * @throws 请求取消、失败或响应解析失败时抛出异常。
+ */
 export function listDepartments(signal?: AbortSignal) {
   return fetch(`${basePath}/departments`, { signal }).then(
     readResponse<Department[]>
   );
 }
 
+/**
+ * 为公司管理员查询各部门的成员名册和待审申请人。
+ * @returns 含成员及待审申请人的部门列表。
+ * @throws 请求或响应解析失败时抛出异常。无管理权限时接口返回 HTTP 403。
+ */
 export function listDepartmentRosters() {
   return fetch(`${basePath}/admin/departments`).then(
     readResponse<DepartmentRoster[]>
@@ -84,6 +95,12 @@ export async function submitDepartmentApplication(departmentId: string) {
   await post("/applications", { departmentId });
 }
 
+/**
+ * 以公司管理员身份创建部门。
+ * @param name 新部门的名称。
+ * @returns 新部门的 ID 和名称。
+ * @throws 请求或响应解析失败时抛出异常。名称已存在时接口返回 HTTP 409。
+ */
 export function createDepartment(name: string) {
   return post<Department>("/admin/departments", { name });
 }
@@ -92,7 +109,7 @@ export function createDepartment(name: string) {
  * 提交部门主管任命请求。
  * @param departmentId 要任命主管的部门 ID。
  * @param email 候选人的注册邮箱。
- * @returns 服务器返回的部门 ID、候选人账号 ID 和主管角色。
+ * @returns `Promise<unknown>`，成功响应包含 `departmentId`、`userId` 和值为 `supervisor` 的 `role`。
  * @throws 请求失败时抛出异常，例如候选人已属于其他部门。
  */
 export function appointDepartmentSupervisor(
@@ -105,6 +122,11 @@ export function appointDepartmentSupervisor(
   );
 }
 
+/**
+ * 查询当前主管所在部门的待审入部申请。
+ * @returns 申请列表，当前部门没有待审申请时为空数组。
+ * @throws 请求或响应解析失败时抛出异常。当前账号不是部门主管时接口返回 HTTP 403。
+ */
 export function listPendingApplications() {
   return fetch(`${basePath}/applications`).then(
     readResponse<PendingApplication[]>
@@ -115,7 +137,7 @@ export function listPendingApplications() {
  * 提交对一条待审入部申请的审核决定。
  * @param id 入部申请 ID。
  * @param decision `approve` 表示通过，`reject` 表示拒绝。
- * @returns 服务器返回的申请 ID 和审核结果。
+ * @returns `Promise<unknown>`，成功响应包含 `id` 和 `status`，状态为 `approved` 或 `rejected`。
  * @throws 请求失败时抛出异常，例如申请已被处理。
  */
 export function reviewDepartmentApplication(
