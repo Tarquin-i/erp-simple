@@ -52,6 +52,23 @@ export async function readBusinessAccess(
   };
 }
 
+/**
+ * 在同一只读快照内读取账号权限并查询业务数据。
+ * @param userId 已登录的用户 ID。
+ * @param read 使用当前事务和快照内权限的查询。
+ * @returns 查询结果。
+ * @throws 账号不存在或无业务权限时抛出 HTTP 401 或 403。
+ */
+export function withBusinessReadSnapshot<T>(
+  userId: string,
+  read: (tx: DatabaseTransaction, access: BusinessAccess) => Promise<T>
+): Promise<T> {
+  return database.db.transaction(
+    async (tx) => read(tx, await readBusinessAccess(tx, userId)),
+    { isolationLevel: "repeatable read", accessMode: "read only" }
+  );
+}
+
 // 将会话对应的数据范围写入请求上下文，供后续业务路由读取。
 export const requireBusinessAccess = createMiddleware<BusinessAccessEnv>(
   async (c, next) => {

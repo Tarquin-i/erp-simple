@@ -3,7 +3,10 @@ import { asc, count, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 
 import type { BusinessAccessEnv } from "../business/access";
-import { businessScopeWhere } from "../business/access";
+import {
+  businessScopeWhere,
+  withBusinessReadSnapshot,
+} from "../business/access";
 import { database } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
 import {
@@ -25,12 +28,16 @@ export const customerDictionaryRoutes = new Hono<BusinessAccessEnv>();
 
 // 列表筛选项取自当前可见客户的现有负责人。表单指派选项按部门成员查询。
 customerDictionaryRoutes.get("/owners", async (c) => {
-  const owners = await database.db
-    .selectDistinct({ id: user.id, name: user.name })
-    .from(customer)
-    .innerJoin(user, eq(user.id, customer.ownerUserId))
-    .where(businessScopeWhere(c.get("businessAccess"), customer))
-    .orderBy(asc(user.name), asc(user.id));
+  const owners = await withBusinessReadSnapshot(
+    c.get("businessAccess").userId,
+    (tx, currentAccess) =>
+      tx
+        .selectDistinct({ id: user.id, name: user.name })
+        .from(customer)
+        .innerJoin(user, eq(user.id, customer.ownerUserId))
+        .where(businessScopeWhere(currentAccess, customer))
+        .orderBy(asc(user.name), asc(user.id))
+  );
 
   return c.json({ owners });
 });

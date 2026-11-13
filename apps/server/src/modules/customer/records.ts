@@ -23,7 +23,11 @@ import {
 } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 
-import { businessScopeWhere, readBusinessAccess } from "../business/access";
+import {
+  businessScopeWhere,
+  readBusinessAccess,
+  withBusinessReadSnapshot,
+} from "../business/access";
 import type { BusinessAccess } from "../business/access";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
@@ -130,16 +134,12 @@ async function readAssignments(
   }));
 }
 
-const readOnlySnapshot = {
-  isolationLevel: "repeatable read",
-  accessMode: "read only",
-} as const;
-
 /**
- * 按业务权限筛选客户，在同一只读快照中读取当前页、总数和关联数据。
- * @param access 调用方可查看的业务范围。
+ * 在同一只读快照中读取权限、当前页、总数和关联数据。
+ * @param access 调用方的业务权限，用其中的用户 ID 重新查询权限。
  * @param filters 页码、每页条数，以及可选的名称或编号搜索、渠道、标签和业务员筛选。
  * @returns 包含客户列表、总数和分页参数的结果。
+ * @throws 账号不存在或无业务权限时抛出 HTTP 401 或 403。
  */
 export function listCustomers(
   access: BusinessAccess,
@@ -147,9 +147,9 @@ export function listCustomers(
 ) {
   const { page, pageSize, search, channelCode, tagId, ownerUserId } = filters;
 
-  return database.db.transaction(async (tx) => {
+  return withBusinessReadSnapshot(access.userId, async (tx, currentAccess) => {
     const filter = and(
-      businessScopeWhere(access, customer),
+      businessScopeWhere(currentAccess, customer),
       ownerUserId ? eq(customer.ownerUserId, ownerUserId) : undefined,
       search
         ? or(
@@ -200,7 +200,7 @@ export function listCustomers(
       page,
       pageSize,
     };
-  }, readOnlySnapshot);
+  });
 }
 
 /**
@@ -225,16 +225,15 @@ async function readCustomer(
 }
 
 /**
- * 从同一只读快照读取客户基本资料、渠道和标签。
- * @param access 调用方可查看的业务范围。
+ * 在同一只读快照中读取权限、客户基本资料、渠道和标签。
+ * @param access 调用方的业务权限，用其中的用户 ID 重新查询权限。
  * @param id 客户 ID。
  * @returns 客户详情。
- * @throws 客户不存在或超出可见范围时抛出 HTTP 404。
+ * @throws 账号不存在或无业务权限时抛出 HTTP 401 或 403，客户不存在或超出可见范围时抛出 HTTP 404。
  */
 export function getCustomer(access: BusinessAccess, id: string) {
-  return database.db.transaction(
-    (tx) => readCustomer(tx, access, id),
-    readOnlySnapshot
+  return withBusinessReadSnapshot(access.userId, (tx, currentAccess) =>
+    readCustomer(tx, currentAccess, id)
   );
 }
 
@@ -272,8 +271,7 @@ export function listAssignableCustomerOwners(
     departmentId,
   }: { customerId?: string; departmentId?: string } = {}
 ) {
-  return database.db.transaction(async (tx) => {
-    const freshAccess = await readBusinessAccess(tx, access.userId);
+  return withBusinessReadSnapshot(access.userId, async (tx, freshAccess) => {
     if (departmentId !== undefined) {
       if (freshAccess.scope !== "company")
         fail(403, "只有公司管理员可指定部门查询业务员。");
@@ -304,7 +302,7 @@ export function listAssignableCustomerOwners(
     return freshAccess.scope === "own"
       ? []
       : selectAssignableOwners(tx, record.departmentId);
-  }, readOnlySnapshot);
+  });
 }
 
 /**

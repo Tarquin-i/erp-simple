@@ -7,7 +7,10 @@ import {
 import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
 
-import { businessScopeWhere } from "../business/access";
+import {
+  businessScopeWhere,
+  withBusinessReadSnapshot,
+} from "../business/access";
 import type { BusinessAccess, BusinessAccessEnv } from "../business/access";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
@@ -122,34 +125,39 @@ function readNewContactMethods(value: unknown) {
   }));
 }
 
-function scopedCustomer(access: BusinessAccess, customerId: string) {
-  return and(eq(customer.id, customerId), businessScopeWhere(access, customer));
-}
-
 /**
- * 查询可见客户的联系人和联系方式，每位联系人的主要联系方式排在首位。
- * @param access 调用方可查看的业务范围。
+ * 在同一只读快照中校验业务权限并查询联系资料，主要联系方式排在首位。
+ * @param access 调用方的业务权限，用其中的用户 ID 重新查询权限。
  * @param customerId 客户 ID。
  * @returns 带联系方式的联系人列表。客户没有联系人时返回空数组。
- * @throws 客户不存在或超出可见范围时抛出 HTTP 404。
+ * @throws 账号不存在或无业务权限时抛出 HTTP 401 或 403，客户不存在或超出可见范围时抛出 HTTP 404。
  */
 async function listContacts(access: BusinessAccess, customerId: string) {
-  const rows = await database.db
-    .select({ contact: customerContact, method: customerContactMethod })
-    .from(customer)
-    .leftJoin(customerContact, eq(customerContact.customerId, customer.id))
-    .leftJoin(
-      customerContactMethod,
-      eq(customerContactMethod.contactId, customerContact.id)
-    )
-    .where(scopedCustomer(access, customerId))
-    .orderBy(
-      asc(customerContact.createdAt),
-      asc(customerContact.id),
-      desc(customerContactMethod.isPrimary),
-      asc(customerContactMethod.createdAt),
-      asc(customerContactMethod.id)
-    );
+  const rows = await withBusinessReadSnapshot(
+    access.userId,
+    (tx, currentAccess) =>
+      tx
+        .select({ contact: customerContact, method: customerContactMethod })
+        .from(customer)
+        .leftJoin(customerContact, eq(customerContact.customerId, customer.id))
+        .leftJoin(
+          customerContactMethod,
+          eq(customerContactMethod.contactId, customerContact.id)
+        )
+        .where(
+          and(
+            eq(customer.id, customerId),
+            businessScopeWhere(currentAccess, customer)
+          )
+        )
+        .orderBy(
+          asc(customerContact.createdAt),
+          asc(customerContact.id),
+          desc(customerContactMethod.isPrimary),
+          asc(customerContactMethod.createdAt),
+          asc(customerContactMethod.id)
+        )
+  );
   if (!rows.length) fail(404, "客户不存在。");
 
   const contacts = new Map<string, ContactWithMethods>();
