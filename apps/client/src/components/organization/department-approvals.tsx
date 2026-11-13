@@ -92,6 +92,11 @@ export function DepartmentApprovals({
   const [error, setError] = useState("");
   const busy = action !== null;
 
+  /**
+   * 执行审核或刷新操作。审核成功后重新加载待审列表。
+   * @param nextAction 刷新操作，或带申请 ID 和决定的审核操作。
+   * @returns 操作结束后完成。失败时在当前页面显示错误。
+   */
   async function run(nextAction: ApprovalAction) {
     if (busy) return;
     setAction(nextAction);

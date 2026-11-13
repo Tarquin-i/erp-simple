@@ -13,6 +13,7 @@ export const Route = createFileRoute("/department-access/")({
     if (canEnterWorkspace(viewer)) throw redirect({ to: "/", replace: true });
     return { viewer };
   },
+  // 待审时只展示申请状态，等能再次选择部门时才请求部门列表。
   loader: ({ context }) =>
     context.viewer.application?.status === "pending" ? [] : listDepartments(),
   component: DepartmentAccessRoute,

@@ -49,6 +49,10 @@ export function DepartmentAccess({
     }
   }
 
+  /**
+   * 手动查询最新审批结果。仍是同一条待审申请时更新提示，否则重新运行路由检查。
+   * @returns 查询和页面更新完成后结束。查询失败时显示重试提示。
+   */
   function checkApproval() {
     return run(async () => {
       setCheckedApplicationId(null);

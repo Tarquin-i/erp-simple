@@ -29,6 +29,12 @@ export type Viewer = {
 
 const basePath = "/api/organization";
 
+/**
+ * 解析组织接口的 JSON 响应，并将失败响应转为可在页面显示的错误。
+ * @param response Fetch 返回的 HTTP 响应。
+ * @returns 解析后的成功响应体。
+ * @throws 收到 HTTP 错误响应时抛出包含后端提示或通用提示的 `Error`，成功响应无法解析时抛出解析错误。
+ */
 async function readResponse<T>(response: Response): Promise<T> {
   if (response.ok) return response.json();
   const body = await response.json().catch(() => null);
@@ -37,6 +43,11 @@ async function readResponse<T>(response: Response): Promise<T> {
   );
 }
 
+/**
+ * 查询当前登录账号的工作台身份、部门和最近一次入部申请。
+ * @returns 当前账号的工作台信息。接口返回 HTTP 401 时返回 `null`。
+ * @throws 网络请求失败、收到其他 HTTP 错误或响应解析失败时抛出异常，供路由显示加载失败。
+ */
 export async function getViewer(): Promise<Viewer | null> {
   const response = await fetch(`${basePath}/viewer`);
   if (response.status === 401) return null;
@@ -63,6 +74,12 @@ function post<T = unknown>(path: string, body: Record<string, string>) {
   }).then(readResponse<T>);
 }
 
+/**
+ * 向选定的部门提交入部申请，由调用方刷新页面上的申请状态。
+ * @param departmentId 申请加入的部门 ID。
+ * @returns 提交成功后完成，无返回数据。
+ * @throws 请求失败时抛出异常，例如账号已有其他部门的待审申请。
+ */
 export async function submitDepartmentApplication(departmentId: string) {
   await post("/applications", { departmentId });
 }
@@ -71,6 +88,13 @@ export function createDepartment(name: string) {
   return post<Department>("/admin/departments", { name });
 }
 
+/**
+ * 提交部门主管任命请求。
+ * @param departmentId 要任命主管的部门 ID。
+ * @param email 候选人的注册邮箱。
+ * @returns 服务器返回的部门 ID、候选人账号 ID 和主管角色。
+ * @throws 请求失败时抛出异常，例如候选人已属于其他部门。
+ */
 export function appointDepartmentSupervisor(
   departmentId: string,
   email: string
@@ -87,6 +111,13 @@ export function listPendingApplications() {
   );
 }
 
+/**
+ * 提交对一条待审入部申请的审核决定。
+ * @param id 入部申请 ID。
+ * @param decision `approve` 表示通过，`reject` 表示拒绝。
+ * @returns 服务器返回的申请 ID 和审核结果。
+ * @throws 请求失败时抛出异常，例如申请已被处理。
+ */
 export function reviewDepartmentApplication(
   id: string,
   decision: "approve" | "reject"

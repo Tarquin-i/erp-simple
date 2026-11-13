@@ -19,6 +19,8 @@ import { getViewer } from "@/request/organization";
 
 export const Route = createFileRoute("/_protected")({
   beforeLoad: async () => {
+    // 401 进入登录页，已登录但未取得工作台访问资格的账号进入入部页。
+    // 其他请求错误交给错误页面重试，通过检查后把 viewer 提供给子路由。
     const viewer = await getViewer();
     if (!viewer) {
       throw redirect({ to: "/login", replace: true });

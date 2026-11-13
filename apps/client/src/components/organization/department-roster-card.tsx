@@ -61,6 +61,13 @@ export function DepartmentRosterCard({
   );
   const busy = workingAction !== null;
 
+  /**
+   * 提交一项名册操作，成功后刷新路由数据并把焦点移到部门标题。
+   * @param email 被操作账号的邮箱，用于定位状态和错误提示。
+   * @param action 任命、批准或拒绝，用于显示操作状态和成功提示。
+   * @param request 执行该操作的请求函数。
+   * @returns 操作结束后完成。失败时在对应账号行显示错误。
+   */
   async function runAction(
     email: string,
     action: RosterAction,
@@ -101,6 +108,12 @@ export function DepartmentRosterCard({
     );
   }
 
+  /**
+   * 开始任命主管。候选人待入部或部门已有主管时，先在对应行要求确认。
+   * @param account 要任命的账号。
+   * @param event 任命按钮的点击事件，用于记录取消后要恢复焦点的按钮。
+   * @returns 无返回值。无需确认时直接发起任命请求。
+   */
   function startAppointment(
     account: RosterAccount,
     event: MouseEvent<HTMLButtonElement>
