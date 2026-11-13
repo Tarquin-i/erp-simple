@@ -200,8 +200,19 @@ export function CustomerContacts({
             latest.methods.some((method) => method.type === change.method.type)
           ) {
             setConflict(null);
+            // 更新新增表单的选项和版本，保留当前联系人和输入草稿。
+            setEditor((mode) =>
+              mode?.kind === "add"
+                ? {
+                    ...mode,
+                    contacts: mode.contacts.map((contact) =>
+                      contact.id === latest.id ? latest : contact
+                    ),
+                  }
+                : mode
+            );
             setError(
-              `该联系人已有${contactMethodLabels[change.method.type]}，请选择其他方式或编辑已有联系方式。`
+              `该联系人已有${contactMethodLabels[change.method.type]}，请选择其他方式或编辑已有联系方式。${change.method.isPrimary ? "改选后如需设为主要联系方式，请重新勾选。" : ""}`
             );
             return;
           }
@@ -453,6 +464,7 @@ export function CustomerContacts({
       </AlertDialog>
       <VersionConflictDialog
         differences={conflict ? conflictDifferences(conflict) : null}
+        description="比较当前资料和保存后的变化。若主要联系方式会变化，表格会列出变更前后的主要项。"
         pending={pending}
         onCancel={() => {
           setConflict(null);

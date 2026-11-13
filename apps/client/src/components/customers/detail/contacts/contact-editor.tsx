@@ -102,6 +102,7 @@ export function CustomerContactEditor({
     selected?.methods
       .filter((item) => item.id !== method?.id)
       .map((item) => item.type) ?? [];
+  const typeTaken = type !== "" && takenTypes.includes(type);
   const title =
     mode.kind === "rename"
       ? "编辑联系人"
@@ -136,7 +137,7 @@ export function CustomerContactEditor({
     }
 
     const cleanedValue = value.trim();
-    if (!type || !cleanedValue || takenTypes.includes(type)) {
+    if (!type || !cleanedValue || typeTaken) {
       setValidation("请选择可用的联系方式并填写联系信息。");
       return;
     }
@@ -197,6 +198,7 @@ export function CustomerContactEditor({
                         ?.methods.some((item) => item.type === type)
                     )
                       setType("");
+                    if (typeTaken) setIsPrimary(false);
                   }}
                 >
                   <SelectTrigger className="w-full" id={`${id}-person`}>
@@ -241,8 +243,10 @@ export function CustomerContactEditor({
                   <FieldLabel htmlFor={`${id}-type`}>联系方式</FieldLabel>
                   <Select
                     disabled={locked}
-                    value={type}
+                    value={typeTaken ? "" : type}
                     onValueChange={(next) => {
+                      // 冲突后改选类型时，重新确认是否要替换最新的主要项。
+                      if (typeTaken) setIsPrimary(false);
                       setType(next as CustomerContactMethodType);
                       setValidation("");
                     }}
@@ -298,8 +302,8 @@ export function CustomerContactEditor({
                     (mode.kind === "add" && selected.methods.length > 0)) && (
                     <label className="flex cursor-pointer items-center gap-2 text-sm">
                       <Checkbox
-                        checked={isPrimary}
-                        disabled={locked}
+                        checked={isPrimary && !typeTaken}
+                        disabled={locked || typeTaken}
                         onCheckedChange={(checked) =>
                           setIsPrimary(checked === true)
                         }
@@ -320,7 +324,7 @@ export function CustomerContactEditor({
             >
               取消
             </Button>
-            <Button type="submit" disabled={locked || !changed}>
+            <Button type="submit" disabled={locked || !changed || typeTaken}>
               {pending ? "正在保存…" : "保存"}
             </Button>
           </SheetFooter>
