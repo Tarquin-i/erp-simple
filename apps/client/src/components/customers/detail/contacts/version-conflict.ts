@@ -1,49 +1,11 @@
-import {
-  CustomerApiError,
-  createCustomerContact,
-  createCustomerContactMethod,
-  deleteCustomerContactMethod,
-  updateCustomerContact,
-  updateCustomerContactMethod,
-} from "@/request/customers";
-import type {
-  CustomerContact,
-  CustomerContactMethod,
-  CustomerContactMethodInput,
-  CustomerContactMethodType,
-} from "@/request/customers";
+import { CustomerApiError } from "@/request/customers";
+import type { CustomerContact } from "@/request/customers";
 
-export const contactMethodLabels: Record<CustomerContactMethodType, string> = {
-  phone: "电话",
-  email: "邮箱",
-  wechat: "微信",
-  whatsapp: "WhatsApp",
-  linkedin: "LinkedIn",
-  kingwin_alibaba: "将为阿里巴巴",
-  kingwin_international_station: "将为国际站",
-  huivo_international_station: "汇合国际站",
-};
+import { contactMethodLabels } from "./method-labels";
+import type { ContactChange } from "./mutations";
 
-export type ContactChange =
-  | { kind: "create"; name: string; method: CustomerContactMethodInput }
-  | {
-      kind: "add";
-      contact: CustomerContact;
-      method: CustomerContactMethodInput;
-    }
-  | { kind: "rename"; contact: CustomerContact; name: string }
-  | {
-      kind: "edit";
-      contact: CustomerContact;
-      methodId: string;
-      fields: Partial<CustomerContactMethodInput>;
-    }
-  | { kind: "delete"; contact: CustomerContact; method: CustomerContactMethod };
-
-type ExistingChange = Exclude<ContactChange, { kind: "create" }>;
-export type DeleteChange = Extract<ContactChange, { kind: "delete" }>;
 export type ContactConflict = {
-  change: ExistingChange;
+  change: Exclude<ContactChange, { kind: "create" }>;
   latest: CustomerContact;
 };
 
@@ -145,46 +107,5 @@ export function conflictDifferences({ change, latest }: ContactConflict) {
         });
       return differences;
     }
-  }
-}
-
-export function contactRequest(
-  customerId: string,
-  change: ContactChange,
-  version?: number
-) {
-  if (change.kind === "create")
-    return createCustomerContact(customerId, {
-      name: change.name,
-      methods: [change.method],
-    });
-
-  const expectedVersion = version ?? change.contact.version;
-  const contactId = change.contact.id;
-  switch (change.kind) {
-    case "rename":
-      return updateCustomerContact(customerId, contactId, {
-        name: change.name,
-        expectedVersion,
-      });
-    case "add":
-      return createCustomerContactMethod(customerId, contactId, {
-        ...change.method,
-        expectedVersion,
-      });
-    case "edit":
-      return updateCustomerContactMethod(
-        customerId,
-        contactId,
-        change.methodId,
-        { ...change.fields, expectedVersion }
-      );
-    case "delete":
-      return deleteCustomerContactMethod(
-        customerId,
-        contactId,
-        change.method.id,
-        expectedVersion
-      );
   }
 }

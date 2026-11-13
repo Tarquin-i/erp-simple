@@ -31,8 +31,8 @@ import type {
   CustomerContactMethodType,
 } from "@/request/customers";
 
-import { contactMethodLabels } from "./changes";
-import type { ContactChange } from "./changes";
+import { contactMethodLabels } from "./method-labels";
+import type { ContactChange } from "./mutations";
 
 export type ContactEditorMode =
   | { kind: "add"; contacts: CustomerContact[]; selectedContactId?: string }

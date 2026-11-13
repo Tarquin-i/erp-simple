@@ -37,15 +37,13 @@ import type {
 
 import { CustomerPagination } from "../../pagination";
 import { VersionConflictDialog } from "../../version-conflict-dialog";
-import {
-  conflictDifferences,
-  contactMethodLabels,
-  contactRequest,
-  latestContact,
-} from "./changes";
-import type { ContactChange, ContactConflict, DeleteChange } from "./changes";
 import { CustomerContactEditor } from "./contact-editor";
 import type { ContactEditorMode } from "./contact-editor";
+import { contactMethodLabels } from "./method-labels";
+import { contactRequest } from "./mutations";
+import type { ContactChange, DeleteChange } from "./mutations";
+import { conflictDifferences, latestContact } from "./version-conflict";
+import type { ContactConflict } from "./version-conflict";
 
 const rowsPerPage = 10;
 
