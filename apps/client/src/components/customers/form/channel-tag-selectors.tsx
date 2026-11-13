@@ -29,7 +29,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { createCustomerTag, listCustomerTags } from "@/request/customers";
 
@@ -61,7 +66,11 @@ function SelectionControl({
   anchor: ReturnType<typeof useComboboxAnchor>;
   inputProps?: Pick<
     ComponentPropsWithRef<typeof ComboboxChipsInput>,
-    "ref" | "onCompositionStart" | "onCompositionEnd" | "onKeyDown"
+    | "ref"
+    | "aria-describedby"
+    | "onCompositionStart"
+    | "onCompositionEnd"
+    | "onKeyDown"
   >;
 }) {
   return (
@@ -129,6 +138,8 @@ export function CustomerChannelPicker({
 
 const tagPageSize = 25;
 const createTagOptionId = "new-tag";
+// 与客户保存接口的标签数量上限一致。
+const maxCustomerTags = 100;
 
 type TagPage = {
   keyword: string;
@@ -166,6 +177,9 @@ export function CustomerTagPicker({
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
   const tagNameId = `${props.id}-new-name`;
+  const tagLimitId = `${props.id}-limit`;
+  const atTagLimit = props.value.length >= maxCustomerTags;
+  const showCreate = allowCreate && !atTagLimit;
   const keyword = search.trim();
   const currentResult = results?.keyword === keyword ? results : null;
   const matchingTags = currentResult?.items ?? [];
@@ -173,7 +187,7 @@ export function CustomerTagPicker({
     (option) => option.name.toLowerCase() === keyword.toLowerCase()
   );
   const canCreate =
-    allowCreate &&
+    showCreate &&
     keyword &&
     currentResult &&
     !loading &&
@@ -181,7 +195,7 @@ export function CustomerTagPicker({
     !searchError;
   // 「新建标签」是下拉操作项，选中时打开弹窗，不写入已选标签。
   const items =
-    allowCreate && !keyword
+    showCreate && !keyword
       ? [{ id: createTagOptionId, name: "" }, ...matchingTags]
       : canCreate
         ? [...matchingTags, { id: createTagOptionId, name: keyword }]
@@ -253,7 +267,7 @@ export function CustomerTagPicker({
     // React 会将 Portal 内的提交事件冒泡给客户表单，阻止它一并保存客户。
     event.stopPropagation();
     const name = tagName?.trim();
-    if (!name || creating) return;
+    if (!name || creating || atTagLimit) return;
 
     setCreateError("");
     setCreating(true);
@@ -297,10 +311,18 @@ export function CustomerTagPicker({
             (option) => option.id === createTagOptionId
           );
           if (!createTagOption) {
+            if (
+              selected.length > maxCustomerTags &&
+              selected.length >= props.value.length
+            ) {
+              details.cancel();
+              return;
+            }
             props.onChange(selected);
             return;
           }
           details.cancel();
+          if (atTagLimit) return;
           setOpen(false);
           changeSearch("");
           setCreateError("");
@@ -322,6 +344,7 @@ export function CustomerTagPicker({
           anchor={anchor}
           inputProps={{
             ref: input,
+            "aria-describedby": atTagLimit ? tagLimitId : undefined,
             onCompositionStart: () => {
               composing.current = true;
             },
@@ -352,7 +375,15 @@ export function CustomerTagPicker({
           </ComboboxEmpty>
           <ComboboxList>
             {(option: CustomerFormOption) => (
-              <ComboboxItem key={option.id} value={option} disabled={creating}>
+              <ComboboxItem
+                key={option.id}
+                value={option}
+                disabled={
+                  creating ||
+                  (atTagLimit &&
+                    !props.value.some(({ id }) => id === option.id))
+                }
+              >
                 {option.id === createTagOptionId ? (
                   <>
                     <Plus aria-hidden="true" />
@@ -391,6 +422,11 @@ export function CustomerTagPicker({
           ) : null}
         </ComboboxContent>
       </Combobox>
+      {atTagLimit && (
+        <FieldDescription id={tagLimitId} role="status">
+          每个客户最多可选 {maxCustomerTags} 个标签。移除已有标签后可继续选择。
+        </FieldDescription>
+      )}
       <Dialog
         open={tagName !== null}
         onOpenChange={(next) => {
@@ -451,7 +487,10 @@ export function CustomerTagPicker({
               >
                 取消
               </Button>
-              <Button type="submit" disabled={creating || !tagName?.trim()}>
+              <Button
+                type="submit"
+                disabled={creating || atTagLimit || !tagName?.trim()}
+              >
                 {creating ? "正在创建…" : "创建"}
               </Button>
             </DialogFooter>
