@@ -78,6 +78,12 @@ function groupByCustomer<Row extends { customerId: string }>(rows: Row[]) {
   return groups;
 }
 
+/**
+ * 批量读取客户的渠道和标签关联，避免为每位客户单独查询。
+ * @param tx 读取客户资料所用的事务。
+ * @param customers 待补全的客户记录。
+ * @returns 按输入顺序返回客户，缺少关联时对应字段为空数组。
+ */
 async function readAssignments(
   tx: DatabaseTransaction,
   customers: CustomerRow[]
@@ -129,6 +135,12 @@ const readOnlySnapshot = {
   accessMode: "read only",
 } as const;
 
+/**
+ * 按业务权限筛选客户，在同一只读快照中读取当前页、总数和关联数据。
+ * @param access 调用方可查看的业务范围。
+ * @param filters 页码、每页条数，以及可选的名称或编号搜索、渠道、标签和业务员筛选。
+ * @returns 包含客户列表、总数和分页参数的结果。
+ */
 export function listCustomers(
   access: BusinessAccess,
   filters: CustomerFilters
@@ -204,6 +216,13 @@ async function readCustomer(
   return record;
 }
 
+/**
+ * 从同一只读快照读取客户基本资料、渠道和标签。
+ * @param access 调用方可查看的业务范围。
+ * @param id 客户 ID。
+ * @returns 客户详情。
+ * @throws 客户不存在或超出可见范围时抛出 HTTP 404。
+ */
 export function getCustomer(access: BusinessAccess, id: string) {
   return database.db.transaction(
     (tx) => readCustomer(tx, access, id),
@@ -231,6 +250,13 @@ function selectAssignableOwners(
     .orderBy(asc(user.name), asc(user.id));
 }
 
+/**
+ * 按最新权限查询可指派的业务员。按客户查询时使用客户现有部门。
+ * @param access 调用方身份及原有业务范围。
+ * @param options 管理员新建时传部门 ID，编辑时传客户 ID。两者都省略时，主管使用本部门。
+ * @returns 可选成员的 ID 和姓名，排除公司管理员。普通员工没有可指派选项。
+ * @throws 账号不存在时抛出 HTTP 401，权限不足时抛出 HTTP 403，部门不存在或客户不可见时抛出 HTTP 404。
+ */
 export function listAssignableCustomerOwners(
   access: BusinessAccess,
   {
@@ -273,6 +299,14 @@ export function listAssignableCustomerOwners(
   }, readOnlySnapshot);
 }
 
+/**
+ * 验证业务员属于客户部门，并锁定其成员记录直到事务结束。
+ * @param tx 当前客户写入事务。
+ * @param departmentId 客户所属部门 ID。
+ * @param ownerUserId 拟指派的业务员用户 ID。
+ * @returns 校验通过后完成，无返回数据。
+ * @throws 用户不在该部门或为公司管理员时抛出 HTTP 400。
+ */
 async function requireAssignableOwner(
   tx: DatabaseTransaction,
   departmentId: string,
@@ -295,6 +329,14 @@ function duplicateCustomer(): never {
   });
 }
 
+/**
+ * 写入前先锁部门，再核对实时权限并锁定客户记录。
+ * @param tx 调用方已经开启的写入事务。
+ * @param access 调用方身份及最初的业务范围。
+ * @param customerId 待修改的客户 ID。
+ * @returns 重新读取的业务权限和已锁定的客户记录。
+ * @throws 客户不存在或超出可见范围时抛出 HTTP 404，重新核对权限失败时抛出 HTTP 401 或 403。
+ */
 export async function lockCustomerForWrite(
   tx: DatabaseTransaction,
   access: BusinessAccess,
@@ -309,7 +351,7 @@ export async function lockCustomerForWrite(
   if (!target) fail(404, "客户不存在。");
 
   await lockDepartment(tx, target.departmentId);
-  // A supervisor can lose department-wide access while waiting for the lock.
+  // 等待部门锁期间，主管可能已失去部门级访问权限。
   const freshAccess = await readBusinessAccess(tx, access.userId);
   const [record] = await tx
     .select()
@@ -346,6 +388,12 @@ async function insertAssignments(
   }
 }
 
+/**
+ * 将已知的客户写入约束错误转换为业务响应。
+ * @param error 数据库写入抛出的错误。
+ * @returns 无正常返回值。
+ * @throws 同部门重名时抛出 HTTP 409，渠道或标签不存在时抛出 HTTP 400，其余错误原样抛出。
+ */
 function translateWriteError(error: unknown): never {
   if (isConstraintError(error, "23505", "customer_department_name_unique")) {
     duplicateCustomer();
@@ -369,6 +417,14 @@ function translateWriteError(error: unknown): never {
   throw error;
 }
 
+/**
+ * 在同一事务中创建客户及其渠道和标签，编号撞号时最多尝试五次。
+ * @param access 调用方的业务权限。仅公司管理员可指定部门。
+ * @param input 客户名称及可选资料。公司管理员须提交部门和业务员。
+ * @returns 新建的完整客户资料，包含系统生成的编号及关联数据。
+ * @throws 部门或业务员缺失、指派或关联无效时抛出 HTTP 400，权限检查失败时抛出 HTTP 401 或 403。
+ * 部门不存在时抛出 HTTP 404，同部门重名或编号重试用尽时抛出 HTTP 409。
+ */
 export async function createCustomer(
   access: BusinessAccess,
   input: CustomerWriteInput & { companyName: string; departmentId?: string }
@@ -421,6 +477,16 @@ export async function createCustomer(
   }
 }
 
+/**
+ * 核对版本后更新客户和关联数据，在同一事务中递增版本号。
+ * @param access 调用方的业务权限。仅主管或公司管理员可在客户原部门内更换业务员。
+ * @param id 客户 ID。
+ * @param input 需要更新的字段。省略的字段保留，空数组清空对应的渠道或标签，`null` 清空备注。
+ * @param expectedVersion 调用方读取客户资料时的版本号。
+ * @returns 更新后的完整客户资料和新版本号。
+ * @throws 指派或关联无效时抛出 HTTP 400，权限检查失败时抛出 HTTP 401 或 403。
+ * 客户不可见时抛出 HTTP 404，同部门重名或版本不一致时抛出 HTTP 409，版本冲突会附最新客户资料。
+ */
 export async function updateCustomer(
   access: BusinessAccess,
   id: string,
@@ -437,6 +503,7 @@ export async function updateCustomer(
       if (input.ownerUserId !== undefined && freshAccess.scope === "own") {
         fail(403, "只有部门主管或公司管理员可更换业务员。");
       }
+      // 持有客户行锁时比较版本，避免检查通过后被另一笔写入抢先修改。
       if (record.version !== expectedVersion) {
         failVersionConflict(await readCustomer(tx, freshAccess, id));
       }

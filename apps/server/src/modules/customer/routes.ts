@@ -47,6 +47,12 @@ function readSelection(
   return [...new Set(value.map(parse))];
 }
 
+/**
+ * 校验新建或编辑客户的通用字段，规范化备注并去除重复的渠道和标签。
+ * @param body 已通过字段白名单校验的 JSON 请求体。
+ * @returns 客户写入字段。编辑时省略字段保留原值，空数组清空对应关联，`null` 清空备注。
+ * @throws 任一字段的类型、格式或长度无效时抛出 HTTP 400。
+ */
 function readCustomerWrite(body: Record<string, unknown>): CustomerWriteInput {
   return {
     companyName:

@@ -49,6 +49,13 @@ function readPrimary(value: unknown): boolean | undefined {
   return value;
 }
 
+/**
+ * 按联系方式类型校验并规范化输入。
+ * @param type 已校验的联系方式类型。
+ * @param raw 原始联系信息。
+ * @returns 去掉首尾空格的内容。电话和 WhatsApp 返回去掉可选 `+86` 前缀的大陆手机号。
+ * @throws 联系信息无效或手机号、邮箱格式不符时抛出 HTTP 400。
+ */
 function readMethodValue(type: MethodType, raw: unknown): string {
   const value = readString(raw, "联系方式", 320);
   if (type === "phone" || type === "whatsapp") {
@@ -71,6 +78,12 @@ function readMethod(input: Record<string, unknown>): MethodInput {
   };
 }
 
+/**
+ * 解析新建联系人时提交的联系方式，未指定主要项时将第一项设为主要。
+ * @param value 原始联系方式数组，至少包含一条记录。
+ * @returns 校验后的联系方式列表，其中恰有一条主要联系方式。
+ * @throws 类型重复时抛出 HTTP 409，数据格式无效或指定多个主要项时抛出 HTTP 400。
+ */
 function readNewContactMethods(value: unknown) {
   if (
     !Array.isArray(value) ||
@@ -113,6 +126,13 @@ function scopedCustomer(access: BusinessAccess, customerId: string) {
   return and(eq(customer.id, customerId), businessScopeWhere(access, customer));
 }
 
+/**
+ * 查询可见客户的联系人和联系方式，每位联系人的主要联系方式排在首位。
+ * @param access 调用方可查看的业务范围。
+ * @param customerId 客户 ID。
+ * @returns 带联系方式的联系人列表。客户没有联系人时返回空数组。
+ * @throws 客户不存在或超出可见范围时抛出 HTTP 404。
+ */
 async function listContacts(access: BusinessAccess, customerId: string) {
   const rows = await database.db
     .select({ contact: customerContact, method: customerContactMethod })
@@ -157,6 +177,15 @@ async function listMethods(tx: DatabaseTransaction, contactId: string) {
     );
 }
 
+/**
+ * 校验客户的写入权限，在同一事务中创建联系人及其联系方式。
+ * @param access 调用方的业务权限。
+ * @param customerId 所属客户 ID。
+ * @param name 已校验的联系人姓名。
+ * @param methods 已校验的联系方式，包含一个主要项。
+ * @returns 新建的联系人及其联系方式。
+ * @throws 客户不可见时抛出 HTTP 404，锁定客户时的权限检查失败则抛出 HTTP 401 或 403。
+ */
 async function createContact(
   access: BusinessAccess,
   customerId: string,
@@ -177,6 +206,18 @@ async function createContact(
   });
 }
 
+/**
+ * 按部门、客户、联系人的顺序加锁，统一校验并递增联系人版本。
+ * @param access 调用方的业务权限。
+ * @param customerId 所属客户 ID。
+ * @param contactId 待修改的联系人 ID。
+ * @param expectedVersion 调用方读取到的联系人版本号。
+ * @param change 事务内执行的更新操作，可直接改联系方式或返回待写入的姓名。
+ * @returns 更新后的联系人、联系方式及新版本号。
+ * @throws 客户不可见或联系人不存在时抛出 HTTP 404，权限检查失败时抛出 HTTP 401 或 403。
+ * 版本过期或联系方式类型重复时抛出 HTTP 409，版本冲突会附最新联系人及其联系方式。
+ * 更新操作自身的校验异常也会向调用方抛出。
+ */
 async function changeContact(
   access: BusinessAccess,
   customerId: string,
@@ -187,7 +228,7 @@ async function changeContact(
   try {
     return await database.db.transaction(async (tx) => {
       await lockCustomerForWrite(tx, access, customerId);
-      // Serialize changes to one contact before reading or changing its primary method.
+      // 读取或变更主要联系方式前，先让同一联系人的并发更新排队。
       const [locked] = await tx
         .select()
         .from(customerContact)
@@ -199,6 +240,7 @@ async function changeContact(
         )
         .for("update");
       if (!locked) fail(404, "联系人不存在。");
+      // 改名和联系方式变更共用联系人版本，旧版本在执行写入前就会被拒绝。
       if (locked.version !== expectedVersion) {
         failVersionConflict({
           ...locked,
@@ -240,6 +282,13 @@ function scopedMethod(contactId: string, methodId: string) {
   );
 }
 
+/**
+ * 取消当前主要联系方式，准备在同一事务中设置新的主要项。
+ * @param tx 已锁定联系人的事务。
+ * @param contactId 联系人 ID。
+ * @param exceptId 要保留原标记的联系方式 ID。
+ * @returns 更新完成后结束，无返回数据。
+ */
 async function clearPrimary(
   tx: DatabaseTransaction,
   contactId: string,
@@ -363,6 +412,7 @@ customerContactRoutes.patch(
               )
             : undefined;
 
+        // 取消主要项时，从其他记录中按创建时间和 ID 选出替补。
         const replacement =
           isPrimary === false && current.isPrimary
             ? methods.find((method) => method.id !== methodId)
@@ -405,6 +455,7 @@ customerContactRoutes.delete(
           .returning({ isPrimary: customerContactMethod.isPrimary });
         if (!deleted) fail(404, "联系方式不存在。");
 
+        // 删除主要项后，从剩余记录中递补。最后一条可直接删除。
         if (deleted.isPrimary) {
           const [next] = await listMethods(tx, contactId);
           if (next) await promoteMethod(tx, contactId, next.id);

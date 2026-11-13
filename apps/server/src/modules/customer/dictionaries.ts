@@ -23,6 +23,7 @@ const tagFields = {
 
 export const customerDictionaryRoutes = new Hono<BusinessAccessEnv>();
 
+// 列表筛选项取自当前可见客户的现有负责人。表单指派选项按部门成员查询。
 customerDictionaryRoutes.get("/owners", async (c) => {
   const owners = await database.db
     .selectDistinct({ id: user.id, name: user.name })
@@ -63,6 +64,7 @@ customerDictionaryRoutes.get("/tags", async (c) => {
     ? sql`position(lower(${search}) in ${customerTag.normalizedName}) > 0`
     : undefined;
 
+  // 分页数据和总数使用同一个只读快照，避免并发写入造成两者不一致。
   const result = await database.db.transaction(
     async (tx) => {
       const tags = await tx
@@ -114,6 +116,7 @@ customerDictionaryRoutes.post("/tags", async (c) => {
 
     return c.json({ tag }, 201);
   } catch (error) {
+    // 由数据库唯一约束处理并发重名，再把冲突转换为前端可识别的响应。
     if (
       isConstraintError(error, "23505", "customer_tag_normalized_name_unique")
     ) {
