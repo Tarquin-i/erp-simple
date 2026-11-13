@@ -1,25 +1,16 @@
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import { Check, Save } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import { VersionConflictDialog } from "@/components/customers/version-conflict-dialog";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   createCustomer,
   CustomerApiError,
-  listAssignableCustomerOwners,
   updateCustomer,
 } from "@/request/customers";
 import type { Department } from "@/request/organization";
@@ -30,153 +21,19 @@ import type {
   CustomerWriteInput,
 } from "@/request/customers";
 
+import { readListQueryFromState } from "../list/list-query";
+import { VersionConflictDialog } from "../version-conflict-dialog";
 import {
   CustomerChannelPicker,
   CustomerTagPicker,
 } from "./channel-tag-pickers";
-import type { CustomerFormOption } from "./channel-tag-pickers";
-import { readListQueryFromState } from "./list-query";
-
-type Draft = {
-  companyName: string;
-  remark: string;
-  owner: CustomerOwner | undefined;
-  channels: CustomerFormOption[];
-  tags: CustomerFormOption[];
-};
-
-type DepartmentRoster = { departmentId: string } & (
-  | { owners: CustomerOwner[]; error?: never }
-  | { owners?: never; error: string }
-);
-
-function customerDraft(
-  customer: Customer | undefined,
-  owner?: CustomerOwner
-): Draft {
-  return {
-    companyName: customer?.companyName ?? "",
-    remark: customer?.remark ?? "",
-    owner,
-    channels:
-      customer?.channels.map(({ code, name }) => ({ id: code, name })) ?? [],
-    tags: customer?.tags.map(({ id, name }) => ({ id, name })) ?? [],
-  };
-}
-
-function optionIds(options: CustomerFormOption[]) {
-  return options.map(({ id }) => id);
-}
-
-function sameOptions(
-  before: CustomerFormOption[],
-  after: CustomerFormOption[]
-) {
-  if (before.length !== after.length) return false;
-  const previous = new Set(optionIds(before));
-  return after.every(({ id }) => previous.has(id));
-}
-
-function getChangedFields(initial: Draft, draft: Draft): CustomerWriteInput {
-  const companyName = draft.companyName.trim();
-  const remark = draft.remark.trim();
-
-  return {
-    ...(companyName !== initial.companyName.trim() ? { companyName } : {}),
-    ...(remark !== initial.remark.trim() ? { remark: remark || null } : {}),
-    ...(draft.owner && draft.owner.id !== initial.owner?.id
-      ? { ownerUserId: draft.owner.id }
-      : {}),
-    ...(!sameOptions(initial.channels, draft.channels)
-      ? { channelCodes: optionIds(draft.channels) }
-      : {}),
-    ...(!sameOptions(initial.tags, draft.tags)
-      ? { tagIds: optionIds(draft.tags) }
-      : {}),
-  };
-}
-
-function isCustomerSnapshot(value: unknown, id: string): value is Customer {
-  if (!value || typeof value !== "object") return false;
-  const current = value as Partial<Customer>;
-  return (
-    current.id === id &&
-    typeof current.version === "number" &&
-    typeof current.companyName === "string" &&
-    typeof current.ownerUserId === "string" &&
-    typeof current.ownerName === "string" &&
-    Array.isArray(current.channels) &&
-    Array.isArray(current.tags)
-  );
-}
-
-function conflictDifferences(
-  current: Customer,
-  changes: CustomerWriteInput,
-  initial: Draft,
-  draft: Draft
-) {
-  const latest = customerDraft(current, {
-    id: current.ownerUserId,
-    name: current.ownerName,
-  });
-  const differences = [];
-  const preserve = "保留当前资料";
-  const names = (options: CustomerFormOption[]) =>
-    options.map(({ name }) => name).join("、") || "无";
-
-  if (
-    changes.companyName !== undefined ||
-    latest.companyName !== initial.companyName
-  ) {
-    differences.push({
-      label: "客户名称",
-      current: latest.companyName,
-      proposed: changes.companyName ?? preserve,
-    });
-  }
-  if (
-    changes.channelCodes !== undefined ||
-    !sameOptions(initial.channels, latest.channels)
-  ) {
-    differences.push({
-      label: "渠道",
-      current: names(latest.channels),
-      proposed:
-        changes.channelCodes === undefined ? preserve : names(draft.channels),
-    });
-  }
-  if (changes.tagIds !== undefined || !sameOptions(initial.tags, latest.tags)) {
-    differences.push({
-      label: "标签",
-      current: names(latest.tags),
-      proposed: changes.tagIds === undefined ? preserve : names(draft.tags),
-    });
-  }
-  if (
-    changes.ownerUserId !== undefined ||
-    current.ownerUserId !== initial.owner?.id
-  ) {
-    differences.push({
-      label: "业务员",
-      current: current.ownerName,
-      proposed:
-        changes.ownerUserId === undefined
-          ? preserve
-          : (draft.owner?.name ?? "无"),
-    });
-  }
-  if (changes.remark !== undefined || latest.remark !== initial.remark) {
-    differences.push({
-      label: "备注",
-      current: latest.remark || "无",
-      proposed:
-        changes.remark === undefined ? preserve : changes.remark || "无",
-    });
-  }
-
-  return differences;
-}
+import {
+  conflictDifferences,
+  customerDraft,
+  getChangedFields,
+  isCustomerSnapshot,
+} from "./draft";
+import { CustomerOwnerFields } from "./owner-fields";
 
 export function CustomerForm({
   customer,
@@ -204,8 +61,6 @@ export function CustomerForm({
   const [error, setError] = useState("");
   const [nameError, setNameError] = useState("");
   const [departmentId, setDepartmentId] = useState("");
-  const [ownerLookup, setOwnerLookup] = useState<DepartmentRoster>();
-  const [rosterRetry, setRosterRetry] = useState(0);
   const [conflict, setConflict] = useState<{
     current: Customer;
     changes: CustomerWriteInput;
@@ -215,46 +70,13 @@ export function CustomerForm({
   const changes = getChangedFields(initial, draft);
   const isEdit = customer !== undefined;
   const busy = pending || tagPending;
-  const currentOwnerLookup =
-    ownerLookup?.departmentId === departmentId ? ownerLookup : undefined;
-  const loadingOwners = Boolean(departmentId && !currentOwnerLookup);
-  const ownerOptions = departments
-    ? (currentOwnerLookup?.owners ?? [])
-    : assignableOwners;
   const missingAssignment = Boolean(
     departments && (!departmentId || !draft.owner)
   );
-  const ownerPlaceholder = !departmentId
-    ? "请先选择部门"
-    : loadingOwners
-      ? "正在加载业务员…"
-      : currentOwnerLookup?.error
-        ? "无法加载业务员"
-        : ownerOptions?.length
-          ? "请选择业务员"
-          : "该部门暂无可选业务员";
+  const canSubmit =
+    !busy && !missingAssignment && (!isEdit || Object.keys(changes).length > 0);
   const SubmitIcon = isEdit ? Save : Check;
   const submitLabel = isEdit ? "保存" : "完成";
-
-  useEffect(() => {
-    if (!departmentId) return;
-    const controller = new AbortController();
-    const { signal } = controller;
-
-    listAssignableCustomerOwners(undefined, signal, departmentId)
-      .then(({ owners }) => {
-        if (!signal.aborted) setOwnerLookup({ departmentId, owners });
-      })
-      .catch((failure: unknown) => {
-        if (signal.aborted) return;
-        setOwnerLookup({
-          departmentId,
-          error: failure instanceof Error ? failure.message : "请稍后重试。",
-        });
-      });
-
-    return () => controller.abort();
-  }, [departmentId, rosterRetry]);
 
   function setNameValidation(message: string) {
     setNameError(message);
@@ -322,12 +144,7 @@ export function CustomerForm({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (
-      busy ||
-      missingAssignment ||
-      (isEdit && Object.keys(changes).length === 0)
-    )
-      return;
+    if (!canSubmit) return;
     if (!draft.companyName.trim()) {
       setNameValidation("请填写客户名称。");
       return;
@@ -364,11 +181,7 @@ export function CustomerForm({
               type="submit"
               className="h-10 gap-2 px-4"
               aria-busy={pending}
-              disabled={
-                busy ||
-                missingAssignment ||
-                (isEdit && Object.keys(changes).length === 0)
-              }
+              disabled={!canSubmit}
             >
               <SubmitIcon aria-hidden="true" />
               {pending ? "正在保存…" : submitLabel}
@@ -447,101 +260,22 @@ export function CustomerForm({
             disabled={pending}
           />
 
-          {departments && (
-            <Field className="min-w-0">
-              <FieldLabel htmlFor="customer-form-department">部门</FieldLabel>
-              <Select
-                required
-                disabled={pending || !departments.length}
-                value={departmentId}
-                onValueChange={(id) => {
-                  if (id === departmentId) return;
-                  setDepartmentId(id);
-                  setOwnerLookup(undefined);
-                  setNameError("");
-                  setError("");
-                  setDraft((current) => ({ ...current, owner: undefined }));
-                }}
-              >
-                <SelectTrigger
-                  id="customer-form-department"
-                  className="w-full shadow-xs data-[size=default]:h-10"
-                >
-                  <SelectValue
-                    placeholder={
-                      departments.length ? "请选择部门" : "暂无可选部门"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent position="popper" align="start">
-                  {departments.map(({ id, name }) => (
-                    <SelectItem key={id} value={id}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
-          <Field className="min-w-0">
-            <FieldLabel htmlFor="customer-form-owner">业务员</FieldLabel>
-            {ownerOptions ? (
-              <Select
-                required={Boolean(departments)}
-                disabled={pending || !ownerOptions.length}
-                value={draft.owner?.id ?? ""}
-                onValueChange={(id) => {
-                  const selected = ownerOptions.find(
-                    (owner) => owner.id === id
-                  );
-                  if (selected) {
-                    setDraft((current) => ({ ...current, owner: selected }));
-                  }
-                }}
-              >
-                <SelectTrigger
-                  id="customer-form-owner"
-                  aria-busy={loadingOwners}
-                  className="w-full shadow-xs data-[size=default]:h-10"
-                >
-                  <SelectValue placeholder={ownerPlaceholder}>
-                    {draft.owner?.name}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent position="popper" align="start">
-                  {ownerOptions.map(({ id, name }) => (
-                    <SelectItem key={id} value={id}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                id="customer-form-owner"
-                className="h-10 bg-muted/25 text-muted-foreground shadow-xs"
-                readOnly
-                value={draft.owner?.name ?? ""}
-              />
-            )}
-            {currentOwnerLookup?.error && (
-              <div className="flex items-center gap-2">
-                <FieldError>{currentOwnerLookup.error}</FieldError>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  aria-label="重试加载业务员"
-                  onClick={() => {
-                    setOwnerLookup(undefined);
-                    setRosterRetry((current) => current + 1);
-                  }}
-                >
-                  重试
-                </Button>
-              </div>
-            )}
-          </Field>
+          <CustomerOwnerFields
+            departments={departments}
+            departmentId={departmentId}
+            onDepartmentChange={(id) => {
+              setDepartmentId(id);
+              setNameError("");
+              setError("");
+              setDraft((current) => ({ ...current, owner: undefined }));
+            }}
+            owner={draft.owner}
+            assignableOwners={assignableOwners}
+            onOwnerChange={(owner) =>
+              setDraft((current) => ({ ...current, owner }))
+            }
+            disabled={pending}
+          />
           <Field className="min-w-0 md:col-span-2">
             <FieldLabel htmlFor="customer-form-remark">备注</FieldLabel>
             <Textarea
