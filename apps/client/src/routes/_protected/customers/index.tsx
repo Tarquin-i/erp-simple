@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 
-import { CustomerList } from "@/components/customers/list/list";
-import { parseListQuery } from "@/components/customers/list/list-query";
+import { CustomerList } from "@/components/customers/list";
+import { parseListQuery } from "@/components/customers/list-query";
 import type { CustomerListQuery } from "@/request/customers";
 
 export const Route = createFileRoute("/_protected/customers/")({

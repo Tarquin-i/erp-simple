@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 
-import { readListQueryFromState } from "./list/list-query";
+import { readListQueryFromState } from "./list-query";
 
 export function CustomerBreadcrumbs() {
   const { pathname, state } = useLocation();

@@ -21,18 +21,14 @@ import type {
   CustomerWriteInput,
 } from "@/request/customers";
 
-import { readListQueryFromState } from "../list/list-query";
+import { readListQueryFromState } from "../list-query";
 import { VersionConflictDialog } from "../version-conflict-dialog";
 import {
   CustomerChannelPicker,
   CustomerTagPicker,
-} from "./channel-tag-pickers";
-import {
-  conflictDifferences,
-  customerDraft,
-  getChangedFields,
-  isCustomerSnapshot,
-} from "./draft";
+} from "./channel-tag-selectors";
+import { conflictDifferences, isCustomerSnapshot } from "./edit-conflict";
+import { customerDraft, getChangedFields } from "./form-payload";
 import { CustomerOwnerFields } from "./owner-fields";
 
 export function CustomerForm({

@@ -32,7 +32,7 @@ import { listCustomers } from "@/request/customers";
 import type { CustomerListQuery } from "@/request/customers";
 
 import { CustomerPagination } from "../pagination";
-import { CustomerListFilters } from "./list-filters";
+import { CustomerListFilters } from "./filters";
 
 type CustomerPage = Awaited<ReturnType<typeof listCustomers>>;
 type QueryUpdater = (previous: CustomerListQuery) => CustomerListQuery;

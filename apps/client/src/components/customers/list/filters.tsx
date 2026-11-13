@@ -18,7 +18,7 @@ import type {
   CustomerTag,
 } from "@/request/customers";
 
-import { TagFilter } from "./tag-filter";
+import { TagSelector } from "./tag-selector";
 
 type Filters = Pick<CustomerListQuery, "channelCode" | "tagId" | "ownerUserId">;
 
@@ -110,7 +110,7 @@ export function CustomerListFilters({
             }
           />
         </div>
-        <TagFilter
+        <TagSelector
           tagId={draft.tagId}
           selectedTag={selectedTag}
           onChange={(tagId) => setDraft((prev) => ({ ...prev, tagId }))}

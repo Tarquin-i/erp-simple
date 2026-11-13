@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Customer } from "@/request/customers";
 
-import { readListQueryFromState } from "../list/list-query";
+import { readListQueryFromState } from "../list-query";
 import { CustomerContacts } from "./contacts/contacts-tab";
 
 const relatedTabs = [
@@ -16,6 +16,9 @@ const relatedTabs = [
   { value: "orders", label: "订单" },
   { value: "addresses", label: "地址" },
 ];
+
+const tabTriggerClass =
+  "min-w-[88px] focus-visible:border-transparent focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-offset-1";
 
 function DetailField({
   label,
@@ -142,12 +145,12 @@ export function CustomerDetail({ customer }: { customer: Customer }) {
         <div className="flex min-w-0 items-center gap-3">
           <div className="min-w-0 overflow-x-auto overflow-y-hidden py-1">
             <TabsList aria-label="客户关联信息">
-              <TabsTrigger className="min-w-[88px]" value="contacts">
+              <TabsTrigger className={tabTriggerClass} value="contacts">
                 联系方式
               </TabsTrigger>
               {relatedTabs.map((tab) => (
                 <TabsTrigger
-                  className="min-w-[88px]"
+                  className={tabTriggerClass}
                   key={tab.value}
                   value={tab.value}
                 >

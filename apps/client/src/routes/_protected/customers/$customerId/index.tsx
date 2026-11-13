@@ -5,8 +5,8 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 
-import { CustomerDetail } from "@/components/customers/detail/detail";
-import { readListQueryFromState } from "@/components/customers/list/list-query";
+import { CustomerDetail } from "@/components/customers/detail";
+import { readListQueryFromState } from "@/components/customers/list-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CustomerApiError, getCustomer } from "@/request/customers";

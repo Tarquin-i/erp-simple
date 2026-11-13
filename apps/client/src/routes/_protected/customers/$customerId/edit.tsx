@@ -4,8 +4,8 @@ import {
   CustomerForm,
   CustomerFormLoadError,
   CustomerFormPending,
-} from "@/components/customers/form/form";
-import { readListQueryFromState } from "@/components/customers/list/list-query";
+} from "@/components/customers/form";
+import { readListQueryFromState } from "@/components/customers/list-query";
 import {
   getCustomer,
   listAssignableCustomerOwners,

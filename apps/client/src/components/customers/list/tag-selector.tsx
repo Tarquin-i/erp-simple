@@ -20,7 +20,7 @@ import type { CustomerTag } from "@/request/customers";
 
 const tagPageSize = 20;
 
-export function TagFilter({
+export function TagSelector({
   tagId,
   selectedTag,
   onChange,
