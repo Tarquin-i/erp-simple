@@ -14,6 +14,7 @@ import {
 
 import { customer } from "./customer";
 
+// 数据库限定联系方式类型，电话和邮箱等具体格式由后端校验。
 export const customerContactMethodType = pgEnum(
   "customer_contact_method_type",
   [
@@ -36,6 +37,7 @@ export const customerContact = pgTable(
       .notNull()
       .references(() => customer.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 128 }).notNull(),
+    // 后端用同一个版本号检测联系人改名和联系方式变更之间的并发冲突。
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -70,10 +72,12 @@ export const customerContactMethod = pgTable(
       .notNull(),
   },
   (table) => [
+    // 同一联系人每种联系方式最多一条。
     uniqueIndex("customer_contact_method_type_unique").on(
       table.contactId,
       table.type
     ),
+    // 仅对标记为主要的记录做唯一校验，每位联系人最多一条。
     uniqueIndex("customer_contact_method_primary_unique")
       .on(table.contactId)
       .where(sql`${table.isPrimary} = true`),

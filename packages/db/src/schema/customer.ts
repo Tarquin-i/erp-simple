@@ -16,12 +16,18 @@ import {
 import { user } from "./auth";
 import { organization } from "./organization";
 
+/**
+ * 生成供 PostgreSQL 随机抽取一个字母的 SQL 表达式。
+ * @param letters 代码内预设的非空候选字母串。
+ * @returns SQL 表达式字符串，随机取值发生在数据库执行时。
+ */
 const randomLetter = (letters: string) =>
   `substr('${letters}'::text, random(1, ${letters.length}), 1)`;
 
 const customerNumberSyllable = `${randomLetter("BDFGHJKLMNPRSTVZ")}, ${randomLetter("AEIOU")}`;
 
-// Match huivo-erp's PostgreSQL 17 default so Drizzle can compare it with pg_get_expr.
+// 编号由 C、两组辅音加元音和两位数字组成，插入时由 PostgreSQL 生成。
+// 沿用 huivo-erp 的 PostgreSQL 17 表达式，便于 Drizzle 和 pg_get_expr 的结果比较。
 const customerNumberDefault = sql.raw(
   `concat('C', ${customerNumberSyllable}, ${customerNumberSyllable}, lpad((random(0, 99))::text, 2, '0'::text))`
 );
@@ -44,6 +50,7 @@ export const customer = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
     remark: text("remark"),
+    // 后端用版本号检测并发编辑，并在更新成功时递增。
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -54,7 +61,9 @@ export const customer = pgTable(
       .notNull(),
   },
   (table) => [
+    // 编号全局唯一，新建撞号时由后端重试。
     uniqueIndex("customer_customer_no_unique").on(table.customerNo),
+    // 客户名称去掉首尾空格并转小写后，在同一部门内唯一。
     uniqueIndex("customer_department_name_unique").on(
       table.departmentId,
       table.normalizedCompanyName
@@ -71,6 +80,7 @@ export const customer = pgTable(
   ]
 );
 
+// 客户渠道字典，以固定编码关联客户。
 export const customerChannel = pgTable("customer_channel", {
   code: varchar("code", { length: 64 }).primaryKey(),
   name: varchar("name", { length: 64 }).notNull(),
@@ -91,6 +101,7 @@ export const customerTag = pgTable(
       .notNull(),
   },
   (table) => [
+    // 标签名称去掉首尾空格并转小写后，全局唯一。
     uniqueIndex("customer_tag_normalized_name_unique").on(table.normalizedName),
     check("customer_tag_name_nonempty", sql`${table.normalizedName} <> ''`),
     check(
@@ -100,6 +111,7 @@ export const customerTag = pgTable(
   ]
 );
 
+// 每个客户只能关联同一渠道一次。删除客户时自动清理关联，已关联渠道不能直接删除。
 export const customerChannelAssignment = pgTable(
   "customer_channel_assignment",
   {
@@ -119,6 +131,7 @@ export const customerChannelAssignment = pgTable(
   ]
 );
 
+// 每个客户只能关联同一标签一次。删除客户时自动清理关联，已关联标签不能直接删除。
 export const customerTagAssignment = pgTable(
   "customer_tag_assignment",
   {
