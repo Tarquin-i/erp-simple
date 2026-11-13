@@ -14,6 +14,7 @@ app.route("/api/organization", departmentApplicationRoutes);
 app.route("/api/organization", organizationReadRoutes);
 app.route("/api/customers", customerRoutes);
 
+// 接收请求前检查数据库连通性。检查失败时先关闭连接池，再中止启动。
 try {
   await database.checkConnection();
 } catch (error) {

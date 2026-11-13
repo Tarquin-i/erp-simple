@@ -18,6 +18,13 @@ export type BusinessAccessEnv = {
   Variables: { businessAccess: BusinessAccess };
 };
 
+/**
+ * 根据管理员身份和部门成员关系计算账号的业务数据范围。
+ * @param db 用于读取权限的数据库实例或当前事务。
+ * @param userId 当前账号的用户 ID。
+ * @returns 公司、部门或本人范围，部门和本人范围包含所属部门 ID。
+ * @throws 账号不存在时抛出 HTTP 401，账号既非公司管理员也未加入部门时抛出 HTTP 403。
+ */
 export async function readBusinessAccess(
   db: typeof database.db | DatabaseTransaction,
   userId: string
@@ -45,6 +52,7 @@ export async function readBusinessAccess(
   };
 }
 
+// 将会话对应的数据范围写入请求上下文，供后续业务路由读取。
 export const requireBusinessAccess = createMiddleware<BusinessAccessEnv>(
   async (c, next) => {
     const userId = await requireAccountId(c.req.raw.headers);
@@ -53,7 +61,12 @@ export const requireBusinessAccess = createMiddleware<BusinessAccessEnv>(
   }
 );
 
-// Apply this predicate in the query itself, including the WHERE of updates and deletes.
+/**
+ * 生成业务数据范围条件，直接用于查询、更新和删除的 WHERE 子句。
+ * @param access 当前账号的业务范围。
+ * @param columns 业务表的部门和负责人字段。
+ * @returns 公司范围允许所有行，部门范围匹配所属部门，本人范围同时匹配部门和负责人。
+ */
 export function businessScopeWhere(
   access: BusinessAccess,
   columns: {
@@ -69,8 +82,13 @@ export function businessScopeWhere(
   return sql`(${inDepartment} and ${eq(columns.ownerUserId, access.userId)})`;
 }
 
-// Check the destination scope for inserts and ownership changes. Resource-specific
-// assignment rules still apply.
+/**
+ * 校验新增记录或变更负责人后的目标范围。具体模块仍需校验负责人资格。
+ * @param access 当前账号的业务范围。
+ * @param target 目标部门和负责人，未指定负责人时传 `null`。
+ * @returns 校验通过时无返回值。
+ * @throws 目标超出当前账号的数据范围时抛出 HTTP 403。
+ */
 export function assertBusinessWriteTarget(
   access: BusinessAccess,
   target: { departmentId: string; ownerUserId: string | null }
