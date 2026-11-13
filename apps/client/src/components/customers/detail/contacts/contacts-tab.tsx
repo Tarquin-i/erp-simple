@@ -72,6 +72,11 @@ export function CustomerContacts({
   const writing = useRef(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
+  const editorInput = useRef<HTMLInputElement>(null);
+  const latestEditedContact =
+    editor?.kind === "edit"
+      ? contacts?.find((contact) => contact.id === editor.contact.id)
+      : undefined;
   // 按联系方式展开和分页，无联系方式的联系人仍保留一行，方便继续添加。
   const rows = (contacts ?? []).flatMap((contact) =>
     (contact.methods.length ? contact.methods : [null]).map((method) => ({
@@ -185,34 +190,57 @@ export function CustomerContacts({
               : change.kind === "delete"
                 ? change.method.id
                 : undefined;
-          if (
-            methodId &&
-            !latest.methods.some((method) => method.id === methodId)
-          ) {
+          const currentMethod = latest.methods.find(
+            (method) => method.id === methodId
+          );
+          if (methodId && !currentMethod) {
             setConflict(null);
+            setEditor(null);
             setDeletion(null);
             setError("该联系方式已被删除。");
-            if (change.kind === "delete") restoreFocus();
+            restoreFocus();
+            return;
+          }
+          const requestedType =
+            change.kind === "add"
+              ? change.method.type
+              : change.kind === "edit"
+                ? change.fields.type
+                : undefined;
+          const occupiedType = latest.methods.some(
+            (method) => method.id !== methodId && method.type === requestedType
+          );
+          if (requestedType && occupiedType) {
+            setConflict(null);
+            if (change.kind === "add") {
+              // 追加新联系方式时可使用最新版本，编辑现有方式仍保留原版本以便比较。
+              setEditor((mode) =>
+                mode?.kind === "add"
+                  ? {
+                      ...mode,
+                      contacts: mode.contacts.map((contact) =>
+                        contact.id === latest.id ? latest : contact
+                      ),
+                    }
+                  : mode
+              );
+            }
+            const recheckPrimary =
+              change.kind === "add" && change.method.isPrimary;
+            setError(
+              `该联系人已有${contactMethodLabels[requestedType]}，请选择其他方式或编辑已有联系方式。${recheckPrimary ? "改选后如需设为主要联系方式，请重新勾选。" : ""}`
+            );
             return;
           }
           if (
-            change.kind === "add" &&
-            latest.methods.some((method) => method.type === change.method.type)
+            change.kind === "edit" &&
+            change.fields.isPrimary === false &&
+            currentMethod?.isPrimary &&
+            latest.methods.length === 1
           ) {
             setConflict(null);
-            // 更新新增表单的选项和版本，保留当前联系人和输入草稿。
-            setEditor((mode) =>
-              mode?.kind === "add"
-                ? {
-                    ...mode,
-                    contacts: mode.contacts.map((contact) =>
-                      contact.id === latest.id ? latest : contact
-                    ),
-                  }
-                : mode
-            );
             setError(
-              `该联系人已有${contactMethodLabels[change.method.type]}，请选择其他方式或编辑已有联系方式。${change.method.isPrimary ? "改选后如需设为主要联系方式，请重新勾选。" : ""}`
+              "唯一的联系方式必须保留为主要联系方式，可以继续修改其他字段。"
             );
             return;
           }
@@ -425,6 +453,8 @@ export function CustomerContacts({
       {editor && (
         <CustomerContactEditor
           mode={editor}
+          latestContact={latestEditedContact}
+          inputRef={editorInput}
           pending={pending}
           locked={pending || conflict !== null}
           error={error}
@@ -469,6 +499,12 @@ export function CustomerContacts({
         onCancel={() => {
           setConflict(null);
           if (deletion) closeDelete();
+        }}
+        onCloseAutoFocus={(event) => {
+          if (!editorInput.current) return;
+          event.preventDefault();
+          // 等冲突弹窗释放焦点后，再回到仍打开的编辑表单。
+          requestAnimationFrame(() => editorInput.current?.focus());
         }}
         onOverwrite={() => {
           // 以当前确认过的版本重试，期间若再次更新仍会收到冲突。

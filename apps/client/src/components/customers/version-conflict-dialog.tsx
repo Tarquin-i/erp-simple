@@ -21,7 +21,7 @@ type Difference = { label: string; current: string; proposed: string };
 
 /**
  * 展示服务端当前值和用户拟提交值，等待用户取消或确认覆盖。
- * @param props 对比行、可选的说明、提交状态以及取消和覆盖回调。`differences` 为 `null` 时关闭弹窗。
+ * @param props 对比行、可选的说明、提交状态和弹窗回调。`differences` 为 `null` 时关闭弹窗。
  * @returns 由调用方控制开关和异步提交状态的确认弹窗。
  */
 export function VersionConflictDialog({
@@ -30,12 +30,14 @@ export function VersionConflictDialog({
   pending = false,
   onCancel,
   onOverwrite,
+  onCloseAutoFocus,
 }: {
   differences: Difference[] | null;
   description?: string;
   pending?: boolean;
   onCancel: () => void;
   onOverwrite: () => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }) {
   return (
     <AlertDialog
@@ -44,7 +46,10 @@ export function VersionConflictDialog({
         if (!open && !pending) onCancel();
       }}
     >
-      <AlertDialogContent className="max-h-[85vh] overflow-auto data-[size=default]:max-w-[calc(100%-2rem)] sm:data-[size=default]:max-w-xl">
+      <AlertDialogContent
+        className="max-h-[85vh] overflow-auto data-[size=default]:max-w-[calc(100%-2rem)] sm:data-[size=default]:max-w-xl"
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>资料已被更新</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>

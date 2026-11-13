@@ -1,4 +1,4 @@
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, type Ref, useEffect, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -63,6 +63,8 @@ function contactOptionLabel(
 
 export function CustomerContactEditor({
   mode,
+  latestContact,
+  inputRef,
   pending,
   locked,
   error,
@@ -70,6 +72,8 @@ export function CustomerContactEditor({
   onSubmit,
 }: {
   mode: ContactEditorMode;
+  latestContact?: CustomerContact;
+  inputRef: Ref<HTMLInputElement>;
   pending: boolean;
   locked: boolean;
   error: string;
@@ -96,13 +100,23 @@ export function CustomerContactEditor({
   const selected =
     mode.kind === "add"
       ? mode.contacts.find((contact) => contact.id === selectedContactId)
-      : mode.contact;
+      : (latestContact ?? mode.contact);
   const showName = mode.kind === "rename" || !selected;
   const takenTypes =
     selected?.methods
       .filter((item) => item.id !== method?.id)
       .map((item) => item.type) ?? [];
   const typeTaken = type !== "" && takenTypes.includes(type);
+  // 用最新记录判断能否取消主要项，仍按打开表单时的记录计算修改字段。
+  const canChangePrimary =
+    mode.kind !== "edit" || (selected?.methods.length ?? 0) > 1;
+  const primaryChanged = canChangePrimary && isPrimary !== method?.isPrimary;
+
+  useEffect(() => {
+    // 清除已经无法提交的设置，避免以后可选项增加时自动恢复。
+    if (!canChangePrimary && method) setIsPrimary(method.isPrimary);
+  }, [canChangePrimary, method]);
+
   const title =
     mode.kind === "rename"
       ? "编辑联系人"
@@ -115,7 +129,7 @@ export function CustomerContactEditor({
       : !method ||
         type !== method.type ||
         value.trim() !== method.value ||
-        isPrimary !== method.isPrimary;
+        primaryChanged;
 
   /**
    * 校验表单并通过回调提交对应操作，编辑时只提交改动字段。
@@ -145,7 +159,7 @@ export function CustomerContactEditor({
       const fields: Partial<CustomerContactMethodInput> = {};
       if (type !== mode.method.type) fields.type = type;
       if (cleanedValue !== mode.method.value) fields.value = cleanedValue;
-      if (isPrimary !== mode.method.isPrimary) fields.isPrimary = isPrimary;
+      if (primaryChanged) fields.isPrimary = isPrimary;
       onSubmit({
         kind: "edit",
         contact: mode.contact,
@@ -220,6 +234,7 @@ export function CustomerContactEditor({
                 <FieldLabel htmlFor={`${id}-name`}>联系人姓名</FieldLabel>
                 <Input
                   id={`${id}-name`}
+                  ref={mode.kind === "rename" ? inputRef : undefined}
                   value={name}
                   maxLength={128}
                   disabled={locked}
@@ -246,7 +261,7 @@ export function CustomerContactEditor({
                     value={typeTaken ? "" : type}
                     onValueChange={(next) => {
                       // 冲突后改选类型时，重新确认是否要替换最新的主要项。
-                      if (typeTaken) setIsPrimary(false);
+                      if (mode.kind === "add" && typeTaken) setIsPrimary(false);
                       setType(next as CustomerContactMethodType);
                       setValidation("");
                     }}
@@ -275,6 +290,7 @@ export function CustomerContactEditor({
                   <FieldLabel htmlFor={`${id}-value`}>联系信息</FieldLabel>
                   <Input
                     id={`${id}-value`}
+                    ref={inputRef}
                     type={
                       type === "email"
                         ? "email"
