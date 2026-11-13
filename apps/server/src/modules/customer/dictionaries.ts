@@ -1,8 +1,9 @@
-import { customerChannel, customerTag } from "@repo/db/schema";
-import { asc, count, sql } from "drizzle-orm";
+import { customer, customerChannel, customerTag, user } from "@repo/db/schema";
+import { asc, count, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 
 import type { BusinessAccessEnv } from "../business/access";
+import { businessScopeWhere } from "../business/access";
 import { database } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
 import {
@@ -10,6 +11,7 @@ import {
   readObject,
   readPositiveInteger,
   readString,
+  readUuid,
 } from "./input";
 
 const tagFields = {
@@ -20,6 +22,17 @@ const tagFields = {
 };
 
 export const customerDictionaryRoutes = new Hono<BusinessAccessEnv>();
+
+customerDictionaryRoutes.get("/owners", async (c) => {
+  const owners = await database.db
+    .selectDistinct({ id: user.id, name: user.name })
+    .from(customer)
+    .innerJoin(user, eq(user.id, customer.ownerUserId))
+    .where(businessScopeWhere(c.get("businessAccess"), customer))
+    .orderBy(asc(user.name), asc(user.id));
+
+  return c.json({ owners });
+});
 
 customerDictionaryRoutes.get("/channels", async (c) => {
   const channels = await database.db
@@ -70,6 +83,16 @@ customerDictionaryRoutes.get("/tags", async (c) => {
   );
 
   return c.json(result);
+});
+
+customerDictionaryRoutes.get("/tags/:tagId", async (c) => {
+  const id = readUuid(c.req.param("tagId"), "标签 ID");
+  const [tag] = await database.db
+    .select(tagFields)
+    .from(customerTag)
+    .where(eq(customerTag.id, id));
+  if (!tag) fail(404, "标签不存在。");
+  return c.json({ tag });
 });
 
 customerDictionaryRoutes.post("/tags", async (c) => {
