@@ -1,5 +1,5 @@
 import { Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ComponentPropsWithRef, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,8 +41,17 @@ function SelectionControl({
   label,
   value,
   anchor,
+  inputProps,
 }: Pick<PickerProps, "id" | "label" | "value"> & {
   anchor: ReturnType<typeof useComboboxAnchor>;
+  inputProps?: Pick<
+    ComponentPropsWithRef<typeof ComboboxChipsInput>,
+    | "ref"
+    | "placeholder"
+    | "onCompositionStart"
+    | "onCompositionEnd"
+    | "onKeyDown"
+  >;
 }) {
   return (
     <ComboboxChips ref={anchor} className="min-h-10 gap-y-1 pr-2 shadow-xs">
@@ -61,6 +70,7 @@ function SelectionControl({
         maxLength={64}
         placeholder={value.length ? "" : `选择${label}`}
         className="min-w-0 px-1 placeholder:text-muted-foreground"
+        {...inputProps}
       />
       <ComboboxTrigger
         className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
@@ -125,7 +135,10 @@ export function CustomerTagPicker({
   onCreatingChange: (creating: boolean) => void;
 }) {
   const anchor = useComboboxAnchor();
+  const input = useRef<HTMLInputElement>(null);
+  const composing = useRef(false);
   const [open, setOpen] = useState(false);
+  const [enteringName, setEnteringName] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [results, setResults] = useState<TagPage | null>(null);
@@ -147,9 +160,12 @@ export function CustomerTagPicker({
     !loading &&
     !exactMatch &&
     !searchError;
-  const items = canCreate
-    ? [...matchingTags, { id: createTagOptionId, name: keyword }]
-    : matchingTags;
+  const items =
+    allowCreate && !keyword && !enteringName
+      ? [{ id: createTagOptionId, name: "" }, ...matchingTags]
+      : canCreate
+        ? [...matchingTags, { id: createTagOptionId, name: keyword }]
+        : matchingTags;
 
   useEffect(() => {
     if (!open) return;
@@ -207,20 +223,14 @@ export function CustomerTagPicker({
     setCreateError("");
   }
 
-  async function handleValueChange(selected: CustomerFormOption[]) {
-    if (creating) return;
-    const newTag = selected.find((option) => option.id === createTagOptionId);
-    if (!newTag) {
-      props.onChange(selected);
-      return;
-    }
-
+  async function createTag(name: string) {
     setCreateError("");
     setCreating(true);
     onCreatingChange(true);
     try {
-      const { tag } = await createCustomerTag({ name: newTag.name });
+      const { tag } = await createCustomerTag({ name });
       props.onChange([...props.value, { id: tag.id, name: tag.name }]);
+      setEnteringName(false);
       setSearch("");
       setPage(1);
       setReload((attempt) => attempt + 1);
@@ -250,7 +260,26 @@ export function CustomerTagPicker({
           if (details.isItemPress) details.cancel();
           else changeSearch(value);
         }}
-        onValueChange={(selected) => void handleValueChange(selected)}
+        onValueChange={(selected, details) => {
+          if (creating) {
+            details.cancel();
+            return;
+          }
+          const newTag = selected.find(
+            (option) => option.id === createTagOptionId
+          );
+          if (!newTag) {
+            props.onChange(selected);
+            return;
+          }
+          details.cancel();
+          if (newTag.name) {
+            void createTag(newTag.name);
+          } else {
+            setEnteringName(true);
+            input.current?.focus();
+          }
+        }}
         itemToStringLabel={optionLabel}
         isItemEqualToValue={isSameOption}
         onOpenChange={(next, details) => {
@@ -259,10 +288,40 @@ export function CustomerTagPicker({
             return;
           }
           setOpen(next);
-          if (!next) changeSearch("");
+          if (!next) {
+            setEnteringName(false);
+            changeSearch("");
+          }
         }}
       >
-        <SelectionControl {...props} anchor={anchor} />
+        <SelectionControl
+          {...props}
+          anchor={anchor}
+          inputProps={{
+            ref: input,
+            ...(enteringName && { placeholder: "输入标签名称" }),
+            onCompositionStart: () => {
+              composing.current = true;
+            },
+            onCompositionEnd: () => {
+              composing.current = false;
+            },
+            onKeyDown: (event) => {
+              if (event.key !== "Enter" || !open) return;
+              if (
+                composing.current ||
+                event.nativeEvent.isComposing ||
+                event.nativeEvent.keyCode === 229
+              ) {
+                event.preventBaseUIHandler();
+                return;
+              }
+              if (!event.currentTarget.getAttribute("aria-activedescendant")) {
+                event.preventDefault();
+              }
+            },
+          }}
+        />
         <ComboboxContent anchor={anchor}>
           <ComboboxEmpty>
             {searchError ||
@@ -274,7 +333,11 @@ export function CustomerTagPicker({
                 {option.id === createTagOptionId ? (
                   <>
                     <Plus aria-hidden="true" />
-                    {creating ? "正在新建…" : `新建标签「${option.name}」`}
+                    {creating
+                      ? "正在新建…"
+                      : option.name
+                        ? `新建标签「${option.name}」`
+                        : "新建标签"}
                   </>
                 ) : (
                   option.name
