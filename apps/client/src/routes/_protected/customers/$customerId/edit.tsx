@@ -6,17 +6,27 @@ import {
   CustomerFormPending,
 } from "@/components/customers/customer-form";
 import { getCustomerListQuery } from "@/components/customers/customer-list-query";
-import { getCustomer, listCustomerChannels } from "@/request/customers";
+import {
+  getCustomer,
+  listAssignableCustomerOwners,
+  listCustomerChannels,
+} from "@/request/customers";
 
 export const Route = createFileRoute("/_protected/customers/$customerId/edit")({
   loader: {
     staleReloadMode: "blocking",
-    handler: async ({ params, abortController }) => {
-      const [{ customer }, { channels }] = await Promise.all([
-        getCustomer(params.customerId, abortController.signal),
-        listCustomerChannels(abortController.signal),
+    handler: async ({ params, abortController, context }) => {
+      const { signal } = abortController;
+      const { customerId } = params;
+      const { role } = context.viewer;
+      const [{ customer }, { channels }, ownerOptions] = await Promise.all([
+        getCustomer(customerId, signal),
+        listCustomerChannels(signal),
+        role === "supervisor" || role === "company-admin"
+          ? listAssignableCustomerOwners(customerId, signal)
+          : undefined,
       ]);
-      return { customer, channels };
+      return { customer, channels, assignableOwners: ownerOptions?.owners };
     },
   },
   pendingComponent: CustomerFormPending,
@@ -25,7 +35,7 @@ export const Route = createFileRoute("/_protected/customers/$customerId/edit")({
 });
 
 function EditCustomerPage() {
-  const { customer, channels } = Route.useLoaderData();
+  const { customer, channels, assignableOwners } = Route.useLoaderData();
   const customerListQuery = useLocation({
     select: (location) => getCustomerListQuery(location.state),
   });
@@ -35,7 +45,8 @@ function EditCustomerPage() {
     <CustomerForm
       key={customer.id}
       customer={customer}
-      ownerName={customer.ownerName}
+      owner={{ id: customer.ownerUserId, name: customer.ownerName }}
+      assignableOwners={assignableOwners}
       channels={channels}
       onCancel={() => {
         void navigate({

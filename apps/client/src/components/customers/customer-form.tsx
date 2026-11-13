@@ -1,5 +1,5 @@
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
-import { Save } from "lucide-react";
+import { Check, Save } from "lucide-react";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
@@ -13,6 +13,13 @@ import { VersionConflictDialog } from "@/components/customers/version-conflict-d
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -23,20 +30,26 @@ import {
 import type {
   Customer,
   CustomerChannel,
+  CustomerOwner,
   CustomerWriteInput,
 } from "@/request/customers";
 
 type Draft = {
   companyName: string;
   remark: string;
+  owner: CustomerOwner;
   channels: CustomerFormOption[];
   tags: CustomerFormOption[];
 };
 
-function customerDraft(customer?: Customer): Draft {
+function customerDraft(
+  customer: Customer | undefined,
+  owner: CustomerOwner
+): Draft {
   return {
     companyName: customer?.companyName ?? "",
     remark: customer?.remark ?? "",
+    owner,
     channels:
       customer?.channels.map(({ code, name }) => ({ id: code, name })) ?? [],
     tags: customer?.tags.map(({ id, name }) => ({ id, name })) ?? [],
@@ -63,6 +76,9 @@ function updatedFields(initial: Draft, draft: Draft): CustomerWriteInput {
   return {
     ...(companyName !== initial.companyName.trim() ? { companyName } : {}),
     ...(remark !== initial.remark.trim() ? { remark: remark || null } : {}),
+    ...(draft.owner.id !== initial.owner.id
+      ? { ownerUserId: draft.owner.id }
+      : {}),
     ...(!sameOptions(initial.channels, draft.channels)
       ? { channelCodes: optionIds(draft.channels) }
       : {}),
@@ -79,6 +95,8 @@ function isCustomerSnapshot(value: unknown, id: string): value is Customer {
     current.id === id &&
     typeof current.version === "number" &&
     typeof current.companyName === "string" &&
+    typeof current.ownerUserId === "string" &&
+    typeof current.ownerName === "string" &&
     Array.isArray(current.channels) &&
     Array.isArray(current.tags)
   );
@@ -90,7 +108,10 @@ function conflictDifferences(
   initial: Draft,
   draft: Draft
 ) {
-  const latest = customerDraft(current);
+  const latest = customerDraft(current, {
+    id: current.ownerUserId,
+    name: current.ownerName,
+  });
   const differences = [];
   const preserve = "保留当前资料";
   const names = (options: CustomerFormOption[]) =>
@@ -124,6 +145,16 @@ function conflictDifferences(
       proposed: changes.tagIds === undefined ? preserve : names(draft.tags),
     });
   }
+  if (
+    changes.ownerUserId !== undefined ||
+    latest.owner.id !== initial.owner.id
+  ) {
+    differences.push({
+      label: "业务员",
+      current: latest.owner.name,
+      proposed: changes.ownerUserId === undefined ? preserve : draft.owner.name,
+    });
+  }
   if (changes.remark !== undefined || latest.remark !== initial.remark) {
     differences.push({
       label: "备注",
@@ -138,19 +169,21 @@ function conflictDifferences(
 
 export function CustomerForm({
   customer,
-  ownerName,
+  owner,
+  assignableOwners,
   channels,
   onCancel,
   onSaved,
 }: {
   customer?: Customer;
-  ownerName: string;
+  owner: CustomerOwner;
+  assignableOwners?: CustomerOwner[];
   channels: CustomerChannel[];
   onCancel: () => void;
   onSaved: () => Promise<void>;
 }) {
   const router = useRouter();
-  const [initial] = useState(() => customerDraft(customer));
+  const [initial] = useState(() => customerDraft(customer, owner));
   const [draft, setDraft] = useState(initial);
   const [originalVersion] = useState(customer?.version);
   const [pending, setPending] = useState(false);
@@ -166,6 +199,8 @@ export function CustomerForm({
   const changes = updatedFields(initial, draft);
   const isEdit = customer !== undefined;
   const busy = pending || tagPending;
+  const SubmitIcon = isEdit ? Save : Check;
+  const submitLabel = isEdit ? "保存" : "完成";
 
   function setNameValidation(message: string) {
     setNameError(message);
@@ -244,14 +279,16 @@ export function CustomerForm({
   return (
     <main className="flex-1 bg-background px-5 py-6 sm:px-7 lg:px-8">
       <form onSubmit={submit} className="space-y-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div
+          className={`flex flex-wrap justify-between gap-4 ${isEdit ? "items-start" : "items-center"}`}
+        >
           <div className="min-w-0 space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight break-words">
               {customer?.companyName ?? "新建客户"}
             </h1>
-            <p className="text-sm text-muted-foreground">
-              {isEdit ? "编辑客户" : "填写客户基本信息"}
-            </p>
+            {isEdit && (
+              <p className="text-sm text-muted-foreground">编辑客户</p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -269,8 +306,8 @@ export function CustomerForm({
               aria-busy={pending}
               disabled={busy || (isEdit && Object.keys(changes).length === 0)}
             >
-              <Save aria-hidden="true" />
-              {pending ? "正在保存…" : "保存"}
+              <SubmitIcon aria-hidden="true" />
+              {pending ? "正在保存…" : submitLabel}
             </Button>
           </div>
         </div>
@@ -284,7 +321,7 @@ export function CustomerForm({
         <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
           <Field
             data-invalid={Boolean(nameError)}
-            className="min-w-0 md:col-span-2"
+            className={isEdit ? "min-w-0 md:col-span-2" : "min-w-0"}
           >
             <FieldLabel htmlFor="customer-form-name">客户名称</FieldLabel>
             <Input
@@ -341,19 +378,48 @@ export function CustomerForm({
             onChange={(value) =>
               setDraft((current) => ({ ...current, tags: value }))
             }
-            allowCreate={isEdit}
+            allowCreate
             onCreatingChange={setTagPending}
             disabled={pending}
           />
 
           <Field className="min-w-0">
             <FieldLabel htmlFor="customer-form-owner">业务员</FieldLabel>
-            <Input
-              id="customer-form-owner"
-              className="h-10 bg-muted/25 text-muted-foreground shadow-xs"
-              readOnly
-              value={ownerName}
-            />
+            {assignableOwners ? (
+              <Select
+                disabled={pending || !assignableOwners.length}
+                value={draft.owner.id}
+                onValueChange={(id) => {
+                  const selected = assignableOwners.find(
+                    (owner) => owner.id === id
+                  );
+                  if (selected) {
+                    setDraft((current) => ({ ...current, owner: selected }));
+                  }
+                }}
+              >
+                <SelectTrigger
+                  id="customer-form-owner"
+                  className="w-full shadow-xs data-[size=default]:h-10"
+                >
+                  <SelectValue>{draft.owner.name}</SelectValue>
+                </SelectTrigger>
+                <SelectContent position="popper" align="start">
+                  {assignableOwners.map(({ id, name }) => (
+                    <SelectItem key={id} value={id}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                id="customer-form-owner"
+                className="h-10 bg-muted/25 text-muted-foreground shadow-xs"
+                readOnly
+                value={draft.owner.name}
+              />
+            )}
           </Field>
           <Field className="min-w-0 md:col-span-2">
             <FieldLabel htmlFor="customer-form-remark">备注</FieldLabel>

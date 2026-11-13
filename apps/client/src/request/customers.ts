@@ -31,6 +31,7 @@ export type CustomerWriteInput = {
   remark?: string | null;
   channelCodes?: string[];
   tagIds?: string[];
+  ownerUserId?: string;
 };
 
 export type CustomerContactMethodType =
@@ -161,6 +162,16 @@ export function createCustomerTag(input: { name: string; color?: string }) {
 
 export function listCustomerOwners(signal?: AbortSignal) {
   return request<{ owners: CustomerOwner[] }>("/owners", { signal });
+}
+
+export function listAssignableCustomerOwners(
+  customerId?: string,
+  signal?: AbortSignal
+) {
+  const path = customerId ? customerPath(customerId) : "";
+  return request<{ owners: CustomerOwner[] }>(`${path}/assignable-owners`, {
+    signal,
+  });
 }
 
 export function listCustomerContacts(customerId: string, signal?: AbortSignal) {

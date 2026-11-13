@@ -6,7 +6,10 @@ import {
   CustomerFormPending,
 } from "@/components/customers/customer-form";
 import { getCustomerListQuery } from "@/components/customers/customer-list-query";
-import { listCustomerChannels } from "@/request/customers";
+import {
+  listAssignableCustomerOwners,
+  listCustomerChannels,
+} from "@/request/customers";
 
 export const Route = createFileRoute("/_protected/customers/new")({
   beforeLoad: ({ context, location }) => {
@@ -18,7 +21,16 @@ export const Route = createFileRoute("/_protected/customers/new")({
       });
     }
   },
-  loader: ({ abortController }) => listCustomerChannels(abortController.signal),
+  loader: async ({ abortController, context }) => {
+    const { signal } = abortController;
+    const [{ channels }, ownerOptions] = await Promise.all([
+      listCustomerChannels(signal),
+      context.viewer.role === "supervisor"
+        ? listAssignableCustomerOwners(undefined, signal)
+        : undefined,
+    ]);
+    return { channels, assignableOwners: ownerOptions?.owners };
+  },
   pendingComponent: CustomerFormPending,
   errorComponent: CustomerFormLoadError,
   component: NewCustomerPage,
@@ -26,7 +38,7 @@ export const Route = createFileRoute("/_protected/customers/new")({
 
 function NewCustomerPage() {
   const { viewer } = Route.useRouteContext();
-  const { channels } = Route.useLoaderData();
+  const { channels, assignableOwners } = Route.useLoaderData();
   const customerListQuery = useLocation({
     select: (location) => getCustomerListQuery(location.state),
   });
@@ -36,7 +48,8 @@ function NewCustomerPage() {
 
   return (
     <CustomerForm
-      ownerName={viewer.account.name}
+      owner={viewer.account}
+      assignableOwners={assignableOwners}
       channels={channels}
       onCancel={() => void returnToList()}
       onSaved={returnToList}
