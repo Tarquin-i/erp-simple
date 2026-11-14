@@ -6,7 +6,7 @@
     "./schema": "./src/schema/index.ts"
   },
   "scripts": {
-    "db:push": "drizzle-kit push",
+    "db:push": "bun src/push.ts",
     "db:studio": "drizzle-kit studio",
     "check-types": "tsc -p tsconfig.json --noEmit"
   },
