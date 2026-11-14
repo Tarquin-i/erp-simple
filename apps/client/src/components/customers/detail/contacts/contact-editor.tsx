@@ -90,32 +90,38 @@ export function CustomerContactEditor({
   const [name, setName] = useState(
     mode.kind === "rename" ? mode.contact.name : ""
   );
-  const [type, setType] = useState<CustomerContactMethodType | "">(
-    method?.type ?? ""
-  );
+  const [typeOverride, setTypeOverride] = useState<
+    CustomerContactMethodType | ""
+  >();
   const [value, setValue] = useState(method?.value ?? "");
-  const [isPrimary, setIsPrimary] = useState(method?.isPrimary ?? false);
+  const [primaryOverride, setPrimaryOverride] = useState<boolean>();
   const [validation, setValidation] = useState("");
 
   const selected =
     mode.kind === "add"
       ? mode.contacts.find((contact) => contact.id === selectedContactId)
       : (latestContact ?? mode.contact);
+  const currentMethod =
+    mode.kind === "edit"
+      ? (latestContact?.methods.find((item) => item.id === mode.method.id) ??
+        mode.method)
+      : undefined;
+  const type = typeOverride ?? currentMethod?.type ?? "";
+  const isPrimary = primaryOverride ?? currentMethod?.isPrimary ?? false;
   const showName = mode.kind === "rename" || !selected;
   const takenTypes =
     selected?.methods
       .filter((item) => item.id !== method?.id)
       .map((item) => item.type) ?? [];
   const typeTaken = type !== "" && takenTypes.includes(type);
-  // 用最新记录判断能否取消主要项，仍按打开表单时的记录计算修改字段。
   const canChangePrimary =
     mode.kind !== "edit" || (selected?.methods.length ?? 0) > 1;
-  const primaryChanged = canChangePrimary && isPrimary !== method?.isPrimary;
+  const primaryChanged = canChangePrimary && primaryOverride !== undefined;
 
   useEffect(() => {
     // 清除已经无法提交的设置，避免以后可选项增加时自动恢复。
-    if (!canChangePrimary && method) setIsPrimary(method.isPrimary);
-  }, [canChangePrimary, method]);
+    if (!canChangePrimary) setPrimaryOverride(undefined);
+  }, [canChangePrimary]);
 
   const title =
     mode.kind === "rename"
@@ -127,7 +133,7 @@ export function CustomerContactEditor({
     mode.kind === "rename"
       ? name.trim() !== mode.contact.name
       : !method ||
-        type !== method.type ||
+        typeOverride !== undefined ||
         value.trim() !== method.value ||
         primaryChanged;
 
@@ -157,7 +163,8 @@ export function CustomerContactEditor({
     }
     if (mode.kind === "edit") {
       const fields: Partial<CustomerContactMethodInput> = {};
-      if (type !== mode.method.type) fields.type = type;
+      // 最新快照用于展示和校验。只提交用户明确改过的字段，继续校验原版本。
+      if (typeOverride !== undefined) fields.type = type;
       if (cleanedValue !== mode.method.value) fields.value = cleanedValue;
       if (primaryChanged) fields.isPrimary = isPrimary;
       onSubmit({
@@ -211,8 +218,8 @@ export function CustomerContactEditor({
                         .find((contact) => contact.id === next)
                         ?.methods.some((item) => item.type === type)
                     )
-                      setType("");
-                    if (typeTaken) setIsPrimary(false);
+                      setTypeOverride("");
+                    if (typeTaken) setPrimaryOverride(undefined);
                   }}
                 >
                   <SelectTrigger className="w-full" id={`${id}-person`}>
@@ -261,8 +268,14 @@ export function CustomerContactEditor({
                     value={typeTaken ? "" : type}
                     onValueChange={(next) => {
                       // 冲突后改选类型时，重新确认是否要替换最新的主要项。
-                      if (mode.kind === "add" && typeTaken) setIsPrimary(false);
-                      setType(next as CustomerContactMethodType);
+                      if (mode.kind === "add" && typeTaken) {
+                        setPrimaryOverride(undefined);
+                      }
+                      setTypeOverride(
+                        next === currentMethod?.type
+                          ? undefined
+                          : (next as CustomerContactMethodType)
+                      );
                       setValidation("");
                     }}
                   >
@@ -320,9 +333,14 @@ export function CustomerContactEditor({
                       <Checkbox
                         checked={isPrimary && !typeTaken}
                         disabled={locked || typeTaken}
-                        onCheckedChange={(checked) =>
-                          setIsPrimary(checked === true)
-                        }
+                        onCheckedChange={(checked) => {
+                          const next = checked === true;
+                          setPrimaryOverride(
+                            next === (currentMethod?.isPrimary ?? false)
+                              ? undefined
+                              : next
+                          );
+                        }}
                       />
                       设为主要联系方式
                     </label>
