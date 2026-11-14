@@ -485,13 +485,15 @@ export async function createCustomer(
 
 /**
  * 核对版本后更新客户和关联数据，在同一事务中递增版本号。
+ * PostgreSQL 检测到死锁时重试整个事务，每次重新校验权限和版本。
  * @param access 调用方的业务权限。仅主管或公司管理员可在客户原部门内更换业务员。
  * @param id 客户 ID。
  * @param input 需要更新的字段。省略的字段保留，空数组清空对应的渠道或标签，`null` 清空备注。
  * @param expectedVersion 调用方读取客户资料时的版本号。
  * @returns 更新后的完整客户资料和新版本号。
  * @throws 指派或关联无效时抛出 HTTP 400，权限检查失败时抛出 HTTP 401 或 403。
- * 客户不可见时抛出 HTTP 404，同部门重名或版本不一致时抛出 HTTP 409，版本冲突会附最新客户资料。
+ * 客户不可见时抛出 HTTP 404。同部门重名、版本不一致或死锁重试用尽时抛出 HTTP 409。
+ * 版本冲突会附最新客户资料。
  */
 export async function updateCustomer(
   access: BusinessAccess,
@@ -499,54 +501,65 @@ export async function updateCustomer(
   input: CustomerWriteInput,
   expectedVersion: number
 ) {
-  try {
-    return await database.db.transaction(async (tx) => {
-      const { access: freshAccess, record } = await lockCustomerForWrite(
-        tx,
-        access,
-        id
-      );
-      if (input.ownerUserId !== undefined && freshAccess.scope === "own") {
-        fail(403, "只有部门主管或公司管理员可更换业务员。");
-      }
-      // 持有客户行锁时比较版本，避免检查通过后被另一笔写入抢先修改。
-      if (record.version !== expectedVersion) {
-        failVersionConflict(await readCustomer(tx, freshAccess, id));
-      }
-      if (input.ownerUserId !== undefined) {
-        await requireAssignableOwner(
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await database.db.transaction(async (tx) => {
+        const { access: freshAccess, record } = await lockCustomerForWrite(
           tx,
-          record.departmentId,
-          input.ownerUserId
+          access,
+          id
         );
-      }
+        if (input.ownerUserId !== undefined && freshAccess.scope === "own") {
+          fail(403, "只有部门主管或公司管理员可更换业务员。");
+        }
+        // 持有客户行锁时比较版本，避免检查通过后被另一笔写入抢先修改。
+        if (record.version !== expectedVersion) {
+          failVersionConflict(await readCustomer(tx, freshAccess, id));
+        }
+        if (input.ownerUserId !== undefined) {
+          await requireAssignableOwner(
+            tx,
+            record.departmentId,
+            input.ownerUserId
+          );
+        }
 
-      await tx
-        .update(customer)
-        .set({
-          companyName: input.companyName,
-          ownerUserId: input.ownerUserId,
-          remark: input.remark,
-          updatedAt: new Date(),
-          version: sql`${customer.version} + 1`,
-        })
-        .where(
-          and(eq(customer.id, id), businessScopeWhere(freshAccess, customer))
-        );
-      if (input.channelCodes !== undefined) {
         await tx
-          .delete(customerChannelAssignment)
-          .where(eq(customerChannelAssignment.customerId, id));
+          .update(customer)
+          .set({
+            companyName: input.companyName,
+            ownerUserId: input.ownerUserId,
+            remark: input.remark,
+            updatedAt: new Date(),
+            version: sql`${customer.version} + 1`,
+          })
+          .where(
+            and(eq(customer.id, id), businessScopeWhere(freshAccess, customer))
+          );
+        if (input.channelCodes !== undefined) {
+          await tx
+            .delete(customerChannelAssignment)
+            .where(eq(customerChannelAssignment.customerId, id));
+        }
+        if (input.tagIds !== undefined) {
+          await tx
+            .delete(customerTagAssignment)
+            .where(eq(customerTagAssignment.customerId, id));
+        }
+        await insertAssignments(tx, id, input);
+        return readCustomer(tx, freshAccess, id);
+      });
+    } catch (error) {
+      const cause = error instanceof Error ? (error.cause ?? error) : error;
+      if (
+        typeof cause !== "object" ||
+        cause === null ||
+        !("code" in cause) ||
+        cause.code !== "40P01"
+      ) {
+        translateWriteError(error);
       }
-      if (input.tagIds !== undefined) {
-        await tx
-          .delete(customerTagAssignment)
-          .where(eq(customerTagAssignment.customerId, id));
-      }
-      await insertAssignments(tx, id, input);
-      return readCustomer(tx, freshAccess, id);
-    });
-  } catch (error) {
-    translateWriteError(error);
+      if (attempt === 3) fail(409, "客户资料有并发更新，请重试。");
+    }
   }
 }
