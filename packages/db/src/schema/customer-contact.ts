@@ -37,7 +37,7 @@ export const customerContact = pgTable(
       .notNull()
       .references(() => customer.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 128 }).notNull(),
-    // 后端用同一个版本号检测联系人改名和联系方式变更之间的并发冲突。
+    // 改名、新增、删除和切换主要联系方式时校验联系人版本。
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -63,6 +63,8 @@ export const customerContactMethod = pgTable(
     type: customerContactMethodType("type").notNull(),
     value: varchar("value", { length: 320 }).notNull(),
     isPrimary: boolean("is_primary").default(false).notNull(),
+    // 普通编辑按联系方式 ID 核对版本，其他联系方式的改动不阻止保存。
+    version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

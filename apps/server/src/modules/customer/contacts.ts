@@ -6,6 +6,7 @@ import {
 } from "@repo/db/schema";
 import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 
 import {
   businessScopeWhere,
@@ -33,6 +34,11 @@ type MethodInput = Pick<Method, "type" | "value"> & { isPrimary?: boolean };
 
 const methodFields = ["type", "value", "isPrimary"] as const;
 const versionedMethodFields = [...methodFields, "expectedVersion"] as const;
+const methodEditFields = [
+  ...versionedMethodFields,
+  "expectedMethodVersion",
+  "expectedContactVersion",
+] as const;
 const mainlandMobilePattern = /^(?:\+86[ -]?)?(1[3-9]\d{9})$/;
 const emailPattern =
   /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i;
@@ -221,12 +227,12 @@ async function createContact(
 }
 
 /**
- * 按部门、客户、联系人的顺序加锁，统一校验并递增联系人版本。
+ * 按部门、客户、联系人的顺序加锁，按需校验联系人版本并在写入后递增。
  * @param access 调用方的业务权限。
  * @param customerId 所属客户 ID。
  * @param contactId 待修改的联系人 ID。
- * @param expectedVersion 调用方读取到的联系人版本号。
- * @param change 事务内执行的更新操作，可直接改联系方式或返回待写入的姓名。
+ * @param expectedContactVersion 调用方读取到的联系人版本号。普通联系方式编辑由变更操作校验单条版本。
+ * @param change 事务内执行的更新操作，接收事务和锁定后的联系人，可直接改联系方式或返回待写入的姓名。
  * @returns 更新后的联系人、联系方式及新版本号。
  * @throws 客户不可见或联系人不存在时抛出 HTTP 404，权限检查失败时抛出 HTTP 401 或 403。
  * 版本过期或联系方式类型重复时抛出 HTTP 409，版本冲突会附最新联系人及其联系方式。
@@ -236,8 +242,11 @@ async function changeContact(
   access: BusinessAccess,
   customerId: string,
   contactId: string,
-  expectedVersion: number,
-  change: (tx: DatabaseTransaction) => Promise<void | { name: string }>
+  expectedContactVersion: number | undefined,
+  change: (
+    tx: DatabaseTransaction,
+    lockedContact: Contact
+  ) => Promise<void | { name: string }>
 ) {
   try {
     return await database.db.transaction(async (tx) => {
@@ -254,15 +263,17 @@ async function changeContact(
         )
         .for("update");
       if (!locked) fail(404, "联系人不存在。");
-      // 改名和联系方式变更共用联系人版本，旧版本在执行写入前就会被拒绝。
-      if (locked.version !== expectedVersion) {
+      if (
+        expectedContactVersion !== undefined &&
+        locked.version !== expectedContactVersion
+      ) {
         failVersionConflict({
           ...locked,
           methods: await listMethods(tx, contactId),
         });
       }
 
-      const fields = await change(tx);
+      const fields = await change(tx, locked);
       const [contact] = await tx
         .update(customerContact)
         .set({
@@ -310,7 +321,10 @@ async function clearPrimary(
 ) {
   await tx
     .update(customerContactMethod)
-    .set({ isPrimary: false })
+    .set({
+      isPrimary: false,
+      version: sql`${customerContactMethod.version} + 1`,
+    })
     .where(
       and(
         eq(customerContactMethod.contactId, contactId),
@@ -335,7 +349,10 @@ async function promoteMethod(
 ) {
   await tx
     .update(customerContactMethod)
-    .set({ isPrimary: true })
+    .set({
+      isPrimary: true,
+      version: sql`${customerContactMethod.version} + 1`,
+    })
     .where(scopedMethod(contactId, methodId));
 }
 
@@ -410,22 +427,61 @@ customerContactRoutes.patch(
     const customerId = readUuid(c.req.param("customerId"), "客户 ID");
     const contactId = readUuid(c.req.param("contactId"), "联系人 ID");
     const methodId = readUuid(c.req.param("methodId"), "联系方式 ID");
-    const body = await readObject(c, versionedMethodFields);
+    const body = await readObject(c, methodEditFields);
     if (methodFields.every((field) => body[field] === undefined))
       fail(400, "请填写要修改的联系方式字段。");
 
     const type =
       body.type === undefined ? undefined : readMethodType(body.type);
     const isPrimary = readPrimary(body.isPrimary);
+    // 旧页面提交的是联系人版本，单独命名新字段以免把旧版本误当作单条版本。
+    const legacyVersion = body.expectedVersion !== undefined;
+    if (
+      legacyVersion &&
+      (body.expectedMethodVersion !== undefined ||
+        body.expectedContactVersion !== undefined)
+    ) {
+      fail(400, "请使用同一种版本校验方式。");
+    }
+    const expectedMethodVersion = legacyVersion
+      ? undefined
+      : readExpectedVersion(body.expectedMethodVersion);
+    const expectedContactVersion =
+      legacyVersion || isPrimary !== undefined
+        ? readExpectedVersion(
+            legacyVersion ? body.expectedVersion : body.expectedContactVersion
+          )
+        : undefined;
     const contact = await changeContact(
       c.get("businessAccess"),
       customerId,
       contactId,
-      readExpectedVersion(body.expectedVersion),
-      async (tx) => {
+      expectedContactVersion,
+      async (tx, lockedContact) => {
         const methods = await listMethods(tx, contactId);
         const current = methods.find((method) => method.id === methodId);
-        if (!current) fail(404, "联系方式不存在。");
+        if (!current) {
+          throw new HTTPException(404, {
+            res: Response.json(
+              {
+                code: "contact_method_not_found",
+                message: "联系方式不存在。",
+                current: { ...lockedContact, methods },
+              },
+              { status: 404 }
+            ),
+          });
+        }
+        if (
+          (expectedMethodVersion !== undefined &&
+            current.version !== expectedMethodVersion) ||
+          (type !== undefined &&
+            methods.some(
+              (method) => method.id !== methodId && method.type === type
+            ))
+        ) {
+          failVersionConflict({ ...lockedContact, methods });
+        }
         const value =
           type !== undefined || body.value !== undefined
             ? readMethodValue(
@@ -446,7 +502,12 @@ customerContactRoutes.patch(
 
         await tx
           .update(customerContactMethod)
-          .set({ type, value, isPrimary })
+          .set({
+            type,
+            value,
+            isPrimary,
+            version: sql`${customerContactMethod.version} + 1`,
+          })
           .where(scopedMethod(contactId, methodId));
         if (replacement) await promoteMethod(tx, contactId, replacement.id);
       }
