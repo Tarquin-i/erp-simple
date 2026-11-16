@@ -31,7 +31,7 @@ export function isCustomerSnapshot(
  * 对比打开表单时、本地编辑后和服务端最新的客户资料。
  * @param current 服务端返回的最新客户快照。
  * @param changes 本次提交的变更字段。
- * @param initial 打开表单时的初始草稿。
+ * @param initial 本次提交所依据的表单资料。
  * @param draft 当前草稿，用来显示所选业务员、渠道和标签的名称。
  * @returns 弹窗使用的差异列表。只在服务端发生变化的字段显示为「保留当前资料」。
  */
@@ -41,10 +41,7 @@ export function conflictDifferences(
   initial: Draft,
   draft: Draft
 ) {
-  const latest = customerDraft(current, {
-    id: current.ownerUserId,
-    name: current.ownerName,
-  });
+  const latest = customerDraft(current);
   const differences = [];
   const preserve = "保留当前资料";
   const names = (options: CustomerFormOption[]) =>

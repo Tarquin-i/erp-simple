@@ -28,8 +28,15 @@ import {
   CustomerTagPicker,
 } from "./channel-tag-selectors";
 import { conflictDifferences, isCustomerSnapshot } from "./edit-conflict";
-import { customerDraft, getChangedFields } from "./form-payload";
+import {
+  customerDraft,
+  getChangedFields,
+  rebaseCustomerDraft,
+} from "./form-payload";
+import type { Draft } from "./form-payload";
 import { CustomerOwnerFields } from "./owner-fields";
+
+type CustomerFormBaseline = { customer?: Customer; draft: Draft };
 
 /**
  * 渲染新建和编辑共用的客户表单，并处理保存与版本冲突。
@@ -55,9 +62,11 @@ export function CustomerForm({
   onSaved: () => Promise<void>;
 }) {
   const router = useRouter();
-  const [initial] = useState(() => customerDraft(customer, owner));
-  const [draft, setDraft] = useState(initial);
-  const [originalVersion] = useState(customer?.version);
+  const [baseline, setBaseline] = useState<CustomerFormBaseline>(() => ({
+    customer,
+    draft: customerDraft(customer, owner),
+  }));
+  const [draft, setDraft] = useState(baseline.draft);
   const [pending, setPending] = useState(false);
   const [tagPending, setTagPending] = useState(false);
   const [error, setError] = useState("");
@@ -66,10 +75,11 @@ export function CustomerForm({
   const [conflict, setConflict] = useState<{
     current: Customer;
     changes: CustomerWriteInput;
+    previousDraft: Draft;
   } | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const saving = useRef(false);
-  const changes = getChangedFields(initial, draft);
+  const changes = getChangedFields(baseline.draft, draft);
   const isEdit = customer !== undefined;
   const busy = pending || tagPending;
   const missingAssignment = Boolean(
@@ -88,13 +98,10 @@ export function CustomerForm({
   /**
    * 新建或更新客户，成功后调用页面提供的保存回调。
    * @param payload 本次提交的表单变更字段。
-   * @param expectedVersion 编辑时使用的客户版本，默认取打开表单时的版本。
+   * @param versionFrom 编辑时使用的客户快照，默认取当前表单的基准。
    * @returns 处理结束后完成，无业务数据。重名提示显示在名称字段，版本冲突交给对比弹窗处理。
    */
-  async function save(
-    payload: CustomerWriteInput,
-    expectedVersion = originalVersion
-  ) {
+  async function save(payload: CustomerWriteInput, versionFrom = baseline) {
     if (saving.current || tagPending) return;
     saving.current = true;
     setPending(true);
@@ -109,6 +116,7 @@ export function CustomerForm({
 
     try {
       if (customer) {
+        const expectedVersion = versionFrom.customer?.version;
         if (expectedVersion === undefined) {
           throw new Error("无法确认客户资料版本，请刷新后重试。");
         }
@@ -136,7 +144,11 @@ export function CustomerForm({
           customer &&
           isCustomerSnapshot(failure.current, customer.id)
         ) {
-          setConflict({ current: failure.current, changes: payload });
+          setConflict({
+            current: failure.current,
+            changes: payload,
+            previousDraft: versionFrom.draft,
+          });
           return;
         }
       }
@@ -151,6 +163,15 @@ export function CustomerForm({
     }
   }
 
+  function cancelConflict() {
+    if (!conflict) return;
+    const latest = customerDraft(conflict.current);
+    // 回到表单时保留草稿，下次保存以本次收到的服务器版本为准。
+    setBaseline({ customer: conflict.current, draft: latest });
+    setDraft(rebaseCustomerDraft(latest, draft, conflict.changes));
+    setConflict(null);
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSubmit) return;
@@ -158,7 +179,6 @@ export function CustomerForm({
       setNameValidation("请填写客户名称。");
       return;
     }
-
     void save(changes);
   }
 
@@ -301,16 +321,20 @@ export function CustomerForm({
             ? conflictDifferences(
                 conflict.current,
                 conflict.changes,
-                initial,
+                conflict.previousDraft,
                 draft
               )
             : null
         }
         pending={pending}
-        onCancel={() => setConflict(null)}
+        onCancel={cancelConflict}
         onOverwrite={() => {
           // 用刚对比过的服务端版本重试，仅提交本次修改的字段。
-          if (conflict) void save(conflict.changes, conflict.current.version);
+          if (conflict)
+            void save(conflict.changes, {
+              customer: conflict.current,
+              draft: customerDraft(conflict.current),
+            });
         }}
       />
     </main>

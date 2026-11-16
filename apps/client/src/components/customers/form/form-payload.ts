@@ -17,12 +17,14 @@ export type Draft = {
 /**
  * 将客户资料转换为表单初始值，统一渠道和标签的选项结构。
  * @param customer 编辑时传客户详情，新建时传 `undefined`。
- * @param owner 表单使用的初始业务员，可由详情或当前账号提供。
+ * @param owner 表单使用的初始业务员，默认取客户资料中的业务员。
  * @returns 可直接填入表单的草稿。缺失的文本用空字符串，缺失的渠道和标签用空数组。
  */
 export function customerDraft(
   customer: Customer | undefined,
-  owner?: CustomerOwner
+  owner = customer
+    ? { id: customer.ownerUserId, name: customer.ownerName }
+    : undefined
 ): Draft {
   return {
     companyName: customer?.companyName ?? "",
@@ -31,6 +33,31 @@ export function customerDraft(
     channels:
       customer?.channels.map(({ code, name }) => ({ id: code, name })) ?? [],
     tags: customer?.tags.map(({ id, name }) => ({ id, name })) ?? [],
+  };
+}
+
+/**
+ * 用最新客户资料更新表单，并保留用户已经提交的本地草稿字段。
+ * @param latest 服务端最新资料对应的表单值。
+ * @param draft 用户当前的表单草稿。
+ * @param changes 本次尝试保存的字段，空数组和 `null` 也算改动。
+ * @returns 合并后的表单草稿。
+ */
+export function rebaseCustomerDraft(
+  latest: Draft,
+  draft: Draft,
+  changes: CustomerWriteInput
+): Draft {
+  return {
+    companyName:
+      changes.companyName === undefined
+        ? latest.companyName
+        : draft.companyName,
+    remark: changes.remark === undefined ? latest.remark : draft.remark,
+    owner: changes.ownerUserId === undefined ? latest.owner : draft.owner,
+    channels:
+      changes.channelCodes === undefined ? latest.channels : draft.channels,
+    tags: changes.tagIds === undefined ? latest.tags : draft.tags,
   };
 }
 
@@ -55,7 +82,7 @@ export function sameOptions(
 
 /**
  * 生成只包含改动字段的客户写入参数。
- * @param initial 打开表单时的初始草稿。
+ * @param initial 本次编辑所依据的客户资料。
  * @param draft 当前表单草稿。
  * @returns 变更字段。空数组清空对应的渠道或标签，`null` 清空备注，省略字段保留原值。
  */
