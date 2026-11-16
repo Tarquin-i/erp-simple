@@ -5,6 +5,7 @@ import type {
 } from "@/request/customers";
 
 import { contactMethodLabels } from "./method-labels";
+import { contactValueError } from "./method-value";
 import type { ContactChange } from "./mutations";
 
 export type ContactConflict = {
@@ -19,7 +20,11 @@ export type ContactConflict = {
  * @returns ID 匹配且含数值版本和联系方式数组的快照，其他情况返回 `undefined`。
  */
 export function latestContact(error: unknown, contactId: string) {
-  if (!(error instanceof CustomerApiError) || error.code !== "version_conflict")
+  if (
+    !(error instanceof CustomerApiError) ||
+    (error.code !== "version_conflict" &&
+      error.code !== "contact_method_not_found")
+  )
     return;
   const current = error.current;
   if (
@@ -33,6 +38,49 @@ export function latestContact(error: unknown, contactId: string) {
     Array.isArray(current.methods)
   )
     return current as CustomerContact;
+}
+
+/** 判断最新资料与待保存的字段能否组合成有效的联系方式。 */
+export function contactOverwriteError({ change, latest }: ContactConflict) {
+  if (change.kind !== "edit") return;
+  const method = latest.methods.find((item) => item.id === change.methodId);
+  if (!method) return "该联系方式已被删除。";
+  const { type, value, isPrimary } = change.fields;
+  if (
+    type !== undefined &&
+    latest.methods.some((item) => item.id !== method.id && item.type === type)
+  ) {
+    return `该联系人已有${contactMethodLabels[type]}，请重新选择可用的联系方式。`;
+  }
+  if (isPrimary === false && method.isPrimary && latest.methods.length === 1) {
+    return "唯一的联系方式必须保留为主要联系方式，可以返回表单修改其他字段。";
+  }
+  if (type !== undefined || value !== undefined)
+    return contactValueError(type ?? method.type, value ?? method.value);
+}
+
+/** 判断取消覆盖后，草稿是否仍要覆盖同事改过的同一字段或主要项。 */
+export function retainsConflictingEdit(
+  reviewed: ContactConflict,
+  change: Extract<ContactChange, { kind: "edit" }>
+) {
+  const previous = reviewed.change;
+  if (previous.kind !== "edit" || previous.methodId !== change.methodId)
+    return false;
+  const before = previous.contact.methods.find(
+    (item) => item.id === change.methodId
+  );
+  const latest = reviewed.latest.methods.find(
+    (item) => item.id === change.methodId
+  );
+  if (!before || !latest) return false;
+  const fields = ["type", "value", "isPrimary"] as const;
+  return fields.some(
+    (field) =>
+      change.fields[field] !== undefined &&
+      change.fields[field] === previous.fields[field] &&
+      (field === "isPrimary" || before[field] !== latest[field])
+  );
 }
 
 function methodLabel(method: CustomerContactMethodInput) {
@@ -150,6 +198,18 @@ export function conflictDifferences({ change, latest }: ContactConflict) {
                 current: methodLabel(current),
                 proposed: "无法取消唯一的主要联系方式",
               }
+        );
+      }
+      if (
+        change.fields.isPrimary === undefined &&
+        current.isPrimary &&
+        (change.fields.type !== undefined || change.fields.value !== undefined)
+      ) {
+        differences.push(
+          primaryDifference(current, {
+            type: change.fields.type ?? current.type,
+            value: change.fields.value ?? current.value,
+          })
         );
       }
       return differences;

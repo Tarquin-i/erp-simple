@@ -28,6 +28,7 @@ export function VersionConflictDialog({
   differences,
   description = "比较当前资料和你的修改。确认覆盖后，只保存你提交的字段。",
   pending = false,
+  overwriteBlocked = false,
   onCancel,
   onOverwrite,
   onCloseAutoFocus,
@@ -35,6 +36,7 @@ export function VersionConflictDialog({
   differences: Difference[] | null;
   description?: string;
   pending?: boolean;
+  overwriteBlocked?: boolean;
   onCancel: () => void;
   onOverwrite: () => void;
   onCloseAutoFocus?: (event: Event) => void;
@@ -87,7 +89,7 @@ export function VersionConflictDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>取消</AlertDialogCancel>
           <AlertDialogAction
-            disabled={pending}
+            disabled={pending || overwriteBlocked}
             onClick={(event) => {
               // 保持弹窗打开，由调用方在异步覆盖完成后更新弹窗状态。
               event.preventDefault();

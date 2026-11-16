@@ -54,6 +54,7 @@ export type CustomerContactMethod = CustomerContactMethodInput & {
   id: string;
   contactId: string;
   isPrimary: boolean;
+  version: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -293,7 +294,7 @@ export function createCustomerContactMethod(
  * @param customerId 所属客户 ID。
  * @param contactId 联系人 ID。
  * @param methodId 要修改的联系方式 ID。
- * @param input 变更字段和联系人版本 `expectedVersion`。
+ * @param input 变更字段和联系方式版本 `expectedMethodVersion`。变更主要标记时还需附上联系人版本 `expectedContactVersion`。
  * @returns `{ contact }`，包含更新后的联系方式列表和联系人版本。
  * @throws HTTP 失败时抛出 `CustomerApiError`，版本冲突时 `current` 包含最新联系人快照。
  */
@@ -301,7 +302,10 @@ export function updateCustomerContactMethod(
   customerId: string,
   contactId: string,
   methodId: string,
-  input: Partial<CustomerContactMethodInput> & { expectedVersion: number }
+  input: Partial<CustomerContactMethodInput> & {
+    expectedMethodVersion: number;
+    expectedContactVersion?: number;
+  }
 ) {
   return write<{ contact: CustomerContact }>(
     `${contactPath(customerId, contactId)}/methods/${encodeURIComponent(methodId)}`,

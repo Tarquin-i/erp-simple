@@ -32,6 +32,7 @@ import type {
 } from "@/request/customers";
 
 import { contactMethodLabels } from "./method-labels";
+import { contactValueError } from "./method-value";
 import type { ContactChange } from "./mutations";
 
 export type ContactEditorMode =
@@ -93,7 +94,7 @@ export function CustomerContactEditor({
   const [typeOverride, setTypeOverride] = useState<
     CustomerContactMethodType | ""
   >();
-  const [value, setValue] = useState(method?.value ?? "");
+  const [valueOverride, setValueOverride] = useState<string>();
   const [primaryOverride, setPrimaryOverride] = useState<boolean>();
   const [validation, setValidation] = useState("");
 
@@ -107,6 +108,7 @@ export function CustomerContactEditor({
         mode.method)
       : undefined;
   const type = typeOverride ?? currentMethod?.type ?? "";
+  const value = valueOverride ?? currentMethod?.value ?? "";
   const isPrimary = primaryOverride ?? currentMethod?.isPrimary ?? false;
   const showName = mode.kind === "rename" || !selected;
   const takenTypes =
@@ -116,7 +118,14 @@ export function CustomerContactEditor({
   const typeTaken = type !== "" && takenTypes.includes(type);
   const canChangePrimary =
     mode.kind !== "edit" || (selected?.methods.length ?? 0) > 1;
-  const primaryChanged = canChangePrimary && primaryOverride !== undefined;
+  const typeChanged =
+    typeOverride !== undefined && type !== currentMethod?.type;
+  const valueChanged =
+    valueOverride !== undefined && value.trim() !== currentMethod?.value;
+  const primaryChanged =
+    canChangePrimary &&
+    primaryOverride !== undefined &&
+    isPrimary !== currentMethod?.isPrimary;
 
   useEffect(() => {
     // 清除已经无法提交的设置，避免以后可选项增加时自动恢复。
@@ -132,10 +141,7 @@ export function CustomerContactEditor({
   const changed =
     mode.kind === "rename"
       ? name.trim() !== mode.contact.name
-      : !method ||
-        typeOverride !== undefined ||
-        value.trim() !== method.value ||
-        primaryChanged;
+      : !method || typeChanged || valueChanged || primaryChanged;
 
   /**
    * 校验表单并通过回调提交对应操作，编辑时只提交改动字段。
@@ -161,11 +167,18 @@ export function CustomerContactEditor({
       setValidation("请选择可用的联系方式并填写联系信息。");
       return;
     }
+    if (mode.kind !== "edit" || typeChanged || valueChanged) {
+      const valueError = contactValueError(type, cleanedValue);
+      if (valueError) {
+        setValidation(valueError);
+        return;
+      }
+    }
     if (mode.kind === "edit") {
       const fields: Partial<CustomerContactMethodInput> = {};
       // 最新快照用于展示和校验。只提交用户明确改过的字段，继续校验原版本。
-      if (typeOverride !== undefined) fields.type = type;
-      if (cleanedValue !== mode.method.value) fields.value = cleanedValue;
+      if (typeChanged) fields.type = type;
+      if (valueChanged) fields.value = cleanedValue;
       if (primaryChanged) fields.isPrimary = isPrimary;
       onSubmit({
         kind: "edit",
@@ -256,7 +269,9 @@ export function CustomerContactEditor({
             {mode.kind === "edit" && (
               <div className="space-y-1.5 text-sm">
                 <p className="text-muted-foreground">联系人</p>
-                <p className="font-medium">{mode.contact.name}</p>
+                <p className="font-medium">
+                  {latestContact?.name ?? mode.contact.name}
+                </p>
               </div>
             )}
             {mode.kind !== "rename" && (
@@ -316,8 +331,16 @@ export function CustomerContactEditor({
                     disabled={locked}
                     required
                     onChange={(event) => {
-                      setValue(event.target.value);
+                      const next = event.target.value;
+                      setValueOverride(
+                        next === currentMethod?.value ? undefined : next
+                      );
                       setValidation("");
+                    }}
+                    onBlur={() => {
+                      if (value.trim() === currentMethod?.value) {
+                        setValueOverride(undefined);
+                      }
                     }}
                   />
                   {(type === "phone" || type === "whatsapp") && (

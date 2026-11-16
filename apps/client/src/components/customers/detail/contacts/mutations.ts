@@ -33,14 +33,14 @@ export type DeleteChange = Extract<ContactChange, { kind: "delete" }>;
  * 根据操作类型调用对应的联系人或联系方式接口。
  * @param customerId 所属客户的 ID。
  * @param change 待执行的操作，已有联系人操作附带编辑时的记录快照。
- * @param version 确认覆盖时传入的最新联系人版本，省略时用快照版本。新建联系人无需版本号。
+ * @param versionFrom 已核对的最新联系人快照，省略时使用打开表单时的快照。新建联系人无需版本号。
  * @returns 接口返回的 `{ contact }`，包含保存后的联系人及联系方式。
  * @throws 请求失败时传递接口错误或网络错误。
  */
 export function contactRequest(
   customerId: string,
   change: ContactChange,
-  version?: number
+  versionFrom?: CustomerContact
 ) {
   if (change.kind === "create")
     return createCustomerContact(customerId, {
@@ -48,7 +48,8 @@ export function contactRequest(
       methods: [change.method],
     });
 
-  const expectedVersion = version ?? change.contact.version;
+  const snapshot = versionFrom ?? change.contact;
+  const expectedVersion = snapshot.version;
   const contactId = change.contact.id;
   switch (change.kind) {
     case "rename":
@@ -61,13 +62,23 @@ export function contactRequest(
         ...change.method,
         expectedVersion,
       });
-    case "edit":
+    case "edit": {
+      const method = snapshot.methods.find(
+        (item) => item.id === change.methodId
+      );
+      if (!method) throw new Error("该联系方式已被删除。");
       return updateCustomerContactMethod(
         customerId,
         contactId,
         change.methodId,
-        { ...change.fields, expectedVersion }
+        {
+          ...change.fields,
+          expectedMethodVersion: method.version,
+          expectedContactVersion:
+            change.fields.isPrimary === undefined ? undefined : expectedVersion,
+        }
       );
+    }
     case "delete":
       return deleteCustomerContactMethod(
         customerId,
