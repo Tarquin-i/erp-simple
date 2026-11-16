@@ -11,6 +11,7 @@ import type { ContactChange } from "./mutations";
 export type ContactConflict = {
   change: Exclude<ContactChange, { kind: "create" }>;
   latest: CustomerContact;
+  primaryAlreadyApplied?: boolean;
 };
 
 /**
@@ -59,30 +60,6 @@ export function contactOverwriteError({ change, latest }: ContactConflict) {
     return contactValueError(type ?? method.type, value ?? method.value);
 }
 
-/** 判断取消覆盖后，草稿是否仍要覆盖同事改过的同一字段或主要项。 */
-export function retainsConflictingEdit(
-  reviewed: ContactConflict,
-  change: Extract<ContactChange, { kind: "edit" }>
-) {
-  const previous = reviewed.change;
-  if (previous.kind !== "edit" || previous.methodId !== change.methodId)
-    return false;
-  const before = previous.contact.methods.find(
-    (item) => item.id === change.methodId
-  );
-  const latest = reviewed.latest.methods.find(
-    (item) => item.id === change.methodId
-  );
-  if (!before || !latest) return false;
-  const fields = ["type", "value", "isPrimary"] as const;
-  return fields.some(
-    (field) =>
-      change.fields[field] !== undefined &&
-      change.fields[field] === previous.fields[field] &&
-      (field === "isPrimary" || before[field] !== latest[field])
-  );
-}
-
 function methodLabel(method: CustomerContactMethodInput) {
   return `${contactMethodLabels[method.type]} · ${method.value}`;
 }
@@ -103,7 +80,11 @@ function primaryDifference(
  * @param conflict 包含待执行的操作和服务端最新联系人快照。
  * @returns 按操作生成的对比行。待编辑的联系方式已不存在时返回空数组。
  */
-export function conflictDifferences({ change, latest }: ContactConflict) {
+export function conflictDifferences({
+  change,
+  latest,
+  primaryAlreadyApplied,
+}: ContactConflict) {
   const primary = latest.methods.find((method) => method.isPrimary);
   // 服务端已经按主要项、创建时间和 ID 排序，递补时取首条其他记录。
   const replacementFor = (id: string) =>
@@ -201,6 +182,7 @@ export function conflictDifferences({ change, latest }: ContactConflict) {
         );
       }
       if (
+        !primaryAlreadyApplied &&
         change.fields.isPrimary === undefined &&
         current.isPrimary &&
         (change.fields.type !== undefined || change.fields.value !== undefined)

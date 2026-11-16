@@ -46,7 +46,6 @@ import {
   conflictDifferences,
   contactOverwriteError,
   latestContact,
-  retainsConflictingEdit,
 } from "./version-conflict";
 import type { ContactConflict } from "./version-conflict";
 
@@ -73,7 +72,7 @@ export function CustomerContacts({
   const [conflict, setConflict] = useState<ContactConflict | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<{ text: string; visible?: boolean }>();
   const writing = useRef(false);
   const lastReviewedConflict = useRef<ContactConflict | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -155,35 +154,26 @@ export function CustomerContacts({
   }
 
   function submitEditor(change: ContactChange) {
-    const reviewed = lastReviewedConflict.current;
-    if (change.kind !== "edit" || !reviewed) {
-      void write(change);
-      return;
-    }
-    if (retainsConflictingEdit(reviewed, change)) {
-      setConflict({
-        change: { ...change, contact: reviewed.change.contact },
-        latest: reviewed.latest,
-      });
-      return;
-    }
-    void write(change, reviewed.latest);
+    const reviewed =
+      change.kind === "edit" ? lastReviewedConflict.current : null;
+    void write(change, reviewed ?? undefined);
   }
 
   /**
    * 提交联系人操作，用接口返回的记录更新列表，并处理失败提示和版本冲突。
    * @param change 待提交的新增、改名、编辑或删除操作。
-   * @param versionFrom 用户已核对的最新联系人快照，首次提交可省略。
+   * @param reviewed 用户已核对的冲突和最新联系人快照，首次提交可省略。
    * @returns 操作处理完成时结束。请求错误会显示在页面或冲突弹窗中。
    */
-  async function write(change: ContactChange, versionFrom?: CustomerContact) {
+  async function write(change: ContactChange, reviewed?: ContactConflict) {
     // 同步标记阻止 React 状态更新前的重复提交。
     if (writing.current) return;
     writing.current = true;
     setPending(true);
     setError("");
-    setNotice("");
+    setNotice(undefined);
 
+    const versionFrom = reviewed?.latest;
     try {
       const { contact } = await contactRequest(customerId, change, versionFrom);
       rememberContact(contact);
@@ -196,9 +186,10 @@ export function CustomerContacts({
       setConflict(null);
       setEditor(null);
       setDeletion(null);
-      setNotice(
-        change.kind === "delete" ? "已删除联系方式。" : "已保存联系方式。"
-      );
+      setNotice({
+        text:
+          change.kind === "delete" ? "已删除联系方式。" : "已保存联系方式。",
+      });
       restoreFocus();
     } catch (error) {
       if (change.kind !== "create") {
@@ -245,9 +236,52 @@ export function CustomerContacts({
             );
             return;
           }
+          let pendingChange = change;
+          const primaryAlreadyApplied =
+            change.kind === "edit" &&
+            currentMethod !== undefined &&
+            change.fields.isPrimary === currentMethod.isPrimary;
+          if (
+            change.kind === "edit" &&
+            currentMethod &&
+            (primaryAlreadyApplied || reviewed?.primaryAlreadyApplied)
+          ) {
+            const { isPrimary, type, value } = change.fields;
+            const fields = {
+              ...(type !== undefined && type !== currentMethod.type
+                ? { type }
+                : {}),
+              ...(value !== undefined && value !== currentMethod.value
+                ? { value }
+                : {}),
+              ...(isPrimary !== undefined && !primaryAlreadyApplied
+                ? { isPrimary }
+                : {}),
+            };
+            if (Object.keys(fields).length === 0) {
+              setConflict(null);
+              closeEditor();
+              let text = "最新联系方式已包含你的修改。";
+              if (primaryAlreadyApplied)
+                text = isPrimary
+                  ? `${contactMethodLabels[currentMethod.type]}已设为主要联系方式。`
+                  : "主要联系方式标记已取消。";
+              setNotice({
+                text,
+                visible: true,
+              });
+              return;
+            }
+            pendingChange = { ...change, fields };
+          }
           setConflict({
-            change: { ...change, contact: versionFrom ?? change.contact },
+            change: {
+              ...pendingChange,
+              contact: versionFrom ?? change.contact,
+            },
             latest,
+            primaryAlreadyApplied:
+              primaryAlreadyApplied || reviewed?.primaryAlreadyApplied,
           });
           return;
         }
@@ -316,8 +350,13 @@ export function CustomerContacts({
           addButtonSlot
         )}
       {error && !editor && !deletion && <FieldError>{error}</FieldError>}
-      <p className="sr-only" role="status">
-        {notice}
+      <p
+        className={
+          notice?.visible ? "text-muted-foreground text-sm" : "sr-only"
+        }
+        role="status"
+      >
+        {notice?.text}
       </p>
 
       {contacts.length === 0 ? (
@@ -458,6 +497,7 @@ export function CustomerContacts({
         <CustomerContactEditor
           mode={editor}
           latestContact={latestEditedContact}
+          primaryAlreadyApplied={conflict?.primaryAlreadyApplied}
           inputRef={editorInput}
           pending={pending}
           locked={pending || conflict !== null}
@@ -505,6 +545,7 @@ export function CustomerContacts({
         pending={pending}
         overwriteBlocked={Boolean(overwriteError)}
         onCancel={() => {
+          // 保留表单草稿，下次保存以弹窗展示过的最新版本发起新请求。
           if (conflict?.change.kind === "edit")
             lastReviewedConflict.current = conflict;
           setConflict(null);
@@ -519,7 +560,7 @@ export function CustomerContacts({
         onOverwrite={() => {
           // 以当前确认过的版本重试，期间若再次更新仍会收到冲突。
           if (conflict && !overwriteError)
-            void write(conflict.change, conflict.latest);
+            void write(conflict.change, conflict);
         }}
       />
     </div>

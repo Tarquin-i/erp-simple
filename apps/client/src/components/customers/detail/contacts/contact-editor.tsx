@@ -65,6 +65,7 @@ function contactOptionLabel(
 export function CustomerContactEditor({
   mode,
   latestContact,
+  primaryAlreadyApplied,
   inputRef,
   pending,
   locked,
@@ -74,6 +75,7 @@ export function CustomerContactEditor({
 }: {
   mode: ContactEditorMode;
   latestContact?: CustomerContact;
+  primaryAlreadyApplied?: boolean;
   inputRef: Ref<HTMLInputElement>;
   pending: boolean;
   locked: boolean;
@@ -109,7 +111,8 @@ export function CustomerContactEditor({
       : undefined;
   const type = typeOverride ?? currentMethod?.type ?? "";
   const value = valueOverride ?? currentMethod?.value ?? "";
-  const isPrimary = primaryOverride ?? currentMethod?.isPrimary ?? false;
+  const currentPrimary = currentMethod?.isPrimary;
+  const isPrimary = primaryOverride ?? currentPrimary ?? false;
   const showName = mode.kind === "rename" || !selected;
   const takenTypes =
     selected?.methods
@@ -125,12 +128,25 @@ export function CustomerContactEditor({
   const primaryChanged =
     canChangePrimary &&
     primaryOverride !== undefined &&
-    isPrimary !== currentMethod?.isPrimary;
+    isPrimary !== currentPrimary;
 
   useEffect(() => {
-    // 清除已经无法提交的设置，避免以后可选项增加时自动恢复。
-    if (!canChangePrimary) setPrimaryOverride(undefined);
-  }, [canChangePrimary]);
+    // 清除已经生效或无法提交的标记，避免之后收到新版本时重新提交。
+    if (
+      !canChangePrimary ||
+      (primaryOverride !== undefined && primaryOverride === currentPrimary)
+    ) {
+      setPrimaryOverride(undefined);
+    }
+  }, [canChangePrimary, currentPrimary, primaryOverride]);
+
+  useEffect(() => {
+    if (!primaryAlreadyApplied || !currentMethod) return;
+    // 同事已经应用的字段也从草稿移除，后续版本变化时保留服务端值。
+    if (typeOverride === currentMethod.type) setTypeOverride(undefined);
+    if (valueOverride?.trim() === currentMethod.value)
+      setValueOverride(undefined);
+  }, [currentMethod, primaryAlreadyApplied, typeOverride, valueOverride]);
 
   const title =
     mode.kind === "rename"
@@ -176,7 +192,7 @@ export function CustomerContactEditor({
     }
     if (mode.kind === "edit") {
       const fields: Partial<CustomerContactMethodInput> = {};
-      // 最新快照用于展示和校验。只提交用户明确改过的字段，继续校验原版本。
+      // 用最新快照展示和校验，只提交用户改动的字段；版本由提交方按编辑基线选取。
       if (typeChanged) fields.type = type;
       if (valueChanged) fields.value = cleanedValue;
       if (primaryChanged) fields.isPrimary = isPrimary;
