@@ -11,17 +11,15 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import type { Communication } from "@/request/communication";
 
 export function CommunicationCustomerLink({
-  communication,
+  customer,
   showNumber = false,
 }: {
-  communication: Communication;
+  customer?: { id: string; companyName: string; customerNo?: string } | null;
   showNumber?: boolean;
 }) {
-  const { customer, canViewCustomer } = communication;
-  if (canViewCustomer && customer) {
+  if (customer) {
     return (
       <Link
         to="/customers/$customerId"
@@ -29,7 +27,7 @@ export function CommunicationCustomerLink({
         className="wrap-anywhere underline-offset-4 hover:underline"
       >
         {customer.companyName}
-        {showNumber && (
+        {showNumber && customer.customerNo && (
           <span className="ml-2 text-muted-foreground">
             {customer.customerNo}
           </span>

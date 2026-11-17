@@ -52,7 +52,7 @@ function NewCommunicationPage() {
 
   return (
     <CommunicationForm
-      key={customerId ?? "new"}
+      key={`${viewer.account.id}:${customerId ?? "new"}`}
       initialCustomer={customer}
       viewer={viewer}
       onCancel={cancel}

@@ -49,6 +49,7 @@ export function CommunicationBreadcrumbs() {
                   <BreadcrumbLink asChild>
                     <Link
                       to="/communication/$communicationId"
+                      preload={false}
                       params={{ communicationId }}
                       search={origin}
                       state={state}

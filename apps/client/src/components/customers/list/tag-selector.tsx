@@ -30,7 +30,7 @@ export function TagSelector({
   inputId = "customer-tag-search",
 }: {
   tagId?: string;
-  selectedTag?: CustomerTag;
+  selectedTag?: Pick<CustomerTag, "id" | "name">;
   onChange: (tagId: string | undefined) => void;
   loadTags?: typeof listCustomerTags;
   loadTag?: typeof getCustomerTag;
@@ -43,7 +43,8 @@ export function TagSelector({
     useState<Awaited<ReturnType<typeof listCustomerTags>>>();
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const [retainedTag, setRetainedTag] = useState<CustomerTag>();
+  const [retainedTag, setRetainedTag] =
+    useState<Pick<CustomerTag, "id" | "name">>();
   const [lookup, setLookup] = useState<{
     id: string;
     tag?: CustomerTag;

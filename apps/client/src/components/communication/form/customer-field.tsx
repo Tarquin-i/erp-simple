@@ -31,11 +31,13 @@ export function CommunicationCustomerField({
   value,
   locked,
   disabled,
+  readOnlyFallback = "客户信息受限",
   onChange,
 }: {
   value: CustomerChoice | null;
   locked: boolean;
   disabled: boolean;
+  readOnlyFallback?: string;
   onChange: (customer: CustomerChoice | null) => void;
 }) {
   if (locked) {
@@ -45,7 +47,7 @@ export function CommunicationCustomerField({
         <Input
           id="communication-form-customer"
           className="h-10 bg-muted/25 text-muted-foreground shadow-xs"
-          value={value ? customerLabel(value) : "客户信息受限"}
+          value={value ? customerLabel(value) : readOnlyFallback}
           readOnly
         />
       </Field>

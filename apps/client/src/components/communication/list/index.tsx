@@ -41,7 +41,7 @@ import {
 } from "@/request/communication";
 import type {
   CommunicationListQuery,
-  CommunicationTag,
+  CommunicationListTag,
 } from "@/request/communication";
 
 import { CommunicationCustomerLink } from "../customer-link";
@@ -321,6 +321,7 @@ export function CommunicationList({
                   <TableCell className="h-14 px-2.5">
                     <Link
                       {...destination}
+                      preload={false}
                       className="block w-fit max-w-full truncate rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                       title={communication.title}
                     >
@@ -330,7 +331,11 @@ export function CommunicationList({
                   {!customerId && (
                     <TableCell className="max-w-0 truncate px-2.5">
                       <CommunicationCustomerLink
-                        communication={communication}
+                        customer={
+                          communication.canViewCustomer
+                            ? communication.customer
+                            : null
+                        }
                       />
                     </TableCell>
                   )}
@@ -460,7 +465,7 @@ function CommunicationTable({
   );
 }
 
-function TagBadges({ tags }: { tags: CommunicationTag[] }) {
+function TagBadges({ tags }: { tags: CommunicationListTag[] }) {
   const first = tags[0];
   if (!first) return <span className="text-muted-foreground">—</span>;
   return (

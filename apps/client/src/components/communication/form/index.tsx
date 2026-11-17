@@ -22,6 +22,14 @@ import {
 import type { Communication } from "@/request/communication";
 import type { Viewer } from "@/request/organization";
 
+import {
+  clearCreationSubmission,
+  createSubmissionId,
+  creationStorageKey,
+  readCreationSubmission,
+  storeCreationSubmission,
+} from "./creation-submission";
+import type { CreationSubmission } from "./creation-submission";
 import { CommunicationCustomerField } from "./customer-field";
 import type { CustomerChoice } from "./customer-field";
 import { getChanges, getDifferences, rebaseDraft, toDraft } from "./draft";
@@ -98,15 +106,48 @@ export function CommunicationForm({
   const defaultOwner = isAdmin
     ? undefined
     : { id: viewer.account.id, name: viewer.account.name };
+  const submissionKey = creationStorageKey(
+    viewer.account.id,
+    initialCustomer?.id
+  );
+  const [restored] = useState(() => {
+    try {
+      return {
+        submission: record ? null : readCreationSubmission(submissionKey),
+      };
+    } catch (failure) {
+      return {
+        submission: null,
+        error:
+          failure instanceof Error ? failure.message : "无法读取本地提交记录。",
+      };
+    }
+  });
   const [baseline, setBaseline] = useState(record);
-  const [draft, setDraft] = useState(() => toDraft(record, defaultOwner));
+  const [draft, setDraft] = useState(() => {
+    const submission = restored.submission;
+    if (!submission) return toDraft(record, defaultOwner);
+
+    const { title, summary, tags, ownerUserId } = submission;
+    return {
+      title,
+      summary,
+      tags,
+      owner:
+        ownerUserId && ownerUserId !== defaultOwner?.id
+          ? { id: ownerUserId, name: "原提交业务员" }
+          : defaultOwner,
+    };
+  });
+  const [submission, setSubmission] = useState(restored.submission);
+  const [createdId, setCreatedId] = useState<string>();
   const [customer, setCustomer] = useState<CustomerChoice | null>(
     initialCustomer ?? null
   );
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [pending, setPending] = useState(false);
   const [tagPending, setTagPending] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(restored.error ?? "");
   const [unavailable, setUnavailable] = useState(false);
   const [assignmentDenied, setAssignmentDenied] = useState(false);
   const saving = useRef(false);
@@ -114,16 +155,85 @@ export function CommunicationForm({
 
   const isEdit = Boolean(record);
   const customerChoice = baseline ? baseline.customer : customer;
-  const customerId = baseline?.customerId ?? customer?.id;
+  const customerId =
+    baseline?.customerId ?? submission?.customerId ?? customer?.id;
+  const confirmingCreation = submission !== null;
+  const fieldsDisabled = pending || confirmingCreation;
   const canChangeOwner =
-    canAssign && !assignmentDenied && (!baseline || baseline.canViewCustomer);
+    canAssign &&
+    !assignmentDenied &&
+    !confirmingCreation &&
+    (!baseline || baseline.canViewCustomer);
   const hasChanges =
     Object.keys(getChanges(toDraft(baseline), draft)).length > 0;
   const cannotSave =
     pending ||
     tagPending ||
-    (isEdit ? !hasChanges : !customerId || (isAdmin && !draft.owner));
+    (isEdit
+      ? !hasChanges
+      : !confirmingCreation && (!customerId || (isAdmin && !draft.owner)));
   const SubmitIcon = isEdit ? Check : Save;
+
+  async function saveCreation(
+    proposed: CommunicationDraft,
+    customerId: string
+  ) {
+    if (createdId && submission) {
+      clearCreationSubmission(submissionKey, submission.id);
+      return createdId;
+    }
+
+    const stored = readCreationSubmission(submissionKey);
+    const creation: CreationSubmission = stored ?? {
+      id: createSubmissionId(),
+      customerId,
+      title: proposed.title.trim(),
+      summary: proposed.summary.trim(),
+      tags: proposed.tags,
+      ownerUserId: canAssign ? proposed.owner?.id : undefined,
+    };
+    if (!stored) storeCreationSubmission(submissionKey, creation);
+    setSubmission(creation);
+
+    const { id, title, summary, ownerUserId, tags } = creation;
+    let savedId: string;
+    try {
+      const { communication } = await createCommunication(
+        {
+          customerId: creation.customerId,
+          title,
+          summary,
+          ownerUserId,
+          tagIds: tags.map((tag) => tag.id),
+        },
+        id,
+        viewer.account.id
+      );
+      savedId = communication.id;
+    } catch (failure) {
+      if (!(failure instanceof CommunicationApiError)) {
+        throw new Error("暂时无法确认保存结果，请重试确认。", {
+          cause: failure,
+        });
+      }
+      // 首次请求的明确拒绝可以修改后重提。恢复请求仍须保留原始提交 ID。
+      if (
+        !stored &&
+        failure.status >= 400 &&
+        failure.status < 500 &&
+        failure.status !== 408 &&
+        failure.status !== 429
+      ) {
+        clearCreationSubmission(submissionKey, id);
+        setSubmission(null);
+      }
+      throw failure;
+    }
+
+    setCreatedId(savedId);
+    clearCreationSubmission(submissionKey, id);
+    return savedId;
+  }
 
   async function save(proposed: CommunicationDraft, current = baseline) {
     if (saving.current || tagPending || !customerId) return;
@@ -147,14 +257,7 @@ export function CommunicationForm({
           });
         }
       } else {
-        const { communication } = await createCommunication({
-          customerId,
-          title: proposed.title.trim(),
-          summary: proposed.summary.trim(),
-          tagIds: proposed.tags.map(({ id }) => id),
-          ownerUserId: canAssign ? proposed.owner?.id : undefined,
-        });
-        savedId = communication.id;
+        savedId = await saveCreation(proposed, customerId);
       }
       if (!leftForm) {
         setConflict(null);
@@ -233,7 +336,7 @@ export function CommunicationForm({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (cannotSave) return;
-    if (!draft.title.trim() || !draft.summary.trim()) {
+    if (!confirmingCreation && (!draft.title.trim() || !draft.summary.trim())) {
       setError("请填写沟通主题和初次沟通内容。");
       return;
     }
@@ -267,7 +370,7 @@ export function CommunicationForm({
               disabled={pending}
               onClick={onCancel}
             >
-              取消
+              {confirmingCreation ? "返回" : "取消"}
             </Button>
             <Button
               type="submit"
@@ -276,7 +379,15 @@ export function CommunicationForm({
               disabled={cannotSave}
             >
               <SubmitIcon aria-hidden="true" />
-              {pending ? "正在保存…" : isEdit ? "完成" : "保存"}
+              {pending
+                ? "正在保存…"
+                : isEdit
+                  ? "完成"
+                  : createdId
+                    ? "查看沟通详情"
+                    : confirmingCreation
+                      ? "重试确认沟通"
+                      : "保存"}
             </Button>
           </div>
         </div>
@@ -285,6 +396,12 @@ export function CommunicationForm({
           <FieldError className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
             {error}
           </FieldError>
+        ) : null}
+
+        {confirmingCreation && !pending && !createdId ? (
+          <p className="text-sm text-muted-foreground" role="status">
+            上一次提交的结果尚未确认。重试会使用同一次提交。
+          </p>
         ) : null}
 
         <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
@@ -296,7 +413,7 @@ export function CommunicationForm({
               className="h-10 shadow-xs"
               required
               maxLength={128}
-              disabled={pending}
+              disabled={fieldsDisabled}
               value={draft.title}
               onChange={(event) =>
                 setDraft((previous) => ({
@@ -308,8 +425,9 @@ export function CommunicationForm({
           </Field>
           <CommunicationCustomerField
             value={customerChoice}
-            locked={isEdit || Boolean(initialCustomer)}
-            disabled={pending}
+            locked={isEdit || confirmingCreation || Boolean(initialCustomer)}
+            disabled={fieldsDisabled}
+            readOnlyFallback={confirmingCreation ? "原提交客户" : undefined}
             onChange={(selection) => {
               if (selection?.id === customer?.id) return;
               setCustomer(selection);
@@ -322,7 +440,7 @@ export function CommunicationForm({
             label="标签"
             value={draft.tags}
             onChange={(tags) => setDraft((previous) => ({ ...previous, tags }))}
-            disabled={pending}
+            disabled={fieldsDisabled}
             allowCreate
             onCreatingChange={setTagPending}
             loadTags={listCommunicationTags}
@@ -333,7 +451,7 @@ export function CommunicationForm({
             customerId={customerId}
             editable={canChangeOwner}
             value={draft.owner}
-            disabled={pending}
+            disabled={fieldsDisabled}
             onChange={(owner) =>
               setDraft((previous) => ({ ...previous, owner }))
             }
@@ -347,7 +465,7 @@ export function CommunicationForm({
               className="min-h-36 shadow-xs"
               required
               maxLength={20_000}
-              disabled={pending}
+              disabled={fieldsDisabled}
               value={draft.summary}
               onChange={(event) =>
                 setDraft((previous) => ({

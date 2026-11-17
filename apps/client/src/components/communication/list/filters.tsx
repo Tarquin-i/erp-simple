@@ -19,8 +19,8 @@ import {
 } from "@/request/communication";
 import type {
   CommunicationListQuery,
+  CommunicationListTag,
   CommunicationStatus,
-  CommunicationTag,
 } from "@/request/communication";
 
 export type CommunicationFilters = Pick<
@@ -37,7 +37,7 @@ export function CommunicationListFilters({
   onApply,
 }: {
   filters: CommunicationFilters;
-  selectedTag?: CommunicationTag;
+  selectedTag?: CommunicationListTag;
   onApply: (filters: CommunicationFilters) => void;
 }) {
   const [draft, setDraft] = useState(filters);

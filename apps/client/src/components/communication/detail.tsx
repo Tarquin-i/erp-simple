@@ -190,6 +190,7 @@ export function CommunicationDetail({
           <Button asChild className="h-10 px-4">
             <Link
               to="/communication/$communicationId/edit"
+              preload={false}
               params={{ communicationId: record.id }}
               search={{ customerId: returnCustomerId }}
               state={{
@@ -212,7 +213,10 @@ export function CommunicationDetail({
 
       <dl className="mt-6 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
         <DetailField label="客户">
-          <CommunicationCustomerLink communication={record} showNumber />
+          <CommunicationCustomerLink
+            customer={record.canViewCustomer ? record.customer : null}
+            showNumber
+          />
         </DetailField>
         <DetailField label="标签">
           <div className="flex flex-wrap gap-1.5">

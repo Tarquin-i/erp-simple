@@ -8,10 +8,29 @@ export const communicationStatusLabels: Record<CommunicationStatus, string> = {
 
 export type CommunicationTag = { id: string; name: string; color: string };
 
+type CommunicationCustomer = {
+  id: string;
+  companyName: string;
+  customerNo: string;
+};
+
+export type CommunicationListTag = Pick<CommunicationTag, "id" | "name">;
+
+export type CommunicationListItem = {
+  id: string;
+  title: string;
+  ownerName: string;
+  status: CommunicationStatus;
+  updatedAt: string;
+  tags: CommunicationListTag[];
+  customer?: Pick<CommunicationCustomer, "id" | "companyName"> | null;
+  canViewCustomer?: boolean;
+};
+
 export type Communication = {
   id: string;
   customerId: string;
-  customer: { id: string; companyName: string; customerNo: string } | null;
+  customer: CommunicationCustomer | null;
   canViewCustomer: boolean;
   title: string;
   summary: string;
@@ -112,7 +131,7 @@ export function listCommunications(
   query: CommunicationListQuery = {},
   signal?: AbortSignal
 ) {
-  return request<PageResult & { communications: Communication[] }>(
+  return request<PageResult & { communications: CommunicationListItem[] }>(
     queryString(query),
     { signal }
   );
@@ -125,14 +144,29 @@ export function getCommunication(id: string, signal?: AbortSignal) {
   );
 }
 
+export type CreateCommunicationInput = Omit<
+  CommunicationWriteInput,
+  "status"
+> & {
+  customerId: string;
+  title: string;
+  summary: string;
+};
+
 export function createCommunication(
-  input: Omit<CommunicationWriteInput, "status"> & {
-    customerId: string;
-    title: string;
-    summary: string;
-  }
+  input: CreateCommunicationInput,
+  submissionId: string,
+  accountId: string
 ) {
-  return write<{ communication: Communication }>("", "POST", input);
+  return request<{ communication: Communication }>("", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": submissionId,
+      "X-Expected-Account-Id": accountId,
+    },
+    body: JSON.stringify(input),
+  });
 }
 
 /** 按最新已查看的版本提交改动。冲突错误的 `current` 包含服务端快照。 */
