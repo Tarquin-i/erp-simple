@@ -307,13 +307,13 @@ export function listAssignableCustomerOwners(
 
 /**
  * 验证业务员属于客户部门，并锁定其成员记录直到事务结束。
- * @param tx 当前客户写入事务。
+ * @param tx 当前业务写入事务。
  * @param departmentId 客户所属部门 ID。
  * @param ownerUserId 拟指派的业务员用户 ID。
  * @returns 校验通过后完成，无返回数据。
  * @throws 用户不在该部门或为公司管理员时抛出 HTTP 400。
  */
-async function requireAssignableOwner(
+export async function requireAssignableOwner(
   tx: DatabaseTransaction,
   departmentId: string,
   ownerUserId: string
