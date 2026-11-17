@@ -110,17 +110,26 @@ communicationRoutes.get("/owners", async (c) => {
 });
 
 communicationRoutes.post("/", async (c) => {
+  const access = c.get("businessAccess");
+  const expectedAccountId = c.req.header("X-Expected-Account-Id");
+  if (expectedAccountId !== undefined && expectedAccountId !== access.userId) {
+    fail(401, "当前登录账号已变更，请刷新页面后重试。");
+  }
   const body = await readObject(c, createFields);
   const input = readCommunicationWrite(body);
   if (input.title === undefined) fail(400, "请填写沟通主题。");
   if (input.summary === undefined) fail(400, "请填写初次沟通内容。");
 
-  const communication = await createCommunication(c.get("businessAccess"), {
-    ...input,
-    customerId: readUuid(body.customerId, "客户 ID"),
-    title: input.title,
-    summary: input.summary,
-  });
+  const communication = await createCommunication(
+    access,
+    {
+      ...input,
+      customerId: readUuid(body.customerId, "客户 ID"),
+      title: input.title,
+      summary: input.summary,
+    },
+    readUuid(c.req.header("Idempotency-Key"), "提交 ID")
+  );
   return c.json({ communication }, 201);
 });
 

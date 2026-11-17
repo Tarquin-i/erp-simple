@@ -34,6 +34,10 @@ export const communication = pgTable(
     title: varchar("title", { length: 128 }).notNull(),
     summary: text("summary").notNull(),
     status: communicationStatus("status").default("pending").notNull(),
+    // 历史记录没有提交标识，新记录用于确认断线后重试的同一次新建。
+    creationActorUserId: text("creation_actor_user_id"),
+    creationRequestId: uuid("creation_request_id"),
+    creationRequestHash: varchar("creation_request_hash", { length: 64 }),
     // 后端保存时用版本号核对并发修改。
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -69,6 +73,16 @@ export const communication = pgTable(
     index("communication_department_owner_idx").on(
       table.departmentId,
       table.ownerUserId
+    ),
+    uniqueIndex("communication_creation_request_unique").on(
+      table.creationActorUserId,
+      table.creationRequestId
+    ),
+    check(
+      "communication_creation_request_check",
+      sql`(${table.creationActorUserId} is null and ${table.creationRequestId} is null and ${table.creationRequestHash} is null)
+        or (${table.creationActorUserId} is not null and ${table.creationRequestId} is not null
+          and ${table.creationRequestHash} is not null and ${table.creationRequestHash} ~ '^[0-9a-f]{64}$')`
     ),
     check("communication_title_nonempty", sql`${table.title} ~ '[^[:space:]]'`),
     check(

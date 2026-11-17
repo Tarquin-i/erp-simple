@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   communication,
   communicationTag,
@@ -16,6 +17,8 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import { HTTPException } from "hono/http-exception";
+import type { SelectedFieldsFlat } from "drizzle-orm/pg-core";
 
 import {
   assertBusinessWriteTarget,
@@ -60,57 +63,34 @@ type UpdateCommunicationInput = Partial<
   status?: CommunicationStatus;
 };
 
-function selectCommunications(tx: DatabaseTransaction, access: BusinessAccess) {
-  return (
-    tx
-      .select({
-        id: communication.id,
-        customerId: communication.customerId,
-        customer: {
-          id: customer.id,
-          companyName: customer.companyName,
-          customerNo: customer.customerNo,
-        },
-        ownerUserId: communication.ownerUserId,
-        ownerName: user.name,
-        title: communication.title,
-        summary: communication.summary,
-        status: communication.status,
-        version: communication.version,
-        createdAt: communication.createdAt,
-        updatedAt: communication.updatedAt,
-      })
-      .from(communication)
-      .innerJoin(user, eq(user.id, communication.ownerUserId))
-      // 沟通归属和客户归属可能不同。客户权限不足时，不从数据库取出名称和编号。
-      .leftJoin(
-        customer,
-        and(
-          eq(customer.id, communication.customerId),
-          businessScopeWhere(access, customer)
-        )
-      )
+const listFields = {
+  id: communication.id,
+  title: communication.title,
+  ownerName: user.name,
+  status: communication.status,
+  updatedAt: communication.updatedAt,
+};
+
+const customerFields = { id: customer.id, companyName: customer.companyName };
+const tagFields = { id: communicationTag.id, name: communicationTag.name };
+
+function visibleCustomerJoin(access: BusinessAccess) {
+  // 沟通归属和客户归属可能不同。客户权限不足时，不从数据库取出名称和编号。
+  return and(
+    eq(customer.id, communication.customerId),
+    businessScopeWhere(access, customer)
   );
 }
 
-type CommunicationRow = Awaited<
-  ReturnType<typeof selectCommunications>
->[number];
-type CommunicationTag = Pick<
-  typeof communicationTag.$inferSelect,
-  "id" | "name" | "color"
->;
-
-async function readTags(tx: DatabaseTransaction, records: CommunicationRow[]) {
+async function readTags<
+  Row extends { id: string },
+  Fields extends SelectedFieldsFlat,
+>(tx: DatabaseTransaction, records: Row[], fields: Fields) {
   if (!records.length) return [];
   const rows = await tx
     .select({
       communicationId: communicationTagAssignment.communicationId,
-      tag: {
-        id: communicationTag.id,
-        name: communicationTag.name,
-        color: communicationTag.color,
-      },
+      tag: fields,
     })
     .from(communicationTagAssignment)
     .innerJoin(
@@ -125,7 +105,7 @@ async function readTags(tx: DatabaseTransaction, records: CommunicationRow[]) {
     )
     .orderBy(asc(communicationTag.normalizedName), asc(communicationTag.id));
 
-  const tagsByCommunication = new Map<string, CommunicationTag[]>();
+  const tagsByCommunication = new Map<string, (typeof rows)[number]["tag"][]>();
   for (const { communicationId, tag } of rows) {
     const tags = tagsByCommunication.get(communicationId);
     if (tags) tags.push(tag);
@@ -133,7 +113,6 @@ async function readTags(tx: DatabaseTransaction, records: CommunicationRow[]) {
   }
   return records.map((record) => ({
     ...record,
-    canViewCustomer: record.customer !== null,
     tags: tagsByCommunication.get(record.id) ?? [],
   }));
 }
@@ -142,7 +121,7 @@ async function readTags(tx: DatabaseTransaction, records: CommunicationRow[]) {
  * 查询有权查看的沟通及其标签，在同一只读快照中计算列表和总数。
  * @param access 当前业务账号，用其用户 ID 重新核对权限。
  * @param filters 搜索、筛选和分页参数。客户名称及编号仅在有客户查看权限时参与匹配。
- * @returns 当前页沟通、总数、页码和每页条数，受限的客户资料为 `null`。
+ * @returns 列表展示字段、总数、页码和每页条数。主列表的受限客户为 `null`，客户页签省略客户资料。
  * @throws 指定客户不存在或不可查看时抛出 HTTP 404，业务权限已失效时抛出 HTTP 401 或 403。
  */
 export function listCommunications(
@@ -211,7 +190,22 @@ export function listCommunications(
             )
           )
     );
-    const rows = await selectCommunications(tx, freshAccess)
+    const query =
+      customerId === undefined
+        ? tx
+            .select({
+              ...listFields,
+              customer: customerFields,
+              canViewCustomer: sql<boolean>`${customer.id} is not null`,
+            })
+            .from(communication)
+            .innerJoin(user, eq(user.id, communication.ownerUserId))
+            .leftJoin(customer, visibleCustomerJoin(freshAccess))
+        : tx
+            .select(listFields)
+            .from(communication)
+            .innerJoin(user, eq(user.id, communication.ownerUserId));
+    const rows = await query
       .where(filter)
       .orderBy(desc(communication.updatedAt), desc(communication.id))
       .limit(pageSize)
@@ -221,7 +215,7 @@ export function listCommunications(
       .from(communication)
       .where(filter);
     return {
-      communications: await readTags(tx, rows),
+      communications: await readTags(tx, rows, tagFields),
       total: total.count,
       page,
       pageSize,
@@ -234,12 +228,28 @@ async function readCommunication(
   access: BusinessAccess,
   id: string
 ) {
-  const rows = await selectCommunications(tx, access).where(
-    and(eq(communication.id, id), businessScopeWhere(access, communication))
-  );
-  const [record] = await readTags(tx, rows);
+  const rows = await tx
+    .select({
+      ...listFields,
+      customerId: communication.customerId,
+      customer: { ...customerFields, customerNo: customer.customerNo },
+      ownerUserId: communication.ownerUserId,
+      summary: communication.summary,
+      version: communication.version,
+      createdAt: communication.createdAt,
+    })
+    .from(communication)
+    .innerJoin(user, eq(user.id, communication.ownerUserId))
+    .leftJoin(customer, visibleCustomerJoin(access))
+    .where(
+      and(eq(communication.id, id), businessScopeWhere(access, communication))
+    );
+  const [record] = await readTags(tx, rows, {
+    ...tagFields,
+    color: communicationTag.color,
+  });
   if (!record) fail(404, "沟通记录不存在。");
-  return record;
+  return { ...record, canViewCustomer: record.customer !== null };
 }
 
 /**
@@ -320,19 +330,93 @@ async function writeCommunication<T>(
 }
 
 /**
+ * 计算已校验的新建请求指纹，忽略标签顺序及空标签列表的写法差异。
+ * @param input 已校验客户、主题、内容、业务员和标签。
+ * @returns 十六进制 SHA-256 摘要，用于核对重试时的原始内容。
+ */
+function fingerprintCreation(input: CreateCommunicationInput) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        customerId: input.customerId,
+        title: input.title,
+        summary: input.summary,
+        ownerUserId: input.ownerUserId ?? null,
+        tagIds: input.tagIds?.toSorted() ?? [],
+      })
+    )
+    .digest("hex");
+}
+
+/**
  * 在可查看的客户下创建沟通及其标签，锁定当前客户并按该客户部门校验指派。
  * @param access 当前业务账号。普通业务员只能创建由本人负责的沟通，公司管理员必须手选业务员。
  * @param input 客户、主题、内容、可选业务员和标签 ID。
- * @returns 新建记录，默认待跟进、版本为 1。
- * @throws 客户不可见时抛出 HTTP 404，指派越权抛出 HTTP 403，业务员或标签无效抛出 HTTP 400。
+ * @param requestId 同一次新建在断线重试时复用的提交 UUID，按创建人隔离。
+ * @returns 新建记录，或以当前权限重新读取该提交已经创建的记录。
+ * @throws 客户或重试记录不可见时返回 HTTP 404，指派越权返回 HTTP 403，字段无效返回 HTTP 400，同一提交内容不同返回 HTTP 409。
  */
 export function createCommunication(
   access: BusinessAccess,
-  input: CreateCommunicationInput
+  input: CreateCommunicationInput,
+  requestId: string
 ) {
+  const requestHash = fingerprintCreation(input);
   return writeCommunication(async (tx) => {
+    // 同一账号的同一次提交排队，其他提交可并行。事务结束时自动释放锁。
+    const lockKey = JSON.stringify([
+      "communication-create",
+      access.userId,
+      requestId,
+    ]);
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`
+    );
+    const [existing] = await tx
+      .select({
+        id: communication.id,
+        departmentId: communication.departmentId,
+        requestHash: communication.creationRequestHash,
+      })
+      .from(communication)
+      .where(
+        and(
+          eq(communication.creationActorUserId, access.userId),
+          eq(communication.creationRequestId, requestId)
+        )
+      );
+
+    if (existing) {
+      // 使用与编辑一致的锁顺序，在持锁期间核对当前业务权限和记录归属。
+      await lockDepartment(tx, existing.departmentId, "share");
+      const freshAccess = await readBusinessAccess(tx, access.userId);
+      const [visible] = await tx
+        .select({ id: communication.id })
+        .from(communication)
+        .where(
+          and(
+            eq(communication.id, existing.id),
+            businessScopeWhere(freshAccess, communication)
+          )
+        )
+        .for("share");
+      if (!visible) fail(404, "沟通记录不存在。");
+      if (existing.requestHash !== requestHash) {
+        throw new HTTPException(409, {
+          res: Response.json(
+            {
+              code: "idempotency_conflict",
+              message: "该提交 ID 已用于不同的沟通内容。",
+            },
+            { status: 409 }
+          ),
+        });
+      }
+      return readCommunication(tx, freshAccess, visible.id);
+    }
+
     const { access: freshAccess, record: linkedCustomer } =
-      await lockCustomerForWrite(tx, access, input.customerId);
+      await lockCustomerForWrite(tx, access, input.customerId, "share");
     if (freshAccess.scope === "company" && input.ownerUserId === undefined) {
       fail(400, "请选择业务员。");
     }
@@ -343,6 +427,9 @@ export function createCommunication(
     const [record] = await tx
       .insert(communication)
       .values({
+        creationActorUserId: freshAccess.userId,
+        creationRequestId: requestId,
+        creationRequestHash: requestHash,
         customerId: linkedCustomer.id,
         departmentId,
         ownerUserId,

@@ -339,14 +339,16 @@ function duplicateCustomer(): never {
  * 写入前先共享锁定部门，再核对实时权限并锁定客户记录。
  * @param tx 调用方已经开启的写入事务。
  * @param access 调用方身份及最初的业务范围。
- * @param customerId 待修改的客户 ID。
+ * @param customerId 待修改或须保持归属的客户 ID。
+ * @param lockMode 客户行锁模式。创建关联记录时可使用共享锁，修改客户及联系方式仍使用默认写锁。
  * @returns 重新读取的业务权限和已锁定的客户记录。
  * @throws 客户不存在或超出可见范围时抛出 HTTP 404，重新核对权限失败时抛出 HTTP 401 或 403。
  */
 export async function lockCustomerForWrite(
   tx: DatabaseTransaction,
   access: BusinessAccess,
-  customerId: string
+  customerId: string,
+  lockMode: "no key update" | "share" = "no key update"
 ) {
   const [target] = await tx
     .select({ departmentId: customer.departmentId })
@@ -369,7 +371,7 @@ export async function lockCustomerForWrite(
         businessScopeWhere(freshAccess, customer)
       )
     )
-    .for("no key update");
+    .for(lockMode);
   if (!record) fail(404, "客户不存在。");
   return { access: freshAccess, record };
 }
