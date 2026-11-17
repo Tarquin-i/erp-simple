@@ -125,6 +125,28 @@ export function CustomerContacts({
     });
   }
 
+  /**
+   * 同步新增联系方式或改名表单中的联系人资料，保留用户输入。
+   * @param latest 后端返回的联系人快照，含最新版本和联系方式选项。
+   * @returns 无返回值。仅替换对应联系人的资料。
+   */
+  function updateEditorContact(latest: CustomerContact) {
+    setEditor((mode) => {
+      if (mode?.kind === "add") {
+        return {
+          ...mode,
+          contacts: mode.contacts.map((contact) =>
+            contact.id === latest.id ? latest : contact
+          ),
+        };
+      }
+      if (mode?.kind === "rename" && mode.contact.id === latest.id) {
+        return { ...mode, contact: latest };
+      }
+      return mode;
+    });
+  }
+
   function restoreFocus() {
     requestAnimationFrame(() => {
       // 删除后原按钮可能已离开页面，此时将焦点还给新建按钮。
@@ -221,16 +243,7 @@ export function CustomerContacts({
           ) {
             setConflict(null);
             // 追加方式遇到重复类型时更新选项和联系人版本，供重新选择。
-            setEditor((mode) =>
-              mode?.kind === "add"
-                ? {
-                    ...mode,
-                    contacts: mode.contacts.map((contact) =>
-                      contact.id === latest.id ? latest : contact
-                    ),
-                  }
-                : mode
-            );
+            updateEditorContact(latest);
             setError(
               `该联系人已有${contactMethodLabels[change.method.type]}，请选择其他方式或编辑已有联系方式。${change.method.isPrimary ? "改选后如需设为主要联系方式，请重新勾选。" : ""}`
             );
@@ -546,8 +559,14 @@ export function CustomerContacts({
         overwriteBlocked={Boolean(overwriteError)}
         onCancel={() => {
           // 保留表单草稿，下次保存以弹窗展示过的最新版本发起新请求。
-          if (conflict?.change.kind === "edit")
+          if (conflict?.change.kind === "edit") {
             lastReviewedConflict.current = conflict;
+          } else if (
+            conflict?.change.kind === "add" ||
+            conflict?.change.kind === "rename"
+          ) {
+            updateEditorContact(conflict.latest);
+          }
           setConflict(null);
           if (deletion) closeDelete();
         }}
