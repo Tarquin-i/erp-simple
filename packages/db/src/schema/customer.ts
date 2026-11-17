@@ -8,6 +8,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
@@ -63,6 +64,8 @@ export const customer = pgTable(
   (table) => [
     // 编号全局唯一，新建撞号时由后端重试。
     uniqueIndex("customer_customer_no_unique").on(table.customerNo),
+    // 沟通记录同时引用客户 ID 和部门，防止关联到其他部门的业务员。
+    unique("customer_id_department_unique").on(table.id, table.departmentId),
     // 客户名称去掉首尾空格并转小写后，在同一部门内唯一。
     uniqueIndex("customer_department_name_unique").on(
       table.departmentId,

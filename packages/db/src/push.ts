@@ -4,7 +4,9 @@ import "../drizzle.config";
 
 const memberKey = "member_organization_user_unique";
 const customerOwnerKey = "customer_department_owner_member_fk";
+const customerDepartmentKey = "customer_id_department_unique";
 const uniqueDefinition = "UNIQUE (organization_id, user_id)";
+const customerDepartmentKeyDefinition = "UNIQUE (id, department_id)";
 const foreignKeyDefinition =
   "FOREIGN KEY (department_id, owner_user_id) REFERENCES public.member(organization_id, user_id) ON UPDATE RESTRICT ON DELETE RESTRICT";
 const departmentTriggerDefinition =
@@ -17,7 +19,7 @@ END;
 `;
 
 /**
- * 在同一事务中校验现有客户归属，并按依赖顺序安装数据库约束。
+ * 在同一事务中校验现有客户归属，并先安装客户和沟通外键依赖的约束。
  * @param tx 当前 PostgreSQL 事务。
  * @returns 相关表已就绪并完成约束校验时返回 `true`，尚无完整表结构时返回 `false`。
  * @throws 已有客户归属无效、同名约束定义不符或数据库拒绝变更时中止事务。
@@ -48,11 +50,15 @@ async function ensureCustomerGuards(tx: postgres.TransactionSql) {
            convalidated as validated, condeferrable as deferrable
     from pg_constraint
     where (conrelid = 'public.member'::regclass and conname = ${memberKey})
-       or (conrelid = to_regclass('public.customer') and conname = ${customerOwnerKey})
+       or (conrelid = to_regclass('public.customer')
+           and conname in (${customerOwnerKey}, ${customerDepartmentKey}))
   `;
   const memberConstraint = constraints.find(({ name }) => name === memberKey);
   const ownerConstraint = constraints.find(
     ({ name }) => name === customerOwnerKey
+  );
+  const customerDepartmentConstraint = constraints.find(
+    ({ name }) => name === customerDepartmentKey
   );
   if (
     memberConstraint &&
@@ -71,6 +77,15 @@ async function ensureCustomerGuards(tx: postgres.TransactionSql) {
           : `${foreignKeyDefinition} NOT VALID`))
   ) {
     throw new Error(`客户负责人约束 ${customerOwnerKey} 的定义不符合预期。`);
+  }
+  if (
+    customerDepartmentConstraint &&
+    (!customerDepartmentConstraint.validated ||
+      customerDepartmentConstraint.deferrable ||
+      customerDepartmentConstraint.definition !==
+        customerDepartmentKeyDefinition)
+  ) {
+    throw new Error(`客户部门约束 ${customerDepartmentKey} 的定义不符合预期。`);
   }
   if (tables.customer && !ownerConstraint?.validated) {
     const [invalidOwner] = await tx<{ id: string }[]>`
@@ -94,6 +109,11 @@ async function ensureCustomerGuards(tx: postgres.TransactionSql) {
     await tx`alter table public.member add constraint ${tx(memberKey)} unique (organization_id, user_id)`;
   }
   if (!tables.customer) return false;
+
+  // 已有库先补被引用的唯一约束，Drizzle 才能创建沟通的复合外键。
+  if (!customerDepartmentConstraint) {
+    await tx`alter table public.customer add constraint ${tx(customerDepartmentKey)} unique (id, department_id)`;
+  }
 
   if (!ownerConstraint) {
     await tx`
