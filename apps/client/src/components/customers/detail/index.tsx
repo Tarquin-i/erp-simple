@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
+import { CustomerCommunicationTab } from "@/components/communication/list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +16,17 @@ const relatedTabs = [
   { value: "products", label: "产品" },
   { value: "orders", label: "订单" },
   { value: "addresses", label: "地址" },
-];
+] as const;
+
+export type CustomerDetailTab =
+  | "contacts"
+  | (typeof relatedTabs)[number]["value"];
+
+export function isCustomerDetailTab(
+  value: unknown
+): value is CustomerDetailTab {
+  return value === "contacts" || relatedTabs.some((tab) => tab.value === value);
+}
 
 function DetailField({
   label,
@@ -81,7 +92,15 @@ function CustomerRemark({ remark }: { remark: string | null }) {
   );
 }
 
-export function CustomerDetail({ customer }: { customer: Customer }) {
+export function CustomerDetail({
+  customer,
+  activeTab,
+  onTabChange,
+}: {
+  customer: Customer;
+  activeTab: CustomerDetailTab;
+  onTabChange: (tab: CustomerDetailTab) => void;
+}) {
   // 联系方式组件通过此插槽将新建按钮放在页签栏右侧。
   const [contactAddButtonSlot, setContactAddButtonSlot] =
     useState<HTMLDivElement | null>(null);
@@ -143,7 +162,13 @@ export function CustomerDetail({ customer }: { customer: Customer }) {
         </DetailField>
       </dl>
 
-      <Tabs defaultValue="contacts" className="mt-6 gap-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={(tab) => {
+          if (isCustomerDetailTab(tab)) onTabChange(tab);
+        }}
+        className="mt-6 gap-4"
+      >
         <div className="flex min-w-0 items-center gap-3">
           <div className="min-w-0 overflow-x-auto overflow-y-hidden py-1">
             <TabsList
@@ -192,9 +217,13 @@ export function CustomerDetail({ customer }: { customer: Customer }) {
         </TabsContent>
         {relatedTabs.map((tab) => (
           <TabsContent key={tab.value} value={tab.value}>
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              待开发
-            </p>
+            {tab.value === "communication" ? (
+              <CustomerCommunicationTab customerId={customer.id} />
+            ) : (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                待开发
+              </p>
+            )}
           </TabsContent>
         ))}
       </Tabs>

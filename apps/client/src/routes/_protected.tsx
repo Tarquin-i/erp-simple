@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router";
 
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { CommunicationBreadcrumbs } from "@/components/communication/breadcrumbs";
 import { CustomerBreadcrumbs } from "@/components/customers/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +47,7 @@ function WorkspaceLayout() {
           <header className="flex h-14 shrink-0 items-center border-b bg-background px-4">
             <SidebarTrigger aria-label="切换侧边栏" />
             <CustomerBreadcrumbs />
+            <CommunicationBreadcrumbs />
           </header>
           <Outlet />
         </SidebarInset>

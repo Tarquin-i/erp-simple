@@ -5,13 +5,25 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 
-import { CustomerDetail } from "@/components/customers/detail";
+import {
+  CustomerDetail,
+  isCustomerDetailTab,
+} from "@/components/customers/detail";
+import type { CustomerDetailTab } from "@/components/customers/detail";
 import { readListQueryFromState } from "@/components/customers/list-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CustomerApiError, getCustomer } from "@/request/customers";
 
 export const Route = createFileRoute("/_protected/customers/$customerId/")({
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { tab?: CustomerDetailTab } => ({
+    tab:
+      isCustomerDetailTab(search.tab) && search.tab !== "contacts"
+        ? search.tab
+        : undefined,
+  }),
   loader: ({ params, abortController }) =>
     getCustomer(params.customerId, abortController.signal),
   component: CustomerDetailRoute,
@@ -29,7 +41,23 @@ export const Route = createFileRoute("/_protected/customers/$customerId/")({
 
 function CustomerDetailRoute() {
   const { customer } = Route.useLoaderData();
-  return <CustomerDetail key={customer.id} customer={customer} />;
+  const { tab } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  return (
+    <CustomerDetail
+      key={customer.id}
+      customer={customer}
+      activeTab={tab ?? "contacts"}
+      onTabChange={(value) =>
+        void navigate({
+          search: { tab: value === "contacts" ? undefined : value },
+          state: (previous) => previous,
+          resetScroll: false,
+          replace: true,
+        })
+      }
+    />
+  );
 }
 
 function CustomerDetailError({ error }: { error: unknown }) {
