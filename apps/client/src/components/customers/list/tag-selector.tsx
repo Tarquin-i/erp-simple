@@ -11,28 +11,30 @@ import {
 } from "@/components/ui/combobox";
 import { InputGroupAddon } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
-import {
-  CustomerApiError,
-  getCustomerTag,
-  listCustomerTags,
-} from "@/request/customers";
+import { getCustomerTag, listCustomerTags } from "@/request/customers";
 import type { CustomerTag } from "@/request/customers";
 
 const tagPageSize = 20;
 
 /**
  * 提供可搜索、可分页的单选标签筛选器，并显示已选标签。
- * @param props 已选标签 ID、可复用的标签数据，以及通知选中或清除的回调。
+ * @param props 已选标签 ID、可复用的标签数据及选中回调。可指定另一个模块的标签请求。
  * @returns 标签筛选界面，请求失败时显示相应提示。
  */
 export function TagSelector({
   tagId,
   selectedTag,
   onChange,
+  loadTags = listCustomerTags,
+  loadTag = getCustomerTag,
+  inputId = "customer-tag-search",
 }: {
   tagId?: string;
   selectedTag?: CustomerTag;
   onChange: (tagId: string | undefined) => void;
+  loadTags?: typeof listCustomerTags;
+  loadTag?: typeof getCustomerTag;
+  inputId?: string;
 }) {
   const [search, setSearch] = useState("");
   const composing = useRef(false);
@@ -55,7 +57,7 @@ export function TagSelector({
     const controller = new AbortController();
     const timer = window.setTimeout(
       () => {
-        listCustomerTags(
+        loadTags(
           { search: keyword || undefined, page, pageSize: tagPageSize },
           controller.signal
         )
@@ -75,7 +77,7 @@ export function TagSelector({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [keyword, page, retry]);
+  }, [keyword, page, retry, loadTags]);
 
   const knownTag =
     [retainedTag, selectedTag, lookup?.tag].find((tag) => tag?.id === tagId) ??
@@ -89,14 +91,16 @@ export function TagSelector({
     if (!tagId || !needsTagLookup) return;
 
     const controller = new AbortController();
-    getCustomerTag(tagId, controller.signal)
+    loadTag(tagId, controller.signal)
       .then(({ tag }) => {
         if (!controller.signal.aborted) setLookup({ id: tagId, tag });
       })
       .catch((failure: unknown) => {
         if (controller.signal.aborted) return;
         const missing =
-          failure instanceof CustomerApiError && failure.status === 404;
+          failure instanceof Error &&
+          "status" in failure &&
+          failure.status === 404;
         setLookup({
           id: tagId,
           message: missing ? "所选标签不可用" : "所选标签加载失败",
@@ -104,7 +108,7 @@ export function TagSelector({
         });
       });
     return () => controller.abort();
-  }, [tagId, needsTagLookup]);
+  }, [tagId, needsTagLookup, loadTag]);
 
   function changePage(next: number) {
     setPage(next);
@@ -115,7 +119,7 @@ export function TagSelector({
   return (
     <div className="space-y-2">
       <div className="flex min-h-5 items-center justify-between gap-2">
-        <Label htmlFor="customer-tag-search">标签</Label>
+        <Label htmlFor={inputId}>标签</Label>
         {tagId && (
           <div className="flex min-w-0 items-center gap-1">
             <Badge
@@ -182,7 +186,7 @@ export function TagSelector({
         }}
       >
         <ComboboxInput
-          id="customer-tag-search"
+          id={inputId}
           aria-label="搜索标签"
           placeholder="搜索标签"
           maxLength={64}

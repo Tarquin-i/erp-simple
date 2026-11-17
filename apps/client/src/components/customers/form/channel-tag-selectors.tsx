@@ -158,10 +158,16 @@ type TagPage = {
 export function CustomerTagPicker({
   allowCreate,
   onCreatingChange,
+  loadTags = listCustomerTags,
+  createTag = createCustomerTag,
+  tagLimitLabel = "每个客户",
   ...props
 }: PickerProps & {
   allowCreate: boolean;
   onCreatingChange: (creating: boolean) => void;
+  loadTags?: typeof listCustomerTags;
+  createTag?: typeof createCustomerTag;
+  tagLimitLabel?: string;
 }) {
   const anchor = useComboboxAnchor();
   const input = useRef<HTMLInputElement>(null);
@@ -210,7 +216,7 @@ export function CustomerTagPicker({
     setSearchError("");
     const timer = window.setTimeout(
       () => {
-        listCustomerTags(
+        loadTags(
           { search: keyword, page, pageSize: tagPageSize },
           controller.signal
         )
@@ -249,7 +255,7 @@ export function CustomerTagPicker({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [keyword, open, page, reload]);
+  }, [keyword, loadTags, open, page, reload]);
 
   function changeSearch(value: string) {
     if (creating) return;
@@ -273,7 +279,7 @@ export function CustomerTagPicker({
     setCreating(true);
     onCreatingChange(true);
     try {
-      const { tag } = await createCustomerTag({ name });
+      const { tag } = await createTag({ name });
       props.onChange([...props.value, { id: tag.id, name: tag.name }]);
       setReload((attempt) => attempt + 1);
       setTagName(null);
@@ -424,7 +430,8 @@ export function CustomerTagPicker({
       </Combobox>
       {atTagLimit && (
         <FieldDescription id={tagLimitId} role="status">
-          每个客户最多可选 {maxCustomerTags} 个标签。移除已有标签后可继续选择。
+          {tagLimitLabel}最多可选 {maxCustomerTags}{" "}
+          个标签。移除已有标签后可继续选择。
         </FieldDescription>
       )}
       <Dialog
