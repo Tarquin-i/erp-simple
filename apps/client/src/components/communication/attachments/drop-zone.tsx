@@ -1,5 +1,6 @@
 import { Upload } from "lucide-react";
 import { useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -7,6 +8,10 @@ type AttachmentDropZoneProps = {
   accept: string;
   disabled?: boolean;
   onFilesSelected: (files: File[]) => void;
+  children?: (picker: {
+    selectFiles: () => void;
+    dropButton: ReactNode;
+  }) => ReactNode;
 };
 
 /** 提供可用鼠标、键盘或拖放操作的多文件选择入口。 */
@@ -14,13 +19,35 @@ export function AttachmentDropZone({
   accept,
   disabled = false,
   onFilesSelected,
+  children,
 }: AttachmentDropZoneProps) {
   const input = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const [dragActive, setDragActive] = useState(false);
+  const selectFiles = () => input.current?.click();
+  const dropButton = (
+    <Button
+      type="button"
+      variant="outline"
+      className="h-auto min-h-32 w-full flex-col gap-2 rounded-xl border-dashed px-4 py-6 text-muted-foreground data-[drag-active=true]:border-primary data-[drag-active=true]:bg-muted"
+      aria-label="选择附件"
+      data-drag-active={dragActive && !disabled}
+      disabled={disabled}
+      onClick={selectFiles}
+    >
+      <Upload aria-hidden="true" className="size-5" />
+      拖拽或点击此处上传
+    </Button>
+  );
 
   return (
     <div
+      className={
+        children
+          ? "min-w-0 space-y-4 rounded-lg data-[drag-active=true]:ring-2 data-[drag-active=true]:ring-ring/60"
+          : undefined
+      }
+      data-drag-active={dragActive && !disabled}
       onDragEnter={(event) => {
         if (!event.dataTransfer.types.includes("Files")) return;
         event.preventDefault();
@@ -58,18 +85,7 @@ export function AttachmentDropZone({
           if (!disabled && files.length) onFilesSelected(files);
         }}
       />
-      <Button
-        type="button"
-        variant="outline"
-        className="h-auto min-h-32 w-full flex-col gap-2 rounded-xl border-dashed px-4 py-6 text-muted-foreground data-[drag-active=true]:border-primary data-[drag-active=true]:bg-muted"
-        aria-label="选择附件"
-        data-drag-active={dragActive && !disabled}
-        disabled={disabled}
-        onClick={() => input.current?.click()}
-      >
-        <Upload aria-hidden="true" className="size-5" />
-        拖拽或点击此处上传
-      </Button>
+      {children ? children({ selectFiles, dropButton }) : dropButton}
     </div>
   );
 }

@@ -1,6 +1,6 @@
+import { LoaderCircle, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { CustomerPagination } from "@/components/customers/pagination";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -13,6 +13,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { CommunicationApiError } from "@/request/communication";
 import {
   attachmentAccept,
@@ -27,7 +32,7 @@ import type {
 
 import { AttachmentDropZone } from "./drop-zone";
 import { AttachmentQueue } from "./queue";
-import { AttachmentTable } from "./table";
+import { AttachmentTimeline } from "./timeline";
 import { useAttachmentUploadQueue } from "./use-upload-queue";
 
 function errorMessage(failure: unknown, fallback: string) {
@@ -65,6 +70,7 @@ export function CommunicationAttachmentsTab({
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<AttachmentListResult>();
   const [listError, setListError] = useState<Error>();
+  const [listPending, setListPending] = useState(true);
   const [downloadError, setDownloadError] = useState<{
     attachment: Attachment;
     message: string;
@@ -92,6 +98,7 @@ export function CommunicationAttachmentsTab({
 
   useEffect(() => {
     const controller = new AbortController();
+    setListPending(true);
     setListError(undefined);
     void listCommunicationAttachments(
       communicationId,
@@ -100,21 +107,25 @@ export function CommunicationAttachmentsTab({
     ).then(
       (next) => {
         if (controller.signal.aborted) return;
-        const lastPage = Math.max(1, Math.ceil(next.total / next.pageSize));
-        if (page > lastPage) {
-          setPage(lastPage);
-          return;
-        }
+        setListPending(false);
         const readyIds = new Set(
           next.attachments
             .filter((item) => !item.deletionPending)
             .map(({ id }) => id)
         );
         if (clearCompleted(readyIds)) setUploadMessage("附件上传成功。");
-        setResult(next);
+        setResult((previous) => {
+          if (next.page === 1 || !previous) return next;
+          const attachments = new Map(
+            previous.attachments.map((item) => [item.id, item])
+          );
+          for (const item of next.attachments) attachments.set(item.id, item);
+          return { ...next, attachments: [...attachments.values()] };
+        });
       },
       (failure: unknown) => {
         if (!controller.signal.aborted) {
+          setListPending(false);
           setListError(
             failure instanceof Error
               ? failure
@@ -130,14 +141,18 @@ export function CommunicationAttachmentsTab({
     setRevision((previous) => previous + 1);
   }
 
+  function reload() {
+    setPage(1);
+    refresh();
+  }
+
   async function upload(retryId?: string) {
     setUploadMessage("");
     const succeeded = await uploads.upload(communicationId, retryId);
     if (!mounted.current) return;
     clearCompleted();
     if (succeeded) setUploadMessage("附件上传成功。");
-    setPage(1);
-    refresh();
+    reload();
   }
 
   async function removeUpload(id: string) {
@@ -148,7 +163,7 @@ export function CommunicationAttachmentsTab({
       clearCompleted();
       setUploadMessage("附件已上传成功，已保留。");
     }
-    refresh();
+    reload();
   }
 
   async function download(attachment: Attachment) {
@@ -219,7 +234,7 @@ export function CommunicationAttachmentsTab({
       if (!controller.signal.aborted) {
         setDeletePending(false);
         // 文件可能已归档或删除，只是清理失败或响应未返回。
-        refresh();
+        reload();
       }
     }
   }
@@ -227,89 +242,144 @@ export function CommunicationAttachmentsTab({
   const inaccessible =
     listError instanceof CommunicationApiError &&
     [401, 403, 404].includes(listError.status);
-  const pageCount = Math.max(
-    1,
-    Math.ceil((result?.total ?? 0) / (result?.pageSize ?? 20))
+  const loadingMore = Boolean(result && page > result.page && listPending);
+  const hasMore = Boolean(
+    result && result.page * result.pageSize < result.total
   );
+  const uploadDisabled =
+    uploads.busy || deletePending || inaccessible || !result;
 
   return (
-    <div className="min-w-0 space-y-4">
+    <>
       <AttachmentDropZone
         accept={attachmentAccept}
-        disabled={uploads.busy || deletePending || inaccessible}
+        disabled={uploadDisabled}
         onFilesSelected={(files) => {
           uploads.add(files);
           void upload();
         }}
-      />
-      <AttachmentQueue
-        items={uploads.items}
-        disabled={uploads.busy || inaccessible}
-        onRetry={(id) => void upload(id)}
-        onRemove={(id) => void removeUpload(id)}
-      />
-      {uploadMessage && (
-        <p className="text-sm text-muted-foreground" role="status">
-          {uploadMessage}
-        </p>
-      )}
-      {downloadError && (
-        <div className="flex flex-wrap items-center gap-2">
-          <FieldError>{downloadError.message}</FieldError>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={
-              inaccessible || downloading.has(downloadError.attachment.id)
-            }
-            onClick={() => void download(downloadError.attachment)}
-          >
-            重试下载
-          </Button>
-        </div>
-      )}
-      {listError && (
-        <div className="flex flex-wrap items-center gap-2">
-          <FieldError>{listError.message}</FieldError>
-          {!inaccessible && (
-            <Button type="button" variant="outline" size="sm" onClick={refresh}>
-              重试加载
-            </Button>
-          )}
-        </div>
-      )}
-      {!inaccessible && result?.page === page ? (
-        <>
-          <AttachmentTable
-            attachments={result.attachments}
-            downloadingIds={downloading}
-            deletingId={deletePending ? deleteTarget?.id : undefined}
-            onDownload={(attachment) => void download(attachment)}
-            onDelete={(attachment) => {
-              setDeleteError("");
-              setDeleteTarget(attachment);
-            }}
-          />
-          {pageCount > 1 && (
-            <CustomerPagination
-              label="附件分页"
-              page={page}
-              pageCount={pageCount}
-              total={result.total}
-              onPageChange={setPage}
+      >
+        {({ selectFiles, dropButton }) => (
+          <>
+            <AttachmentQueue
+              items={uploads.items}
+              disabled={uploads.busy || inaccessible}
+              onRetry={(id) => void upload(id)}
+              onRemove={(id) => void removeUpload(id)}
             />
-          )}
-        </>
-      ) : (
-        !listError && (
-          <Skeleton
-            className="h-32"
-            aria-busy="true"
-            aria-label="正在加载沟通附件"
-          />
-        )
-      )}
+            {uploadMessage && (
+              <p className="text-sm text-muted-foreground" role="status">
+                {uploadMessage}
+              </p>
+            )}
+            {downloadError && (
+              <div className="flex flex-wrap items-center gap-2">
+                <FieldError>{downloadError.message}</FieldError>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    inaccessible || downloading.has(downloadError.attachment.id)
+                  }
+                  onClick={() => void download(downloadError.attachment)}
+                >
+                  重试下载
+                </Button>
+              </div>
+            )}
+            {listError && (
+              <div className="flex flex-wrap items-center gap-2">
+                <FieldError>{listError.message}</FieldError>
+                {!inaccessible && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={refresh}
+                  >
+                    重试加载
+                  </Button>
+                )}
+              </div>
+            )}
+            {!inaccessible && result ? (
+              <>
+                <AttachmentTimeline
+                  attachments={result.attachments}
+                  communicationId={communicationId}
+                  downloadingIds={downloading}
+                  downloadError={
+                    downloadError && {
+                      attachmentId: downloadError.attachment.id,
+                      message: downloadError.message,
+                    }
+                  }
+                  deletingId={deletePending ? deleteTarget?.id : undefined}
+                  onDownload={(attachment) => void download(attachment)}
+                  onDelete={(attachment) => {
+                    setDeleteError("");
+                    setDeleteTarget(attachment);
+                  }}
+                  uploadAction={
+                    result.attachments.length > 0 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label="选择附件"
+                            disabled={uploadDisabled}
+                            onClick={selectFiles}
+                          >
+                            <Upload aria-hidden="true" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>上传附件</TooltipContent>
+                      </Tooltip>
+                    )
+                  }
+                  empty={
+                    <div className="space-y-2">
+                      <span className="sr-only">暂无附件</span>
+                      {dropButton}
+                    </div>
+                  }
+                />
+                {hasMore && (
+                  <div className="flex justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      aria-busy={loadingMore}
+                      disabled={listPending || Boolean(listError)}
+                      onClick={() => setPage(result.page + 1)}
+                    >
+                      {loadingMore && (
+                        <LoaderCircle
+                          aria-hidden="true"
+                          className="animate-spin"
+                        />
+                      )}
+                      {loadingMore ? "加载中…" : "加载更多"}
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              !listError && (
+                <Skeleton
+                  className="h-32"
+                  aria-busy="true"
+                  aria-label="正在加载沟通附件"
+                />
+              )
+            )}
+          </>
+        )}
+      </AttachmentDropZone>
       <AlertDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(next) => {
@@ -346,6 +416,6 @@ export function CommunicationAttachmentsTab({
           </AlertDialogContent>
         )}
       </AlertDialog>
-    </div>
+    </>
   );
 }
