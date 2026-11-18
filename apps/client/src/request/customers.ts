@@ -305,6 +305,33 @@ export function updateCustomerContactMethod(
   input: Partial<CustomerContactMethodInput> & {
     expectedMethodVersion: number;
     expectedContactVersion?: number;
+    requireCurrentVersion?: true;
+  }
+) {
+  return write<{ contact: CustomerContact }>(
+    `${contactPath(customerId, contactId)}/methods/${encodeURIComponent(methodId)}`,
+    "PATCH",
+    input
+  );
+}
+
+/**
+ * 按弹窗展示的版本写回一条联系方式的旧值和原主要项。
+ * @param customerId 所属客户 ID。
+ * @param contactId 所属联系人 ID。
+ * @param methodId 要写回的联系方式 ID。
+ * @param input 打开表单时的旧类型、旧值、原主要项 ID，以及此次核对过的两个版本。
+ * @returns 写回后提交成功的联系人快照，供下次保存草稿使用。
+ * @throws 请求失败时抛出 `CustomerApiError`，版本失配时带最新联系人快照。
+ */
+export function restoreCustomerContactMethod(
+  customerId: string,
+  contactId: string,
+  methodId: string,
+  input: Pick<CustomerContactMethodInput, "type" | "value"> & {
+    restorePrimaryMethodId: string;
+    expectedMethodVersion: number;
+    expectedContactVersion: number;
   }
 ) {
   return write<{ contact: CustomerContact }>(

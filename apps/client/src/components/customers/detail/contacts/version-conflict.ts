@@ -1,19 +1,27 @@
+import { DEFAULT_PHONE_COUNTRY, normalizeMobilePhone } from "@repo/phone";
+
 import { CustomerApiError } from "@/request/customers";
 import type {
   CustomerContact,
+  CustomerContactMethod,
   CustomerContactMethodInput,
 } from "@/request/customers";
 
 import { contactMethodLabels } from "./method-labels";
-import { contactValueError, sameContactValue } from "./method-value";
+import {
+  contactValueError,
+  isPhoneMethod,
+  sameContactValue,
+} from "./method-value";
 import type { ContactChange } from "./mutations";
+import { readPhoneDraft } from "./phone-number-input";
 
 export type ContactConflict = {
   change: Exclude<ContactChange, { kind: "create" }>;
+  draftChange: Exclude<ContactChange, { kind: "create" }>;
   latest: CustomerContact;
   primaryAlreadyApplied?: boolean;
   phoneValueAlreadyApplied?: boolean;
-  rebasedPhoneValue?: string;
 };
 
 /**
@@ -43,6 +51,33 @@ export function latestContact(error: unknown, contactId: string) {
     return current as CustomerContact;
 }
 
+function phoneCountryForOverwrite(method: CustomerContactMethod) {
+  if (isPhoneMethod(method.type))
+    return readPhoneDraft(method.value, DEFAULT_PHONE_COUNTRY).number?.country;
+}
+
+/** 先解析覆盖时拟保存的手机号，使弹窗与发送的请求使用同一个区号。 */
+export function normalizeContactOverwrite(
+  change: ContactConflict["change"],
+  current: CustomerContactMethod | undefined
+): ContactConflict["change"] {
+  if (
+    change.kind !== "edit" ||
+    !current ||
+    change.fields.value === undefined ||
+    !isPhoneMethod(change.fields.type ?? current.type)
+  )
+    return change;
+
+  const value = normalizeMobilePhone(
+    change.fields.value,
+    phoneCountryForOverwrite(current)
+  );
+  return value === undefined
+    ? change
+    : { ...change, fields: { ...change.fields, value } };
+}
+
 /** 判断最新资料与待保存的字段能否组合成有效的联系方式。 */
 export function contactOverwriteError({ change, latest }: ContactConflict) {
   if (change.kind !== "edit") return;
@@ -59,7 +94,11 @@ export function contactOverwriteError({ change, latest }: ContactConflict) {
     return "唯一的联系方式必须保留为主要联系方式，可以返回表单修改其他字段。";
   }
   if (type !== undefined || value !== undefined)
-    return contactValueError(type ?? method.type, value ?? method.value);
+    return contactValueError(
+      type ?? method.type,
+      value ?? method.value,
+      phoneCountryForOverwrite(method)
+    );
 }
 
 function methodLabel(method: CustomerContactMethodInput) {

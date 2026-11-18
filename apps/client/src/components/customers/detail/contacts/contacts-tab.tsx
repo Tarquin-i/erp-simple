@@ -41,12 +41,17 @@ import { CustomerContactEditor } from "./contact-editor";
 import type { ContactEditorMode } from "./contact-editor";
 import { contactMethodLabels } from "./method-labels";
 import { isPhoneMethod, sameContactValue } from "./method-value";
-import { contactRequest } from "./mutations";
-import type { ContactChange, DeleteChange } from "./mutations";
+import { contactRequest, restoreContactRequest } from "./mutations";
+import type {
+  ContactChange,
+  ContactEditSnapshot,
+  DeleteChange,
+} from "./mutations";
 import {
   conflictDifferences,
   contactOverwriteError,
   latestContact,
+  normalizeContactOverwrite,
 } from "./version-conflict";
 import type { ContactConflict } from "./version-conflict";
 
@@ -71,18 +76,15 @@ export function CustomerContacts({
   const [editor, setEditor] = useState<ContactEditorMode | null>(null);
   const [deletion, setDeletion] = useState<DeleteChange | null>(null);
   const [conflict, setConflict] = useState<ContactConflict | null>(null);
-  const [pending, setPending] = useState(false);
+  const [operation, setOperation] = useState<"save" | "restore" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState<{ text: string; visible?: boolean }>();
   const writing = useRef(false);
-  const lastReviewedConflict = useRef<ContactConflict | null>(null);
+  const restoredContact = useRef<CustomerContact | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const editorInput = useRef<HTMLInputElement>(null);
-  const latestEditedContact =
-    editor?.kind === "edit"
-      ? contacts?.find((contact) => contact.id === editor.contact.id)
-      : undefined;
+  const pending = operation !== null;
   const overwriteError = conflict ? contactOverwriteError(conflict) : undefined;
   // 按联系方式展开和分页，无联系方式的联系人仍保留一行，方便继续添加。
   const rows = (contacts ?? []).flatMap((contact) =>
@@ -127,7 +129,7 @@ export function CustomerContacts({
   }
 
   /**
-   * 同步新增联系方式或改名表单中的联系人资料，保留用户输入。
+   * 同步新增联系方式表单中的联系人资料，保留用户输入。
    * @param latest 后端返回的联系人快照，含最新版本和联系方式选项。
    * @returns 无返回值。仅替换对应联系人的资料。
    */
@@ -140,9 +142,6 @@ export function CustomerContacts({
             contact.id === latest.id ? latest : contact
           ),
         };
-      }
-      if (mode?.kind === "rename" && mode.contact.id === latest.id) {
-        return { ...mode, contact: latest };
       }
       return mode;
     });
@@ -157,7 +156,7 @@ export function CustomerContacts({
   }
 
   function closeEditor() {
-    lastReviewedConflict.current = null;
+    restoredContact.current = null;
     setEditor(null);
     setError("");
     restoreFocus();
@@ -171,36 +170,48 @@ export function CustomerContacts({
 
   function openEditor(mode: ContactEditorMode, button: HTMLButtonElement) {
     triggerRef.current = button;
-    lastReviewedConflict.current = null;
+    restoredContact.current = null;
     setError("");
     setEditor(mode);
   }
 
   function submitEditor(change: ContactChange) {
-    const reviewed =
-      change.kind === "edit" ? lastReviewedConflict.current : null;
-    void write(change, reviewed ?? undefined);
+    void write(change, restoredContact.current ?? undefined);
   }
 
   /**
    * 提交联系人操作，用接口返回的记录更新列表，并处理失败提示和版本冲突。
    * @param change 待提交的新增、改名、编辑或删除操作。
-   * @param reviewed 用户已核对的冲突和最新联系人快照，首次提交可省略。
+   * @param versionFrom 已核对的远端快照或上一笔写回后的快照，首次保存可以省略。
+   * @param restoreFrom 点选写回旧值时传编辑打开时的快照，草稿仍留在表单上。
    * @returns 操作处理完成时结束。请求错误会显示在页面或冲突弹窗中。
    */
-  async function write(change: ContactChange, reviewed?: ContactConflict) {
+  async function write(
+    change: ContactChange,
+    versionFrom?: CustomerContact,
+    restoreFrom?: ContactEditSnapshot
+  ) {
     // 同步标记阻止 React 状态更新前的重复提交。
     if (writing.current) return;
     writing.current = true;
-    setPending(true);
+    setOperation(restoreFrom ? "restore" : "save");
     setError("");
     setNotice(undefined);
 
-    const versionFrom = reviewed?.latest;
+    const afterRestore = restoredContact.current !== null;
     try {
-      const { contact } = await contactRequest(customerId, change, versionFrom);
+      const { contact } =
+        restoreFrom && versionFrom
+          ? await restoreContactRequest(customerId, restoreFrom, versionFrom)
+          : await contactRequest(customerId, change, versionFrom, afterRestore);
       rememberContact(contact);
-      lastReviewedConflict.current = null;
+      if (restoreFrom) {
+        // 两笔写入各自校验。只更新下次保存所用的版本，表单保留原草稿。
+        restoredContact.current = contact;
+        setConflict(null);
+        return;
+      }
+      restoredContact.current = null;
       if (change.kind === "create") {
         setPage(
           Math.ceil((rows.length + contact.methods.length) / rowsPerPage)
@@ -230,12 +241,14 @@ export function CustomerContacts({
             (method) => method.id === methodId
           );
           if (methodId && !currentMethod) {
-            lastReviewedConflict.current = null;
             setConflict(null);
-            setEditor(null);
+            closeEditor();
             setDeletion(null);
-            setError("该联系方式已被删除。");
-            restoreFocus();
+            setError(
+              afterRestore || restoreFrom
+                ? "该联系方式已被删除，草稿已丢弃。"
+                : "该联系方式已被删除。"
+            );
             return;
           }
           if (
@@ -250,16 +263,18 @@ export function CustomerContacts({
             );
             return;
           }
-          let pendingChange = change;
+          let pendingChange = normalizeContactOverwrite(change, currentMethod);
           const comparisonBase = versionFrom ?? change.contact;
           let phoneValueAlreadyApplied = false;
-          let rebasedPhoneValue: string | undefined;
-          const primaryAlreadyApplied =
-            change.kind === "edit" &&
-            currentMethod !== undefined &&
-            change.fields.isPrimary === currentMethod.isPrimary;
-          if (change.kind === "edit" && currentMethod) {
-            const { isPrimary, type, value } = change.fields;
+          let primaryAlreadyApplied = false;
+          if (
+            pendingChange.kind === "edit" &&
+            currentMethod &&
+            !afterRestore &&
+            !restoreFrom
+          ) {
+            const { isPrimary, type, value } = pendingChange.fields;
+            primaryAlreadyApplied = isPrimary === currentMethod.isPrimary;
             const sameType = type === undefined || type === currentMethod.type;
             const sameValue =
               value !== undefined &&
@@ -270,24 +285,7 @@ export function CustomerContacts({
               );
             phoneValueAlreadyApplied =
               sameType && isPhoneMethod(currentMethod.type) && sameValue;
-            const originalMethod = comparisonBase.methods.find(
-              (method) => method.id === currentMethod.id
-            );
-            if (
-              type === undefined &&
-              value !== undefined &&
-              originalMethod &&
-              isPhoneMethod(originalMethod.type) &&
-              !isPhoneMethod(currentMethod.type)
-            ) {
-              // 类型由最新资料接管时，保留刚提交的完整号码，避免丢失草稿里的区号。
-              rebasedPhoneValue = value;
-            }
-            if (
-              phoneValueAlreadyApplied ||
-              primaryAlreadyApplied ||
-              reviewed?.primaryAlreadyApplied
-            ) {
+            if (phoneValueAlreadyApplied || primaryAlreadyApplied) {
               const fields = {
                 ...(sameType ? {} : { type }),
                 ...(sameValue || value === undefined ? {} : { value }),
@@ -309,7 +307,7 @@ export function CustomerContacts({
                 });
                 return;
               }
-              pendingChange = { ...change, fields };
+              pendingChange = { ...pendingChange, fields };
             }
           }
           setConflict({
@@ -317,22 +315,26 @@ export function CustomerContacts({
               ...pendingChange,
               contact: comparisonBase,
             },
+            draftChange: change,
             latest,
-            primaryAlreadyApplied:
-              primaryAlreadyApplied || reviewed?.primaryAlreadyApplied,
+            primaryAlreadyApplied,
             phoneValueAlreadyApplied,
-            rebasedPhoneValue,
           });
           return;
         }
       }
       setConflict(null);
-      setError(
-        error instanceof Error ? error.message : "操作失败，请稍后重试。"
-      );
+      const message =
+        error instanceof Error ? error.message : "操作失败，请稍后重试。";
+      if (afterRestore || restoreFrom) {
+        closeEditor();
+        setError(`${message} 草稿已丢弃，请刷新后查看最新资料。`);
+      } else {
+        setError(message);
+      }
     } finally {
       writing.current = false;
-      setPending(false);
+      setOperation(null);
     }
   }
 
@@ -536,10 +538,7 @@ export function CustomerContacts({
       {editor && (
         <CustomerContactEditor
           mode={editor}
-          latestContact={latestEditedContact}
-          primaryAlreadyApplied={conflict?.primaryAlreadyApplied}
-          phoneValueAlreadyApplied={conflict?.phoneValueAlreadyApplied}
-          rebasedPhoneValue={conflict?.rebasedPhoneValue}
+          restored={restoredContact.current !== null}
           inputRef={editorInput}
           pending={pending}
           locked={pending || conflict !== null}
@@ -585,15 +584,11 @@ export function CustomerContacts({
           "比较当前资料和保存后的变化。若主要联系方式会变化，表格会列出变更前后的主要项。"
         }
         pending={pending}
+        pendingLabel={operation === "restore" ? "正在写回旧值…" : undefined}
         overwriteBlocked={Boolean(overwriteError)}
         onCancel={() => {
-          // 保留表单草稿，下次保存以弹窗展示过的最新版本发起新请求。
-          if (conflict?.change.kind === "edit") {
-            lastReviewedConflict.current = conflict;
-          } else if (
-            conflict?.change.kind === "add" ||
-            conflict?.change.kind === "rename"
-          ) {
+          // 新增时同步可选项。关闭已有资料的冲突弹窗不写库，也不接受新版本。
+          if (conflict?.change.kind === "add") {
             updateEditorContact(conflict.latest);
           }
           setConflict(null);
@@ -605,10 +600,18 @@ export function CustomerContacts({
           // 等冲突弹窗释放焦点后，再回到仍打开的编辑表单。
           requestAnimationFrame(() => editorInput.current?.focus());
         }}
+        onRestore={
+          conflict &&
+          (conflict.change.kind === "edit" ||
+            conflict.change.kind === "rename") &&
+          (editor?.kind === "edit" || editor?.kind === "rename")
+            ? () => void write(conflict.draftChange, conflict.latest, editor)
+            : undefined
+        }
         onOverwrite={() => {
           // 以当前确认过的版本重试，期间若再次更新仍会收到冲突。
           if (conflict && !overwriteError)
-            void write(conflict.change, conflict);
+            void write(conflict.change, conflict.latest);
         }}
       />
     </div>

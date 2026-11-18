@@ -42,6 +42,8 @@ const methodEditFields = [
   ...versionedMethodFields,
   "expectedMethodVersion",
   "expectedContactVersion",
+  "requireCurrentVersion",
+  "restorePrimaryMethodId",
 ] as const;
 const emailPattern =
   /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i;
@@ -440,8 +442,30 @@ customerContactRoutes.patch(
     const type =
       body.type === undefined ? undefined : readMethodType(body.type);
     const isPrimary = readPrimary(body.isPrimary);
+    const restorePrimaryMethodId =
+      body.restorePrimaryMethodId === undefined
+        ? undefined
+        : readUuid(body.restorePrimaryMethodId, "原主要联系方式 ID");
+    if (
+      body.requireCurrentVersion !== undefined &&
+      body.requireCurrentVersion !== true
+    ) {
+      fail(400, "严格版本校验标记必须为 true。");
+    }
+    const strictVersion =
+      restorePrimaryMethodId !== undefined ||
+      body.requireCurrentVersion === true;
     // 旧页面提交的是联系人版本，单独命名新字段以免把旧版本误当作单条版本。
     const legacyVersion = body.expectedVersion !== undefined;
+    if (
+      restorePrimaryMethodId &&
+      (legacyVersion ||
+        type === undefined ||
+        body.value === undefined ||
+        isPrimary !== undefined)
+    ) {
+      fail(400, "写回旧值时须提供旧类型、旧联系信息和两个当前版本。");
+    }
     if (
       legacyVersion &&
       (body.expectedMethodVersion !== undefined ||
@@ -453,7 +477,7 @@ customerContactRoutes.patch(
       ? undefined
       : readExpectedVersion(body.expectedMethodVersion);
     const expectedContactVersion =
-      legacyVersion || isPrimary !== undefined
+      legacyVersion || isPrimary !== undefined || restorePrimaryMethodId
         ? readExpectedVersion(
             legacyVersion ? body.expectedVersion : body.expectedContactVersion
           )
@@ -469,6 +493,7 @@ customerContactRoutes.patch(
         let value: string | undefined;
         let valueError: HTTPException | undefined;
         if (
+          !strictVersion &&
           current &&
           (current.type === "phone" || current.type === "whatsapp") &&
           body.value !== undefined &&
@@ -505,42 +530,79 @@ customerContactRoutes.patch(
           });
         }
         if (
-          (expectedMethodVersion !== undefined &&
-            current.version !== expectedMethodVersion) ||
-          (type !== undefined &&
-            methods.some(
-              (method) => method.id !== methodId && method.type === type
-            ))
+          expectedMethodVersion !== undefined &&
+          current.version !== expectedMethodVersion
         ) {
           failVersionConflict({ ...lockedContact, methods });
+        }
+        if (
+          type !== undefined &&
+          methods.some(
+            (method) => method.id !== methodId && method.type === type
+          )
+        ) {
+          if (restorePrimaryMethodId)
+            fail(409, "旧联系方式类型已被其他记录占用，无法写回。");
+          failVersionConflict({ ...lockedContact, methods });
+        }
+        const restoredPrimary = restorePrimaryMethodId
+          ? methods.find((method) => method.id === restorePrimaryMethodId)
+          : undefined;
+        if (restorePrimaryMethodId && !restoredPrimary) {
+          fail(409, "原主要联系方式已被删除，无法写回旧值。");
         }
         if (valueError) throw valueError;
         if (
           value === undefined &&
           (type !== undefined || body.value !== undefined)
         ) {
-          value = readMethodValue(
-            type ?? current.type,
-            body.value === undefined ? current.value : body.value
-          );
+          if (
+            restoredPrimary &&
+            type === current.type &&
+            body.value === current.value
+          ) {
+            // 原值还在时可直接保留，兼容只恢复主要项的旧号码。
+            value = current.value;
+          } else {
+            value = readMethodValue(
+              type ?? current.type,
+              body.value === undefined ? current.value : body.value
+            );
+            // 还原已存在的大陆本地号码写法，普通编辑仍保存为 E.164。
+            if (
+              restoredPrimary &&
+              typeof body.value === "string" &&
+              value === `+86${body.value}`
+            ) {
+              value = body.value;
+            }
+          }
         }
 
-        // 取消主要项时，从其他记录中按创建时间和 ID 选出替补。
-        const replacement =
-          isPrimary === false && current.isPrimary
+        const primary = restoredPrimary
+          ? restoredPrimary.id === methodId
+          : isPrimary;
+        // 写回选择原来的主要项。普通取消主要项时仍按创建时间和 ID 递补。
+        const replacement = restoredPrimary
+          ? restoredPrimary.id !== methodId && !restoredPrimary.isPrimary
+            ? restoredPrimary
+            : undefined
+          : primary === false && current.isPrimary
             ? methods.find((method) => method.id !== methodId)
             : undefined;
-        if (isPrimary === false && current.isPrimary && !replacement) {
+        if (primary === false && current.isPrimary && !replacement) {
           fail(400, "唯一的联系方式必须保留为主要联系方式。");
         }
-        if (isPrimary === true) await clearPrimary(tx, contactId, methodId);
+        if (primary === true || (restoredPrimary && replacement)) {
+          await clearPrimary(tx, contactId, methodId);
+        }
 
         await tx
           .update(customerContactMethod)
           .set({
             type,
             value,
-            isPrimary,
+            isPrimary: primary,
             version: sql`${customerContactMethod.version} + 1`,
           })
           .where(scopedMethod(contactId, methodId));

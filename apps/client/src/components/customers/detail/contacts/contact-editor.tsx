@@ -8,7 +8,6 @@ import {
   type ChangeEvent,
   type FormEvent,
   type Ref,
-  useEffect,
   useId,
   useState,
 } from "react";
@@ -34,7 +33,6 @@ import {
 } from "@/components/ui/sheet";
 import type {
   CustomerContact,
-  CustomerContactMethod,
   CustomerContactMethodInput,
   CustomerContactMethodType,
 } from "@/request/customers";
@@ -45,13 +43,12 @@ import {
   isPhoneMethod,
   sameContactValue,
 } from "./method-value";
-import type { ContactChange } from "./mutations";
+import type { ContactChange, ContactEditSnapshot } from "./mutations";
 import { PhoneNumberInput, readPhoneDraft } from "./phone-number-input";
 
 export type ContactEditorMode =
   | { kind: "add"; contacts: CustomerContact[]; selectedContactId?: string }
-  | { kind: "rename"; contact: CustomerContact }
-  | { kind: "edit"; contact: CustomerContact; method: CustomerContactMethod };
+  | ContactEditSnapshot;
 
 const newContactId = "new-contact";
 
@@ -77,10 +74,7 @@ function contactOptionLabel(
 
 export function CustomerContactEditor({
   mode,
-  latestContact,
-  primaryAlreadyApplied,
-  phoneValueAlreadyApplied,
-  rebasedPhoneValue,
+  restored,
   inputRef,
   pending,
   locked,
@@ -89,10 +83,7 @@ export function CustomerContactEditor({
   onSubmit,
 }: {
   mode: ContactEditorMode;
-  latestContact?: CustomerContact;
-  primaryAlreadyApplied?: boolean;
-  phoneValueAlreadyApplied?: boolean;
-  rebasedPhoneValue?: string;
+  restored: boolean;
   inputRef: Ref<HTMLInputElement>;
   pending: boolean;
   locked: boolean;
@@ -101,7 +92,8 @@ export function CustomerContactEditor({
   onSubmit: (change: ContactChange) => void;
 }) {
   const id = useId();
-  const method = mode.kind === "edit" ? mode.method : undefined;
+  // 冲突返回的远端资料用于弹窗和版本校验，表单始终从打开时的快照取值。
+  const initialMethod = mode.kind === "edit" ? mode.method : undefined;
   const [selectedContactId, setSelectedContactId] = useState(
     mode.kind === "add"
       ? (mode.selectedContactId ?? newContactId)
@@ -121,18 +113,13 @@ export function CustomerContactEditor({
   const selected =
     mode.kind === "add"
       ? mode.contacts.find((contact) => contact.id === selectedContactId)
-      : (latestContact ?? mode.contact);
-  const currentMethod =
-    mode.kind === "edit"
-      ? (latestContact?.methods.find((item) => item.id === mode.method.id) ??
-        mode.method)
-      : undefined;
-  const type = typeOverride ?? currentMethod?.type ?? "";
-  const value = valueOverride ?? currentMethod?.value ?? "";
+      : mode.contact;
+  const type = typeOverride ?? initialMethod?.type ?? "";
+  const value = valueOverride ?? initialMethod?.value ?? "";
   const phone = isPhoneMethod(type);
   const savedCountry =
-    currentMethod && isPhoneMethod(currentMethod.type)
-      ? (readPhoneDraft(currentMethod.value, DEFAULT_PHONE_COUNTRY).number
+    initialMethod && isPhoneMethod(initialMethod.type)
+      ? (readPhoneDraft(initialMethod.value, DEFAULT_PHONE_COUNTRY).number
           ?.country ?? DEFAULT_PHONE_COUNTRY)
       : DEFAULT_PHONE_COUNTRY;
   const phoneInputCountry =
@@ -146,61 +133,27 @@ export function CustomerContactEditor({
     : undefined;
   // 同一号码的本地写法和国际写法不会产生额外的编辑或版本变化。
   const valueMatchesCurrent =
-    phone && type === currentMethod?.type && canonicalPhone
-      ? sameContactValue(type, canonicalPhone, currentMethod.value)
-      : value.trim() === currentMethod?.value &&
+    phone && type === initialMethod?.type && canonicalPhone
+      ? sameContactValue(type, canonicalPhone, initialMethod.value)
+      : value.trim() === initialMethod?.value &&
         (!phone || phoneCountry === savedCountry);
-  const currentPrimary = currentMethod?.isPrimary;
+  const currentPrimary = initialMethod?.isPrimary;
   const isPrimary = primaryOverride ?? currentPrimary ?? false;
   const showName = mode.kind === "rename" || !selected;
   const takenTypes =
     selected?.methods
-      .filter((item) => item.id !== method?.id)
+      .filter((item) => item.id !== initialMethod?.id)
       .map((item) => item.type) ?? [];
   const typeTaken = type !== "" && takenTypes.includes(type);
   const canChangePrimary =
     mode.kind !== "edit" || (selected?.methods.length ?? 0) > 1;
   const typeChanged =
-    typeOverride !== undefined && type !== currentMethod?.type;
+    typeOverride !== undefined && type !== initialMethod?.type;
   const valueChanged = valueOverride !== undefined && !valueMatchesCurrent;
   const primaryChanged =
     canChangePrimary &&
     primaryOverride !== undefined &&
     isPrimary !== currentPrimary;
-
-  useEffect(() => {
-    // 清除已经生效或无法提交的标记，避免之后收到新版本时重新提交。
-    if (
-      !canChangePrimary ||
-      (primaryOverride !== undefined && primaryOverride === currentPrimary)
-    ) {
-      setPrimaryOverride(undefined);
-    }
-  }, [canChangePrimary, currentPrimary, primaryOverride]);
-
-  useEffect(() => {
-    if (rebasedPhoneValue !== undefined) setValueOverride(rebasedPhoneValue);
-  }, [rebasedPhoneValue]);
-
-  useEffect(() => {
-    if (!currentMethod) return;
-    // 同事已经应用的字段也从草稿移除，后续版本变化时保留服务端值。
-    if (primaryAlreadyApplied && typeOverride === currentMethod.type)
-      setTypeOverride(undefined);
-    if (
-      (primaryAlreadyApplied || phoneValueAlreadyApplied) &&
-      valueOverride !== undefined &&
-      valueMatchesCurrent
-    )
-      setValueOverride(undefined);
-  }, [
-    currentMethod,
-    phoneValueAlreadyApplied,
-    primaryAlreadyApplied,
-    typeOverride,
-    valueMatchesCurrent,
-    valueOverride,
-  ]);
 
   const title =
     mode.kind === "rename"
@@ -211,7 +164,7 @@ export function CustomerContactEditor({
   const changed =
     mode.kind === "rename"
       ? name.trim() !== mode.contact.name
-      : !method || typeChanged || valueChanged || primaryChanged;
+      : !initialMethod || typeChanged || valueChanged || primaryChanged;
 
   /**
    * 校验表单并通过回调提交对应操作，编辑时只提交改动字段。
@@ -250,7 +203,7 @@ export function CustomerContactEditor({
     }
     if (mode.kind === "edit") {
       const fields: Partial<CustomerContactMethodInput> = {};
-      // 用最新快照展示和校验，只提交用户改动的字段；版本由提交方按编辑基线选取。
+      // 只提交相对初始表单改动的字段；版本由提交方另行选取。
       if (typeChanged) fields.type = type;
       if (valueChanged) fields.value = canonicalPhone ?? cleanedValue;
       if (primaryChanged) fields.isPrimary = isPrimary;
@@ -302,12 +255,9 @@ export function CustomerContactEditor({
           normalized && !next.trimStart().startsWith("+") ? normalized : next
         );
       } else {
-        setValueOverride(next === currentMethod?.value ? undefined : next);
+        setValueOverride(next === initialMethod?.value ? undefined : next);
       }
       setValidation("");
-    },
-    onBlur: () => {
-      if (valueMatchesCurrent) setValueOverride(undefined);
     },
   };
 
@@ -383,9 +333,7 @@ export function CustomerContactEditor({
             {mode.kind === "edit" && (
               <div className="space-y-1.5 text-sm">
                 <p className="text-muted-foreground">联系人</p>
-                <p className="font-medium">
-                  {latestContact?.name ?? mode.contact.name}
-                </p>
+                <p className="font-medium">{mode.contact.name}</p>
               </div>
             )}
             {mode.kind !== "rename" && (
@@ -401,7 +349,7 @@ export function CustomerContactEditor({
                         setPrimaryOverride(undefined);
                       }
                       setTypeOverride(
-                        next === currentMethod?.type
+                        next === initialMethod?.type
                           ? undefined
                           : (next as CustomerContactMethodType)
                       );
@@ -465,7 +413,7 @@ export function CustomerContactEditor({
                         onCheckedChange={(checked) => {
                           const next = checked === true;
                           setPrimaryOverride(
-                            next === (currentMethod?.isPrimary ?? false)
+                            next === (initialMethod?.isPrimary ?? false)
                               ? undefined
                               : next
                           );
@@ -475,6 +423,11 @@ export function CustomerContactEditor({
                     </label>
                   )}
               </>
+            )}
+            {restored && (
+              <p className="text-muted-foreground text-sm" role="status">
+                旧值已写回，草稿尚未保存。
+              </p>
             )}
             <FieldError>{validation || error}</FieldError>
           </div>
