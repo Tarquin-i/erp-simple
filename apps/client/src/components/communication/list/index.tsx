@@ -1,11 +1,17 @@
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Filter, MessagesSquare, Plus, Search } from "lucide-react";
+import {
+  Link,
+  useNavigate,
+  useRouteContext,
+  useRouterState,
+} from "@tanstack/react-router";
+import { Clock, Filter, MessagesSquare, Plus, Search } from "lucide-react";
 import {
   type ReactNode,
   useCallback,
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import { readListQueryFromState } from "@/components/customers/list-query";
@@ -45,6 +51,10 @@ import type {
 } from "@/request/communication";
 
 import { CommunicationCustomerLink } from "../customer-link";
+import {
+  hasPendingCreation,
+  subscribeToCreationSubmissions,
+} from "../form/creation-submission";
 import { CommunicationListFilters } from "./filters";
 
 type QueryUpdater = (
@@ -60,6 +70,8 @@ type ListState = {
 
 const defaultColumns = ["主题", "客户", "标签", "状态", "业务员", "最近更新"];
 const customerColumns = defaultColumns.filter((name) => name !== "客户");
+const pendingCreationLabel = "处理待确认提交";
+const noPendingCreation = () => false;
 
 /** 在客户详情中查询当前客户的沟通，复用独立列表的筛选、分页和新建入口。 */
 export function CustomerCommunicationTab({
@@ -91,6 +103,19 @@ export function CommunicationList({
   onQueryChange: (update: QueryUpdater, replace?: boolean) => void;
 }) {
   const navigate = useNavigate();
+  const {
+    viewer: { account },
+  } = useRouteContext({ from: "/_protected" });
+  const readPendingCreation = useCallback(
+    () => hasPendingCreation(account.id),
+    [account.id]
+  );
+  const hasPending = useSyncExternalStore(
+    subscribeToCreationSubmissions,
+    readPendingCreation,
+    noPendingCreation
+  );
+  const CreateIcon = hasPending ? Clock : Plus;
   const previousState = useRouterState({
     select: (state) => state.location.state,
   });
@@ -225,13 +250,13 @@ export function CommunicationList({
           {canCreate && (
             <Button asChild className="h-10 px-4">
               <Link
-                aria-label="新建沟通"
+                aria-label={hasPending ? pendingCreationLabel : "新建沟通"}
                 to="/communication/new"
                 search={origin}
                 state={navigationState}
               >
-                <Plus data-icon="inline-start" />
-                新建
+                <CreateIcon data-icon="inline-start" />
+                {hasPending ? pendingCreationLabel : "新建"}
               </Link>
             </Button>
           )}
@@ -281,7 +306,7 @@ export function CommunicationList({
               没有找到符合条件的沟通记录
             </EmptyTitle>
             <EmptyDescription>
-              {canCreate
+              {canCreate && !hasPending
                 ? "新建，或者修改你的筛选条件。"
                 : "试试修改你的筛选条件。"}
             </EmptyDescription>
