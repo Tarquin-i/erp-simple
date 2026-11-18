@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
 
+import { formatFileSize } from "./file-size";
+
 type AttachmentQueueStatus =
   | "queued"
   | "preparing"
@@ -40,17 +42,6 @@ const statusLabels: Record<AttachmentQueueStatus, string> = {
   removing: "正在移除",
   "remove-failed": "移除失败",
 };
-
-const fileSizeFormat = new Intl.NumberFormat("zh-CN", {
-  maximumFractionDigits: 1,
-});
-
-function formatFileSize(bytes: number) {
-  const kibibytes = bytes / 1024;
-  if (kibibytes < 1) return `${bytes} B`;
-  if (kibibytes < 1024) return `${fileSizeFormat.format(kibibytes)} KB`;
-  return `${fileSizeFormat.format(kibibytes / 1024)} MB`;
-}
 
 /** 显示队列状态、上传进度和可用的操作。 */
 export function AttachmentQueue({
