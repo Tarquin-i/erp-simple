@@ -28,15 +28,12 @@ import {
   CustomerTagPicker,
 } from "./channel-tag-selectors";
 import { conflictDifferences, isCustomerSnapshot } from "./edit-conflict";
-import {
-  customerDraft,
-  getChangedFields,
-  rebaseCustomerDraft,
-} from "./form-payload";
+import { customerDraft, getChangedFields } from "./form-payload";
 import type { Draft } from "./form-payload";
 import { CustomerOwnerFields } from "./owner-fields";
 
 type CustomerFormBaseline = { customer?: Customer; draft: Draft };
+type SaveAction = "save" | "restore";
 
 /**
  * 渲染新建和编辑共用的客户表单，并处理保存与版本冲突。
@@ -62,12 +59,16 @@ export function CustomerForm({
   onSaved: () => Promise<void>;
 }) {
   const router = useRouter();
+  // 初始表单值用于判断用户改过的字段，写回旧值后也不替换表单里的草稿。
+  const [openedDraft] = useState(() => customerDraft(customer, owner));
   const [baseline, setBaseline] = useState<CustomerFormBaseline>(() => ({
     customer,
-    draft: customerDraft(customer, owner),
+    draft: openedDraft,
   }));
-  const [draft, setDraft] = useState(baseline.draft);
-  const [pending, setPending] = useState(false);
+  const [draft, setDraft] = useState(openedDraft);
+  const [savingAction, setSavingAction] = useState<SaveAction>();
+  const [restored, setRestored] = useState(false);
+  const [terminalError, setTerminalError] = useState("");
   const [tagPending, setTagPending] = useState(false);
   const [error, setError] = useState("");
   const [nameError, setNameError] = useState("");
@@ -79,8 +80,9 @@ export function CustomerForm({
   } | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const saving = useRef(false);
-  const changes = getChangedFields(baseline.draft, draft);
+  const changes = getChangedFields(openedDraft, draft);
   const isEdit = customer !== undefined;
+  const pending = savingAction !== undefined;
   const busy = pending || tagPending;
   const missingAssignment = Boolean(
     departments && (!departmentId || !draft.owner)
@@ -96,15 +98,20 @@ export function CustomerForm({
   }
 
   /**
-   * 新建或更新客户，成功后调用页面提供的保存回调。
-   * @param payload 本次提交的表单变更字段。
+   * 新建、保存或写回客户资料。成功写回时保留输入，只更新下次的版本基准。
+   * @param payload 本次提交的变更字段或需写回的旧值。
    * @param versionFrom 编辑时使用的客户快照，默认取当前表单的基准。
-   * @returns 处理结束后完成，无业务数据。重名提示显示在名称字段，版本冲突交给对比弹窗处理。
+   * @param action 普通保存或仅写回旧值，后者与草稿提交分别校验版本。
+   * @returns 处理结束后完成，无业务数据。版本冲突继续保留草稿并展示差异。
    */
-  async function save(payload: CustomerWriteInput, versionFrom = baseline) {
+  async function save(
+    payload: CustomerWriteInput,
+    versionFrom = baseline,
+    action: SaveAction = "save"
+  ) {
     if (saving.current || tagPending) return;
     saving.current = true;
-    setPending(true);
+    setSavingAction(action);
     setError("");
     setNameError("");
 
@@ -120,7 +127,17 @@ export function CustomerForm({
         if (expectedVersion === undefined) {
           throw new Error("无法确认客户资料版本，请刷新后重试。");
         }
-        await updateCustomer(customer.id, { ...payload, expectedVersion });
+        const { customer: saved } = await updateCustomer(customer.id, {
+          ...payload,
+          expectedVersion,
+        });
+        if (leftForm) return;
+        if (action === "restore") {
+          setBaseline({ customer: saved, draft: customerDraft(saved) });
+          setRestored(true);
+          setConflict(null);
+          return;
+        }
       } else {
         await createCustomer({
           ...payload,
@@ -128,48 +145,64 @@ export function CustomerForm({
           ...(departmentId ? { departmentId } : {}),
         });
       }
-      if (leftForm) return;
-      setConflict(null);
-      await onSaved();
     } catch (failure) {
       if (leftForm) return;
-      if (failure instanceof CustomerApiError) {
-        if (failure.code === "duplicate_customer") {
-          setConflict(null);
-          setNameValidation(`${failure.message}请修改客户名称后重试。`);
-          return;
-        }
-        if (
-          failure.code === "version_conflict" &&
-          customer &&
-          isCustomerSnapshot(failure.current, customer.id)
-        ) {
-          setConflict({
-            current: failure.current,
-            changes: payload,
-            previousDraft: versionFrom.draft,
-          });
-          return;
-        }
+      if (
+        failure instanceof CustomerApiError &&
+        failure.code === "version_conflict" &&
+        customer &&
+        isCustomerSnapshot(failure.current, customer.id)
+      ) {
+        setConflict({
+          current: failure.current,
+          changes: action === "restore" ? changes : payload,
+          previousDraft: versionFrom.draft,
+        });
+        return;
       }
       setConflict(null);
-      setError(
-        failure instanceof Error ? failure.message : "保存失败，请重试。"
-      );
+      const message =
+        failure instanceof Error ? failure.message : "保存失败，请重试。";
+      if (restored || action === "restore") {
+        setDraft(openedDraft);
+        const restoreStatus = restored
+          ? "此前写回的旧值已保存。"
+          : "未确认旧值写回成功，请返回查看最新资料。";
+        setTerminalError(`${message}${restoreStatus}未保存的草稿已丢弃。`);
+      } else if (
+        failure instanceof CustomerApiError &&
+        failure.code === "duplicate_customer"
+      ) {
+        setNameValidation(`${message}请修改客户名称后重试。`);
+      } else {
+        setError(message);
+      }
+      return;
     } finally {
       unsubscribe();
       saving.current = false;
-      setPending(false);
+      setSavingAction(undefined);
+    }
+    if (!leftForm) {
+      setConflict(null);
+      await onSaved();
     }
   }
 
-  function cancelConflict() {
+  function restoreOldValues() {
     if (!conflict) return;
     const latest = customerDraft(conflict.current);
-    // 回到表单时保留草稿，下次保存以本次收到的服务器版本为准。
-    setBaseline({ customer: conflict.current, draft: latest });
-    setDraft(rebaseCustomerDraft(latest, draft, conflict.changes));
-    setConflict(null);
+    const { ownerUserId, ...oldValues } = getChangedFields(latest, openedDraft);
+    void save(
+      {
+        ...oldValues,
+        // 即使当前值已相同，显式写回也要进行一次版本校验并产生新版本。
+        companyName: openedDraft.companyName,
+        ...(assignableOwners && ownerUserId !== undefined ? { ownerUserId } : {}),
+      },
+      { customer: conflict.current, draft: latest },
+      "restore"
+    );
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -180,6 +213,18 @@ export function CustomerForm({
       return;
     }
     void save(changes);
+  }
+
+  if (terminalError) {
+    return (
+      <main className="flex-1 space-y-4 bg-background px-5 py-6 sm:px-7 lg:px-8">
+        <h1 className="text-xl font-semibold">本次编辑已结束</h1>
+        <FieldError>{terminalError}</FieldError>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          返回客户详情
+        </Button>
+      </main>
+    );
   }
 
   return (
@@ -216,6 +261,11 @@ export function CustomerForm({
             {error}
           </FieldError>
         ) : null}
+        {restored && (
+          <p className="text-sm text-muted-foreground" role="status">
+            已写回旧值，草稿尚未保存。
+          </p>
+        )}
 
         <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
           <Field data-invalid={Boolean(nameError)} className="min-w-0">
@@ -327,7 +377,9 @@ export function CustomerForm({
             : null
         }
         pending={pending}
-        onCancel={cancelConflict}
+        pendingLabel={savingAction === "restore" ? "正在写回旧值…" : undefined}
+        onCancel={() => setConflict(null)}
+        onRestore={restoreOldValues}
         onOverwrite={() => {
           // 用刚对比过的服务端版本重试，仅提交本次修改的字段。
           if (conflict)

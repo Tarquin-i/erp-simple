@@ -36,31 +36,6 @@ export function customerDraft(
   };
 }
 
-/**
- * 用最新客户资料更新表单，并保留用户已经提交的本地草稿字段。
- * @param latest 服务端最新资料对应的表单值。
- * @param draft 用户当前的表单草稿。
- * @param changes 本次尝试保存的字段，空数组和 `null` 也算改动。
- * @returns 合并后的表单草稿。
- */
-export function rebaseCustomerDraft(
-  latest: Draft,
-  draft: Draft,
-  changes: CustomerWriteInput
-): Draft {
-  return {
-    companyName:
-      changes.companyName === undefined
-        ? latest.companyName
-        : draft.companyName,
-    remark: changes.remark === undefined ? latest.remark : draft.remark,
-    owner: changes.ownerUserId === undefined ? latest.owner : draft.owner,
-    channels:
-      changes.channelCodes === undefined ? latest.channels : draft.channels,
-    tags: changes.tagIds === undefined ? latest.tags : draft.tags,
-  };
-}
-
 function optionIds(options: CustomerFormOption[]) {
   return options.map(({ id }) => id);
 }
