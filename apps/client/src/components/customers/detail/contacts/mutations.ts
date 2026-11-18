@@ -13,7 +13,12 @@ import type {
 } from "@/request/customers";
 
 export type ContactChange =
-  | { kind: "create"; name: string; method: CustomerContactMethodInput }
+  | {
+      kind: "create";
+      name: string;
+      method: CustomerContactMethodInput;
+      submission: { id: string; accountId: string };
+    }
   | {
       kind: "add";
       contact: CustomerContact;
@@ -50,10 +55,11 @@ export function contactRequest(
   requireCurrentVersion = false
 ) {
   if (change.kind === "create")
-    return createCustomerContact(customerId, {
-      name: change.name,
-      methods: [change.method],
-    });
+    return createCustomerContact(
+      customerId,
+      { name: change.name, methods: [change.method] },
+      change.submission
+    );
 
   const snapshot = versionFrom ?? change.contact;
   const expectedVersion = snapshot.version;

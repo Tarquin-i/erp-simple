@@ -9,6 +9,7 @@ import {
   type FormEvent,
   type Ref,
   useId,
+  useRef,
   useState,
 } from "react";
 
@@ -73,25 +74,31 @@ function contactOptionLabel(
 }
 
 export function CustomerContactEditor({
+  accountId,
   mode,
   restored,
   inputRef,
   pending,
   locked,
+  retryingCreation,
   error,
   onClose,
   onSubmit,
 }: {
+  accountId: string;
   mode: ContactEditorMode;
   restored: boolean;
   inputRef: Ref<HTMLInputElement>;
   pending: boolean;
   locked: boolean;
+  retryingCreation: boolean;
   error: string;
   onClose: () => void;
   onSubmit: (change: ContactChange) => void;
 }) {
   const id = useId();
+  const submission = useRef<{ id: string; accountId: string }>(null);
+  const fieldsLocked = locked || retryingCreation;
   // 冲突返回的远端资料用于弹窗和版本校验，表单始终从打开时的快照取值。
   const initialMethod = mode.kind === "edit" ? mode.method : undefined;
   const [selectedContactId, setSelectedContactId] = useState(
@@ -221,11 +228,18 @@ export function CustomerContactEditor({
       value: canonicalPhone ?? cleanedValue,
       isPrimary,
     };
-    onSubmit(
-      selected
-        ? { kind: "add", contact: selected, method: newMethod }
-        : { kind: "create", name: cleanedName, method: newMethod }
-    );
+    if (selected) {
+      onSubmit({ kind: "add", contact: selected, method: newMethod });
+      return;
+    }
+    // 保存结果待确认时，保留同一次提交的身份和已填写内容。
+    submission.current ??= { id: crypto.randomUUID(), accountId };
+    onSubmit({
+      kind: "create",
+      name: cleanedName,
+      method: newMethod,
+      submission: submission.current,
+    });
   }
 
   const valueInputProps = {
@@ -233,7 +247,7 @@ export function CustomerContactEditor({
     ref: inputRef,
     value,
     maxLength: 320,
-    disabled: locked,
+    disabled: fieldsLocked,
     required: true,
     "aria-invalid": Boolean(
       validation &&
@@ -285,7 +299,7 @@ export function CustomerContactEditor({
               <Field>
                 <FieldLabel htmlFor={`${id}-person`}>联系人</FieldLabel>
                 <Select
-                  disabled={locked}
+                  disabled={fieldsLocked}
                   value={selectedContactId}
                   onValueChange={(next) => {
                     setSelectedContactId(next);
@@ -321,7 +335,7 @@ export function CustomerContactEditor({
                   ref={mode.kind === "rename" ? inputRef : undefined}
                   value={name}
                   maxLength={128}
-                  disabled={locked}
+                  disabled={fieldsLocked}
                   required
                   onChange={(event) => {
                     setName(event.target.value);
@@ -341,7 +355,7 @@ export function CustomerContactEditor({
                 <Field>
                   <FieldLabel htmlFor={`${id}-type`}>联系方式</FieldLabel>
                   <Select
-                    disabled={locked}
+                    disabled={fieldsLocked}
                     value={typeTaken ? "" : type}
                     onValueChange={(next) => {
                       // 冲突后改选类型时，重新确认是否要替换最新的主要项。
@@ -409,7 +423,7 @@ export function CustomerContactEditor({
                     <label className="flex cursor-pointer items-center gap-2 text-sm">
                       <Checkbox
                         checked={isPrimary && !typeTaken}
-                        disabled={locked || typeTaken}
+                        disabled={fieldsLocked || typeTaken}
                         onCheckedChange={(checked) => {
                           const next = checked === true;
                           setPrimaryOverride(

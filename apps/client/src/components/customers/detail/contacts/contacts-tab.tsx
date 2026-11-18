@@ -1,3 +1,4 @@
+import { getRouteApi } from "@tanstack/react-router";
 import { ContactRound, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -29,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { listCustomerContacts } from "@/request/customers";
+import { CustomerApiError, listCustomerContacts } from "@/request/customers";
 import type {
   CustomerContact,
   CustomerContactMethod,
@@ -56,6 +57,7 @@ import {
 import type { ContactConflict } from "./version-conflict";
 
 const rowsPerPage = 10;
+const workspaceRoute = getRouteApi("/_protected");
 
 /**
  * 展示并管理指定客户的联系人和联系方式。
@@ -69,6 +71,7 @@ export function CustomerContacts({
   customerId: string;
   addButtonSlot: HTMLDivElement | null;
 }) {
+  const { viewer } = workspaceRoute.useRouteContext();
   const [contacts, setContacts] = useState<CustomerContact[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -78,6 +81,7 @@ export function CustomerContacts({
   const [conflict, setConflict] = useState<ContactConflict | null>(null);
   const [operation, setOperation] = useState<"save" | "restore" | null>(null);
   const [error, setError] = useState("");
+  const [retryingCreation, setRetryingCreation] = useState(false);
   const [notice, setNotice] = useState<{ text: string; visible?: boolean }>();
   const writing = useRef(false);
   const restoredContact = useRef<CustomerContact | null>(null);
@@ -159,6 +163,7 @@ export function CustomerContacts({
     restoredContact.current = null;
     setEditor(null);
     setError("");
+    setRetryingCreation(false);
     restoreFocus();
   }
 
@@ -219,6 +224,7 @@ export function CustomerContacts({
       }
       setConflict(null);
       setEditor(null);
+      setRetryingCreation(false);
       setDeletion(null);
       setNotice({
         text:
@@ -226,6 +232,24 @@ export function CustomerContacts({
       });
       restoreFocus();
     } catch (error) {
+      if (change.kind === "create") {
+        const uncertain =
+          !(error instanceof CustomerApiError) ||
+          error.status >= 500 ||
+          error.status === 408 ||
+          error.status === 429 ||
+          error.code === "idempotency_conflict";
+        if (retryingCreation || uncertain) {
+          setRetryingCreation(true);
+          setError(
+            error instanceof CustomerApiError &&
+              [401, 403, 404, 409].includes(error.status)
+              ? error.message
+              : "暂时无法确认保存结果，请再次点击保存以重试原提交。"
+          );
+          return;
+        }
+      }
       if (change.kind !== "create") {
         const latest = latestContact(error, change.contact.id);
         if (latest) {
@@ -537,11 +561,13 @@ export function CustomerContacts({
 
       {editor && (
         <CustomerContactEditor
+          accountId={viewer.account.id}
           mode={editor}
           restored={restoredContact.current !== null}
           inputRef={editorInput}
           pending={pending}
           locked={pending || conflict !== null}
+          retryingCreation={retryingCreation}
           error={error}
           onClose={closeEditor}
           onSubmit={submitEditor}

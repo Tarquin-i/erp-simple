@@ -232,21 +232,27 @@ export function listCustomerContacts(customerId: string, signal?: AbortSignal) {
 }
 
 /**
- * 一并提交新联系人和首批联系方式。
+ * 一并提交新联系人和首批联系方式，断线重试时复用原提交标识。
  * @param customerId 所属客户 ID。
  * @param input 联系人姓名和至少一条联系方式，同一类型只能提交一条。
- * @returns `{ contact }`，包含新联系人的资料、版本和联系方式。
- * @throws HTTP 失败时抛出 `CustomerApiError`，无效输入为 400，客户不存在或不可见为 404，联系方式类型重复为 409。
+ * @param submission 原提交 ID 和创建人账号 ID。
+ * @returns `{ contact }`，包含新建或已提交的联系人及其联系方式。
+ * @throws HTTP 失败时抛出 `CustomerApiError`，同一提交 ID 用于不同内容时为 409。
  */
 export function createCustomerContact(
   customerId: string,
-  input: { name: string; methods: CustomerContactMethodInput[] }
+  input: { name: string; methods: CustomerContactMethodInput[] },
+  submission: { id: string; accountId: string }
 ) {
-  return write<{ contact: CustomerContact }>(
-    contactsPath(customerId),
-    "POST",
-    input
-  );
+  return request<{ contact: CustomerContact }>(contactsPath(customerId), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": submission.id,
+      "X-Expected-Account-Id": submission.accountId,
+    },
+    body: JSON.stringify(input),
+  });
 }
 
 /**
