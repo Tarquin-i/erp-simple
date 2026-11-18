@@ -25,8 +25,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Attachment } from "@/request/communication-attachments";
 
+import { formatFileSize } from "./file-size";
 import {
   AttachmentImagePreview,
   AttachmentThumbnail,
@@ -59,6 +65,9 @@ const dateFormat = new Intl.DateTimeFormat("zh-CN", {
   weekday: "short",
 });
 const timeFormat = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
@@ -139,7 +148,7 @@ function AttachmentTile({
   downloading: boolean;
   onPreview: (id: string, trigger: HTMLButtonElement) => void;
 }) {
-  const { id, deletionPending, fileName, uploaderName, uploadedAt } =
+  const { id, deletionPending, fileName, fileSize, uploaderName, uploadedAt } =
     attachment;
   const deleting = id === deletingId;
   const deleteLabel = deletionPending ? "重试删除" : "删除";
@@ -147,28 +156,44 @@ function AttachmentTile({
 
   return (
     <Card
-      className="group relative aspect-square min-w-0 gap-0 rounded-lg bg-muted/50 py-0"
+      className="group relative aspect-square min-w-0 gap-0 rounded-lg bg-muted/35 py-0 transition-shadow focus-within:shadow-sm hover:shadow-sm"
       data-attachment-card=""
-      title={`${fileName} · ${uploaderName}`}
     >
-      {canPreviewAttachment(attachment) ? (
-        <Button
-          aria-label={`预览 ${fileName}`}
-          className="absolute inset-x-0 top-0 bottom-11 h-auto w-full rounded-none p-0 focus-visible:ring-inset"
-          type="button"
-          variant="ghost"
-          onClick={(event) => onPreview(id, event.currentTarget)}
-        >
-          <AttachmentThumbnail
-            attachment={attachment}
-            communicationId={communicationId}
-          />
-        </Button>
-      ) : (
-        <div className="absolute inset-x-0 top-0 bottom-11 grid place-items-center text-muted-foreground">
-          <FileVisual attachment={attachment} />
-        </div>
-      )}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {canPreviewAttachment(attachment) ? (
+            <Button
+              aria-label={`预览 ${fileName}`}
+              className="group/preview absolute inset-0 size-full cursor-zoom-in rounded-none border-0 p-0 focus-visible:ring-inset"
+              type="button"
+              variant="ghost"
+              onClick={(event) => onPreview(id, event.currentTarget)}
+            >
+              <AttachmentThumbnail
+                attachment={attachment}
+                communicationId={communicationId}
+              />
+            </Button>
+          ) : (
+            <div
+              aria-label={fileName}
+              className="absolute inset-0 grid place-items-center text-muted-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+              role="img"
+              tabIndex={0}
+            >
+              <FileVisual attachment={attachment} />
+            </div>
+          )}
+        </TooltipTrigger>
+        <TooltipContent className="grid gap-1" sideOffset={6}>
+          <p className="wrap-anywhere font-medium">{fileName}</p>
+          <p>{formatFileSize(fileSize)}</p>
+          <p>{uploaderName}</p>
+          {uploadedAt && Number.isFinite(time) && (
+            <time dateTime={uploadedAt}>{timeFormat.format(time)}</time>
+          )}
+        </TooltipContent>
+      </Tooltip>
       <div
         className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-end gap-1 bg-linear-to-b from-black/25 to-transparent p-1.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:data-[deletion-pending=true]:opacity-100"
         data-attachment-actions=""
@@ -178,12 +203,12 @@ function AttachmentTile({
           <Button
             aria-busy={downloading}
             aria-label={`下载 ${fileName}`}
-            className="pointer-events-auto bg-background/90 hover:bg-background [@media(hover:none)]:size-10"
+            className="pointer-events-auto bg-black/25 text-white backdrop-blur-sm hover:bg-black/55 hover:text-white [@media(hover:none)]:size-10"
             disabled={downloading}
             size="icon-sm"
             title="下载"
             type="button"
-            variant="secondary"
+            variant="ghost"
             onClick={() => onDownload(attachment)}
           >
             {downloading ? (
@@ -197,12 +222,12 @@ function AttachmentTile({
           <Button
             aria-busy={deleting}
             aria-label={`${deleteLabel} ${fileName}`}
-            className="pointer-events-auto bg-background/90 text-destructive hover:bg-destructive/10 hover:text-destructive [@media(hover:none)]:size-10"
+            className="pointer-events-auto bg-black/25 text-white backdrop-blur-sm hover:bg-destructive/80 hover:text-white [@media(hover:none)]:size-10"
             disabled={deletingId !== undefined}
             size="icon-sm"
             title={deleteLabel}
             type="button"
-            variant="secondary"
+            variant="ghost"
             onClick={() => onDelete(attachment)}
           >
             {deleting ? (
@@ -213,24 +238,19 @@ function AttachmentTile({
           </Button>
         )}
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 grid gap-0.5 border-t border-border/60 bg-background/90 px-2 py-1.5">
-        <span className="truncate text-xs font-medium">{fileName}</span>
-        {deletionPending ? (
-          <Badge className="w-fit" variant="secondary">
-            待删除
-          </Badge>
-        ) : (
-          <span className="truncate text-[0.6875rem] text-muted-foreground">
-            {uploaderName}
-            {uploadedAt && Number.isFinite(time) && (
-              <>
-                {" "}
-                · <time dateTime={uploadedAt}>{timeFormat.format(time)}</time>
-              </>
-            )}
-          </span>
-        )}
-      </div>
+      {deletionPending && (
+        <Badge
+          className="pointer-events-none absolute bottom-1.5 left-1.5"
+          variant="secondary"
+        >
+          待删除
+        </Badge>
+      )}
+      {!deletionPending && (
+        <span className="pointer-events-none absolute inset-x-1.5 bottom-1.5 hidden truncate rounded-sm bg-background/90 px-1.5 py-0.5 text-xs [@media(hover:none)]:block">
+          {fileName}
+        </span>
+      )}
     </Card>
   );
 }

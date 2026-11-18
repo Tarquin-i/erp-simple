@@ -24,9 +24,11 @@ import {
   deleteCommunicationAttachment,
   downloadCommunicationAttachment,
   listCommunicationAttachments,
+  readCommunicationAttachmentDeletion,
 } from "@/request/communication-attachments";
 import type {
   Attachment,
+  AttachmentDeletionState,
   AttachmentListResult,
 } from "@/request/communication-attachments";
 
@@ -34,6 +36,59 @@ import { AttachmentDropZone } from "./drop-zone";
 import { AttachmentQueue } from "./queue";
 import { AttachmentTimeline } from "./timeline";
 import { useAttachmentUploadQueue } from "./use-upload-queue";
+
+type AttachmentListRequest = {
+  page: number;
+  cursor?: string;
+  replacePages?: boolean;
+};
+
+type LoadedAttachments = AttachmentListResult & { page: number };
+
+/**
+ * 读取下一批附件，或从开头逐批重读已展开的范围。
+ * @param communicationId 当前沟通 ID。
+ * @param request 目标页码及是否替换已加载的页面。
+ * @param signal 切换请求或离开页面时使用的取消信号。
+ * @returns 当前页信息及请求范围内按 ID 去重的附件。
+ * @throws 读取失败或请求被取消时拒绝。
+ */
+async function loadAttachments(
+  communicationId: string,
+  request: AttachmentListRequest,
+  signal: AbortSignal
+): Promise<LoadedAttachments> {
+  const { page, cursor, replacePages } = request;
+  if (!replacePages || page === 1) {
+    const result = await listCommunicationAttachments(
+      communicationId,
+      { cursor },
+      signal
+    );
+    return { ...result, page };
+  }
+
+  // 刷新时重建整段游标链，同时替换已展开的页面。
+  let loadedPage = 1;
+  let result = await listCommunicationAttachments(communicationId, {}, signal);
+  const attachments = new Map(
+    result.attachments.map((item) => [item.id, item])
+  );
+  while (loadedPage < page && result.nextCursor) {
+    result = await listCommunicationAttachments(
+      communicationId,
+      { cursor: result.nextCursor },
+      signal
+    );
+    loadedPage += 1;
+    for (const item of result.attachments) attachments.set(item.id, item);
+  }
+  return {
+    ...result,
+    page: loadedPage,
+    attachments: [...attachments.values()],
+  };
+}
 
 function errorMessage(failure: unknown, fallback: string) {
   return failure instanceof Error ? failure.message : fallback;
@@ -66,9 +121,10 @@ export function CommunicationAttachmentsTab({
 }) {
   const uploads = useAttachmentUploadQueue();
   const { clearCompleted } = uploads;
-  const [page, setPage] = useState(1);
-  const [revision, setRevision] = useState(0);
-  const [result, setResult] = useState<AttachmentListResult>();
+  const [listRequest, setListRequest] = useState<AttachmentListRequest>({
+    page: 1,
+  });
+  const [result, setResult] = useState<LoadedAttachments>();
   const [listError, setListError] = useState<Error>();
   const [listPending, setListPending] = useState(true);
   const [downloadError, setDownloadError] = useState<{
@@ -79,7 +135,10 @@ export function CommunicationAttachmentsTab({
     new Set()
   );
   const [deleteTarget, setDeleteTarget] = useState<Attachment>();
-  const [deletePending, setDeletePending] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState<
+    "deleting" | "checking"
+  >();
+  const deletePending = deleteProgress !== undefined;
   const [deleteError, setDeleteError] = useState("");
   const [uploadMessage, setUploadMessage] = useState("");
   const downloadRequests = useRef(new Map<string, AbortController>());
@@ -100,11 +159,7 @@ export function CommunicationAttachmentsTab({
     const controller = new AbortController();
     setListPending(true);
     setListError(undefined);
-    void listCommunicationAttachments(
-      communicationId,
-      { page },
-      controller.signal
-    ).then(
+    void loadAttachments(communicationId, listRequest, controller.signal).then(
       (next) => {
         if (controller.signal.aborted) return;
         setListPending(false);
@@ -115,7 +170,9 @@ export function CommunicationAttachmentsTab({
         );
         if (clearCompleted(readyIds)) setUploadMessage("附件上传成功。");
         setResult((previous) => {
-          if (next.page === 1 || !previous) return next;
+          if (listRequest.replacePages || next.page === 1 || !previous) {
+            return next;
+          }
           const attachments = new Map(
             previous.attachments.map((item) => [item.id, item])
           );
@@ -135,15 +192,43 @@ export function CommunicationAttachmentsTab({
       }
     );
     return () => controller.abort();
-  }, [communicationId, page, revision, clearCompleted]);
+  }, [communicationId, listRequest, clearCompleted]);
+
+  const loadedPage = result?.page;
+  useEffect(() => {
+    if (
+      !loadedPage ||
+      listPending ||
+      listError ||
+      uploads.busy ||
+      deletePending
+    ) {
+      return;
+    }
+
+    const refreshVisibleList = () => {
+      if (document.visibilityState !== "visible" || deleteRequest.current) {
+        return;
+      }
+      setListPending(true);
+      setListRequest(({ page }) => ({
+        page: Math.max(page, loadedPage),
+        replacePages: true,
+      }));
+    };
+
+    // 回到此标签页时才核对已展示的附件，保留原来的展开范围。
+    document.addEventListener("visibilitychange", refreshVisibleList);
+    return () =>
+      document.removeEventListener("visibilitychange", refreshVisibleList);
+  }, [deletePending, listError, listPending, loadedPage, uploads.busy]);
 
   function refresh() {
-    setRevision((previous) => previous + 1);
+    setListRequest((previous) => ({ ...previous }));
   }
 
   function reload() {
-    setPage(1);
-    refresh();
+    setListRequest({ page: 1 });
   }
 
   async function upload(retryId?: string) {
@@ -202,39 +287,92 @@ export function CommunicationAttachmentsTab({
 
   async function confirmDelete() {
     if (!deleteTarget || deleteRequest.current) return;
+    const loadedPage = result?.page ?? 1;
     const controller = new AbortController();
     deleteRequest.current = controller;
     setDeleteError("");
-    setDeletePending(true);
+    setDeleteProgress("deleting");
     try {
-      await deleteCommunicationAttachment(
-        communicationId,
-        deleteTarget.id,
-        controller.signal
-      );
-      if (controller.signal.aborted) return;
-      setDeleteTarget(undefined);
-      setResult(
-        (previous) =>
-          previous && {
-            ...previous,
-            attachments: previous.attachments.filter(
-              ({ id }) => id !== deleteTarget.id
-            ),
+      let state: AttachmentDeletionState | undefined = "deleted";
+      let message = "";
+      try {
+        await deleteCommunicationAttachment(
+          communicationId,
+          deleteTarget.id,
+          controller.signal
+        );
+      } catch (failure) {
+        if (controller.signal.aborted) return;
+        const apiError =
+          failure instanceof CommunicationApiError ? failure : undefined;
+        const storageFailed =
+          apiError?.code === "attachment_storage_unavailable";
+        state = storageFailed ? "pending" : undefined;
+        message = errorMessage(failure, "删除失败，请重试。");
+
+        // 网络断开或服务器错误可能发生在实际删除完成之后，按附件 ID 核对。
+        if (!apiError || apiError.status >= 500) {
+          setDeleteProgress("checking");
+          try {
+            const checked = await readCommunicationAttachmentDeletion(
+              communicationId,
+              deleteTarget.id,
+              controller.signal
+            );
+            state = checked.state;
+            if (state === "pending" && !storageFailed) {
+              message = "附件尚未完成删除，请重试。";
+            }
+          } catch {
+            if (!storageFailed)
+              message = "暂时无法确认附件是否已删除，请重试。";
           }
-      );
-      setDownloadError((previous) =>
-        previous?.attachment.id === deleteTarget.id ? undefined : previous
-      );
-    } catch (failure) {
-      if (!controller.signal.aborted)
-        setDeleteError(errorMessage(failure, "删除失败，请重试。"));
+        }
+      }
+      if (controller.signal.aborted) return;
+
+      if (state === "deleted") {
+        setDeleteTarget(undefined);
+        setResult(
+          (previous) =>
+            previous && {
+              ...previous,
+              attachments: previous.attachments.filter(
+                ({ id }) => id !== deleteTarget.id
+              ),
+            }
+        );
+      } else {
+        setDeleteError(message);
+      }
+      if (state === "pending") {
+        setResult((previous) => {
+          if (!previous) return previous;
+          return {
+            ...previous,
+            attachments: previous.attachments.map((item) =>
+              item.id === deleteTarget.id
+                ? { ...item, deletionPending: true }
+                : item
+            ),
+          };
+        });
+      }
+      if (state === "pending" || state === "deleted") {
+        setDownloadError((previous) =>
+          previous?.attachment.id === deleteTarget.id ? undefined : previous
+        );
+      }
     } finally {
       deleteRequest.current = null;
       if (!controller.signal.aborted) {
-        setDeletePending(false);
+        setDeleteProgress(undefined);
         // 文件可能已归档或删除，只是清理失败或响应未返回。
-        reload();
+        setListPending(true);
+        setListRequest(({ page }) => ({
+          page: Math.max(page, loadedPage),
+          replacePages: true,
+        }));
       }
     }
   }
@@ -242,10 +380,8 @@ export function CommunicationAttachmentsTab({
   const inaccessible =
     listError instanceof CommunicationApiError &&
     [401, 403, 404].includes(listError.status);
-  const loadingMore = Boolean(result && page > result.page && listPending);
-  const hasMore = Boolean(
-    result && result.page * result.pageSize < result.total
-  );
+  const loadingMore = Boolean(listRequest.cursor && listPending);
+  const nextCursor = result?.nextCursor;
   const uploadDisabled =
     uploads.busy || deletePending || inaccessible || !result;
 
@@ -347,7 +483,7 @@ export function CommunicationAttachmentsTab({
                     </div>
                   }
                 />
-                {hasMore && (
+                {nextCursor && (
                   <div className="flex justify-center">
                     <Button
                       type="button"
@@ -355,7 +491,12 @@ export function CommunicationAttachmentsTab({
                       size="sm"
                       aria-busy={loadingMore}
                       disabled={listPending || Boolean(listError)}
-                      onClick={() => setPage(result.page + 1)}
+                      onClick={() =>
+                        setListRequest({
+                          page: result.page + 1,
+                          cursor: nextCursor,
+                        })
+                      }
                     >
                       {loadingMore && (
                         <LoaderCircle
@@ -406,11 +547,13 @@ export function CommunicationAttachmentsTab({
                 aria-busy={deletePending}
                 onClick={() => void confirmDelete()}
               >
-                {deletePending
-                  ? "正在删除…"
-                  : deleteError
-                    ? "重试删除"
-                    : "确认删除"}
+                {deleteProgress === "checking"
+                  ? "正在核对附件状态…"
+                  : deleteProgress === "deleting"
+                    ? "正在删除…"
+                    : deleteError
+                      ? "重试删除"
+                      : "确认删除"}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -14,11 +14,12 @@ export type Attachment = {
   deletionPending: boolean;
 };
 
-type AttachmentPage = { page?: number; pageSize?: number };
+type AttachmentPage = { cursor?: string; pageSize?: number };
 
-export type AttachmentListResult = Required<AttachmentPage> & {
+export type AttachmentListResult = {
   attachments: Attachment[];
-  total: number;
+  nextCursor: string | null;
+  pageSize: number;
 };
 
 export type AttachmentUploadInput = {
@@ -85,18 +86,27 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   throw attachmentApiError(response.status, body);
 }
 
+/**
+ * 以游标读取当前沟通的附件，省略游标时从最新一批开始。
+ * @param communicationId 当前沟通 ID。
+ * @param page 上一批返回的游标及可选的每批条数。
+ * @param signal 可选的请求取消信号。
+ * @returns 附件元数据及下一批的游标，读到末尾时游标为 null。
+ * @throws 请求失败或被取消时拒绝。
+ */
 export function listCommunicationAttachments(
   communicationId: string,
-  { page, pageSize }: AttachmentPage = {},
+  page: AttachmentPage = {},
   signal?: AbortSignal
 ) {
+  const { cursor, pageSize } = page;
   const query = new URLSearchParams();
-  if (page !== undefined) query.set("page", String(page));
+  if (cursor !== undefined) query.set("cursor", cursor);
   if (pageSize !== undefined) query.set("pageSize", String(pageSize));
   const suffix = query.size ? `?${query}` : "";
   return request<AttachmentListResult>(
     `${attachmentPath(communicationId)}${suffix}`,
-    { signal }
+    { cache: "no-store", signal }
   );
 }
 
@@ -172,6 +182,27 @@ export function deleteCommunicationAttachment(
   return request<void>(
     `${attachmentPath(communicationId)}/${encodeURIComponent(attachmentId)}`,
     { method: "DELETE", signal }
+  );
+}
+
+export type AttachmentDeletionState = "available" | "pending" | "deleted";
+
+/**
+ * 删除结果不明确时，读取指定附件的删除状态。
+ * @param communicationId 附件所属的沟通记录 ID。
+ * @param attachmentId 要核对的附件 ID。
+ * @param signal 页面离开时取消查询的信号。
+ * @returns 服务端记录的删除状态。
+ * @throws 请求失败或没有权限时拒绝。
+ */
+export function readCommunicationAttachmentDeletion(
+  communicationId: string,
+  attachmentId: string,
+  signal?: AbortSignal
+) {
+  return request<{ state: AttachmentDeletionState }>(
+    `${attachmentPath(communicationId)}/${encodeURIComponent(attachmentId)}`,
+    { cache: "no-store", signal }
   );
 }
 

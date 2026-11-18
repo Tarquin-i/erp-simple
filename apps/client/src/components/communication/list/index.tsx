@@ -441,7 +441,7 @@ export function CommunicationList({
                     <Link
                       {...destination}
                       preload={false}
-                      className="block w-fit max-w-full truncate rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                      className="block w-fit max-w-full truncate rounded-sm underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                       title={communication.title}
                     >
                       {communication.title}
