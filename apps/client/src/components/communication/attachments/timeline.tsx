@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ import {
 import type { AttachmentDownloadError } from "./image-preview";
 
 type AttachmentTimelineProps = {
+  actionsSlot: HTMLDivElement | null;
   attachments: readonly Attachment[];
   communicationId: string;
   downloadingIds?: ReadonlySet<string>;
@@ -257,6 +259,7 @@ function AttachmentTile({
 
 /** 按本地日历日期列出附件，默认展开，按上传时间从新到旧展示。 */
 export function AttachmentTimeline({
+  actionsSlot,
   attachments,
   communicationId,
   downloadingIds,
@@ -298,65 +301,68 @@ export function AttachmentTimeline({
       aria-labelledby={`${idPrefix}-heading`}
       className="min-w-0 space-y-4"
     >
-      <header className="flex min-h-8 items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <h2 className="font-semibold text-sm" id={`${idPrefix}-heading`}>
-            附件
-          </h2>
-          {groups.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  aria-label="按日期跳转附件时间线"
-                  size="icon-sm"
-                  title="跳转日期"
-                  type="button"
-                  variant="ghost"
-                >
-                  <CalendarDays aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-64"
-                onCloseAutoFocus={(event) => {
-                  const date = jumpTarget.current;
-                  if (!date) return;
-                  jumpTarget.current = null;
-                  const target = groupTriggers.current.get(date);
-                  if (!target) return;
-                  event.preventDefault();
-                  target.focus({ preventScroll: true });
-                  target.scrollIntoView({
-                    behavior: window.matchMedia(
-                      "(prefers-reduced-motion: reduce)"
-                    ).matches
-                      ? "auto"
-                      : "smooth",
-                    block: "start",
-                  });
-                }}
-              >
-                {groups.map(({ date, label, attachments: items }) => (
-                  <DropdownMenuItem
-                    className="justify-between gap-2"
-                    key={date}
-                    onSelect={() => {
-                      jumpTarget.current = date;
-                      setDateCollapsed(date, false);
-                    }}
+      <h2 className="sr-only" id={`${idPrefix}-heading`}>
+        附件
+      </h2>
+      {actionsSlot &&
+        createPortal(
+          <>
+            {groups.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    aria-label="按日期跳转附件时间线"
+                    size="icon"
+                    title="跳转日期"
+                    type="button"
+                    variant="ghost"
                   >
-                    <span>{label}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {items.length} 个附件
-                    </span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-        {uploadAction}
-      </header>
+                    <CalendarDays aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-64"
+                  onCloseAutoFocus={(event) => {
+                    const date = jumpTarget.current;
+                    if (!date) return;
+                    jumpTarget.current = null;
+                    const target = groupTriggers.current.get(date);
+                    if (!target) return;
+                    event.preventDefault();
+                    target.focus({ preventScroll: true });
+                    target.scrollIntoView({
+                      behavior: window.matchMedia(
+                        "(prefers-reduced-motion: reduce)"
+                      ).matches
+                        ? "auto"
+                        : "smooth",
+                      block: "start",
+                    });
+                  }}
+                >
+                  {groups.map(({ date, label, attachments: items }) => (
+                    <DropdownMenuItem
+                      className="justify-between gap-2"
+                      key={date}
+                      onSelect={() => {
+                        jumpTarget.current = date;
+                        setDateCollapsed(date, false);
+                      }}
+                    >
+                      <span>{label}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {items.length} 个附件
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {uploadAction}
+          </>,
+          actionsSlot
+        )}
       {groups.length ? (
         <div aria-label="沟通附件时间线" className="space-y-4" role="group">
           {groups.map(({ date, label, attachments: items }) => {

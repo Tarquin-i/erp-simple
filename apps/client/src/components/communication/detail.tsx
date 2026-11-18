@@ -96,6 +96,9 @@ export function CommunicationDetail({
 }) {
   const { state } = useLocation();
   const [record, setRecord] = useState(communication);
+  const [activeTab, setActiveTab] = useState("attachments");
+  const [attachmentActionsSlot, setAttachmentActionsSlot] =
+    useState<HTMLDivElement | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
@@ -261,21 +264,38 @@ export function CommunicationDetail({
         </DetailField>
       </dl>
 
-      <Tabs defaultValue="attachments" className="mt-6 gap-4">
-        <TabsList aria-label="沟通关联信息">
-          <TabsTrigger className="min-w-[88px]" value="attachments">
-            附件
-          </TabsTrigger>
-          <TabsTrigger className="min-w-[88px]" value="relations">
-            关联项
-          </TabsTrigger>
-        </TabsList>
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="mt-6 gap-4"
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="min-w-0 overflow-x-auto overflow-y-hidden py-1">
+            <TabsList aria-label="沟通关联信息">
+              <TabsTrigger className="min-w-[88px]" value="attachments">
+                附件
+              </TabsTrigger>
+              <TabsTrigger className="min-w-[88px]" value="relations">
+                关联项
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          <div
+            ref={setAttachmentActionsSlot}
+            className="ml-auto flex shrink-0 items-center gap-1 empty:hidden"
+          />
+        </div>
         <TabsContent
           value="attachments"
           forceMount
           className="data-[state=inactive]:hidden"
         >
-          <CommunicationAttachmentsTab communicationId={record.id} />
+          <CommunicationAttachmentsTab
+            communicationId={record.id}
+            actionsSlot={
+              activeTab === "attachments" ? attachmentActionsSlot : null
+            }
+          />
         </TabsContent>
         <TabsContent value="relations">
           <p className="py-8 text-center text-sm text-muted-foreground">
