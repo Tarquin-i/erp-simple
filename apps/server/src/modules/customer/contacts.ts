@@ -4,6 +4,10 @@ import {
   customerContactMethod,
   customerContactMethodType,
 } from "@repo/db/schema";
+import {
+  INVALID_MOBILE_PHONE_MESSAGE,
+  normalizeMobilePhone,
+} from "@repo/phone";
 import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -39,7 +43,6 @@ const methodEditFields = [
   "expectedMethodVersion",
   "expectedContactVersion",
 ] as const;
-const mainlandMobilePattern = /^(?:\+86[ -]?)?(1[3-9]\d{9})$/;
 const emailPattern =
   /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i;
 
@@ -62,14 +65,14 @@ function readPrimary(value: unknown): boolean | undefined {
  * 按联系方式类型校验并规范化输入。
  * @param type 已校验的联系方式类型。
  * @param raw 原始联系信息。
- * @returns 去掉首尾空格的内容。电话和 WhatsApp 返回去掉可选 `+86` 前缀的大陆手机号。
+ * @returns 去掉首尾空格的内容。电话和 WhatsApp 返回 E.164 格式的手机号。
  * @throws 联系信息无效或手机号、邮箱格式不符时抛出 HTTP 400。
  */
 function readMethodValue(type: MethodType, raw: unknown): string {
   const value = readString(raw, "联系方式", 320);
   if (type === "phone" || type === "whatsapp") {
-    const mobile = mainlandMobilePattern.exec(value)?.[1];
-    if (!mobile) fail(400, "请输入有效的中国大陆手机号码。");
+    const mobile = normalizeMobilePhone(value);
+    if (!mobile) fail(400, INVALID_MOBILE_PHONE_MESSAGE);
     return mobile;
   }
   if (type === "email" && !emailPattern.test(value)) {
@@ -232,8 +235,8 @@ async function createContact(
  * @param customerId 所属客户 ID。
  * @param contactId 待修改的联系人 ID。
  * @param expectedContactVersion 调用方读取到的联系人版本号。普通联系方式编辑由变更操作校验单条版本。
- * @param change 事务内执行的更新操作，接收事务和锁定后的联系人，可直接改联系方式或返回待写入的姓名。
- * @returns 更新后的联系人、联系方式及新版本号。
+ * @param change 事务内执行的更新操作，可修改联系方式或返回待写入的姓名。修改已生效时返回当前联系方式。
+ * @returns 联系人、联系方式及版本号。修改已生效时返回锁定后的快照。
  * @throws 客户不可见或联系人不存在时抛出 HTTP 404，权限检查失败时抛出 HTTP 401 或 403。
  * 版本过期或联系方式类型重复时抛出 HTTP 409，版本冲突会附最新联系人及其联系方式。
  * 更新操作自身的校验异常也会向调用方抛出。
@@ -246,7 +249,7 @@ async function changeContact(
   change: (
     tx: DatabaseTransaction,
     lockedContact: Contact
-  ) => Promise<void | { name: string }>
+  ) => Promise<void | { name: string } | { methods: Method[] }>
 ) {
   try {
     return await database.db.transaction(async (tx) => {
@@ -274,6 +277,9 @@ async function changeContact(
       }
 
       const fields = await change(tx, locked);
+      if (fields && "methods" in fields) {
+        return { ...locked, methods: fields.methods };
+      }
       const [contact] = await tx
         .update(customerContact)
         .set({
@@ -456,10 +462,36 @@ customerContactRoutes.patch(
       c.get("businessAccess"),
       customerId,
       contactId,
-      expectedContactVersion,
+      undefined,
       async (tx, lockedContact) => {
         const methods = await listMethods(tx, contactId);
         const current = methods.find((method) => method.id === methodId);
+        let value: string | undefined;
+        let valueError: HTTPException | undefined;
+        if (
+          current &&
+          (current.type === "phone" || current.type === "whatsapp") &&
+          body.value !== undefined &&
+          (type === undefined || type === current.type) &&
+          (isPrimary === undefined || isPrimary === current.isPrimary)
+        ) {
+          // 同一号码已保存，直接返回快照。其他过期请求仍先返回版本冲突。
+          try {
+            value = readMethodValue(current.type, body.value);
+          } catch (error) {
+            if (!(error instanceof HTTPException) || error.status !== 400) {
+              throw error;
+            }
+            valueError = error;
+          }
+          if (value === current.value) return { methods };
+        }
+        if (
+          expectedContactVersion !== undefined &&
+          lockedContact.version !== expectedContactVersion
+        ) {
+          failVersionConflict({ ...lockedContact, methods });
+        }
         if (!current) {
           throw new HTTPException(404, {
             res: Response.json(
@@ -482,13 +514,16 @@ customerContactRoutes.patch(
         ) {
           failVersionConflict({ ...lockedContact, methods });
         }
-        const value =
-          type !== undefined || body.value !== undefined
-            ? readMethodValue(
-                type ?? current.type,
-                body.value === undefined ? current.value : body.value
-              )
-            : undefined;
+        if (valueError) throw valueError;
+        if (
+          value === undefined &&
+          (type !== undefined || body.value !== undefined)
+        ) {
+          value = readMethodValue(
+            type ?? current.type,
+            body.value === undefined ? current.value : body.value
+          );
+        }
 
         // 取消主要项时，从其他记录中按创建时间和 ID 选出替补。
         const replacement =
