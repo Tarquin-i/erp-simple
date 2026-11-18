@@ -1,6 +1,9 @@
 import { createFileRoute, useLocation } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { SavedAttachmentUploads } from "@/components/communication/attachments/saved-uploads";
+import { useAttachmentUploadQueue } from "@/components/communication/attachments/use-upload-queue";
+import type { AttachmentUploadQueue } from "@/components/communication/attachments/use-upload-queue";
 import {
   CommunicationForm,
   CommunicationFormLoadError,
@@ -14,6 +17,7 @@ import { readCommunicationListQueryFromState } from "@/components/communication/
 import { readCommunicationCreationSearch } from "@/components/communication/navigation";
 import { readListQueryFromState } from "@/components/customers/list-query";
 import { Button } from "@/components/ui/button";
+import type { Communication } from "@/request/communication";
 import { getCustomer } from "@/request/customers";
 import type { Viewer } from "@/request/organization";
 
@@ -74,6 +78,8 @@ function NewCommunicationSession({
   const accountId = viewer.account.id;
   const navigate = Route.useNavigate();
   const { state } = useLocation();
+  const attachments = useAttachmentUploadQueue();
+  const [recovered, setRecovered] = useState<Communication>();
   const [recoveryState, setRecovery] = useState(() =>
     readRecovery(accountId, submissionId, state.communicationRecoveryMessage)
   );
@@ -113,6 +119,23 @@ function NewCommunicationSession({
     });
   }
 
+  function showRecovered(record: Communication) {
+    return showSaved(
+      record.id,
+      record.canViewCustomer && record.customerId === customerId ? customerId : undefined
+    );
+  }
+
+  if (recovered) {
+    return (
+      <SavedAttachmentUploads
+        communicationId={recovered.id}
+        queue={attachments}
+        onView={() => void showRecovered(recovered)}
+      />
+    );
+  }
+
   // 恢复只依赖原请求。客户的当前查看权限由 API 按实际写入或回放路径校验。
   if (recovery) {
     return (
@@ -120,15 +143,14 @@ function NewCommunicationSession({
         key={recovery.submission.id}
         accountId={accountId}
         recovery={recovery}
-        onRecovered={(communication) =>
-          showSaved(
-            communication.id,
-            communication.canViewCustomer &&
-              communication.customerId === customerId
-              ? customerId
-              : undefined
-          )
-        }
+        onRecovered={async (communication) => {
+          if (attachments.items.length) {
+            // 同页确认写入成功后，再继续上传仍在本地的文件草稿。
+            setRecovered(communication);
+            if (!(await attachments.upload(communication.id))) return;
+          }
+          await showRecovered(communication);
+        }}
         onReturn={returnToList}
       />
     );
@@ -171,6 +193,7 @@ function NewCommunicationSession({
     <NewCommunicationForm
       viewer={viewer}
       customerId={customerId}
+      attachments={attachments}
       onCancel={cancelCreation}
       onPendingCreation={(pending) => setRecovery({ recovery: pending })}
       onSaved={(id) => showSaved(id, customerId)}
@@ -181,12 +204,14 @@ function NewCommunicationSession({
 function NewCommunicationForm({
   viewer,
   customerId,
+  attachments,
   onCancel,
   onPendingCreation,
   onSaved,
 }: {
   viewer: Viewer;
   customerId?: string;
+  attachments: AttachmentUploadQueue;
   onCancel: () => void;
   onPendingCreation: (recovery: CreationRecovery) => void;
   onSaved: (id: string) => Promise<void>;
@@ -226,6 +251,7 @@ function NewCommunicationForm({
     <CommunicationForm
       initialCustomer={result?.customer}
       viewer={viewer}
+      attachments={attachments}
       onCancel={onCancel}
       onPendingCreation={onPendingCreation}
       onSaved={onSaved}

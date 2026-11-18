@@ -3,10 +3,14 @@ import { Check, Save } from "lucide-react";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import { AttachmentDropZone } from "@/components/communication/attachments/drop-zone";
+import { AttachmentQueue } from "@/components/communication/attachments/queue";
+import { SavedAttachmentUploads } from "@/components/communication/attachments/saved-uploads";
+import type { AttachmentUploadQueue } from "@/components/communication/attachments/use-upload-queue";
 import { CustomerTagPicker } from "@/components/customers/form/channel-tag-selectors";
 import { VersionConflictDialog } from "@/components/customers/version-conflict-dialog";
 import { Button } from "@/components/ui/button";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +23,7 @@ import {
   updateCommunication,
 } from "@/request/communication";
 import type { Communication } from "@/request/communication";
+import { attachmentAccept } from "@/request/communication-attachments";
 import type { Viewer } from "@/request/organization";
 
 import { startCreationSubmission } from "./creation-submission";
@@ -82,6 +87,7 @@ export function CommunicationForm({
   record,
   initialCustomer,
   viewer,
+  attachments,
   onCancel,
   onUnavailable,
   onPendingCreation,
@@ -90,6 +96,7 @@ export function CommunicationForm({
   record?: Communication;
   initialCustomer?: CustomerChoice;
   viewer: Viewer;
+  attachments: AttachmentUploadQueue;
   onCancel: () => void;
   onUnavailable?: () => void;
   onPendingCreation?: (recovery: CreationRecovery) => void;
@@ -112,6 +119,7 @@ export function CommunicationForm({
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
   const [assignmentDenied, setAssignmentDenied] = useState(false);
+  const [savedId, setSavedId] = useState<string>();
   const saving = useRef(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -122,10 +130,11 @@ export function CommunicationForm({
     canAssign && !assignmentDenied && (!baseline || baseline.canViewCustomer);
   const hasChanges =
     Object.keys(getChanges(toDraft(baseline), draft)).length > 0;
+  const hasFiles = attachments.items.some((item) => item.status === "queued");
   const cannotSave =
     pending ||
     tagPending ||
-    (isEdit ? !hasChanges : !customerId || (isAdmin && !draft.owner));
+    (isEdit ? !hasChanges && !hasFiles : !customerId || (isAdmin && !draft.owner));
   const SubmitIcon = isEdit ? Check : Save;
 
   async function save(proposed: CommunicationDraft, current = baseline) {
@@ -138,6 +147,15 @@ export function CommunicationForm({
     const unsubscribe = router.history.subscribe(() => {
       leftForm = true;
     });
+    async function finishSave(id: string) {
+      if (leftForm) return;
+      setConflict(null);
+      if (hasFiles) {
+        setSavedId(id);
+        if (!(await attachments.upload(id)) || leftForm) return;
+      }
+      await onSaved(id);
+    }
     const changes = getChanges(toDraft(current), proposed);
     try {
       let savedId: string;
@@ -174,10 +192,7 @@ export function CommunicationForm({
         }
         savedId = result.communication.id;
       }
-      if (!leftForm) {
-        setConflict(null);
-        await onSaved(savedId);
-      }
+      await finishSave(savedId);
     } catch (failure) {
       if (leftForm) return;
       if (
@@ -189,8 +204,7 @@ export function CommunicationForm({
         const latest = toDraft(failure.current);
         const rebased = rebaseDraft(latest, proposed, changes);
         if (!Object.keys(getChanges(latest, rebased)).length) {
-          setConflict(null);
-          await onSaved(current.id);
+          await finishSave(current.id);
         } else {
           setConflict({ current: failure.current, draft: rebased });
         }
@@ -267,6 +281,17 @@ export function CommunicationForm({
           返回沟通列表
         </Button>
       </main>
+    );
+  }
+
+  if (savedId) {
+    return (
+      <SavedAttachmentUploads
+        communicationId={savedId}
+        queue={attachments}
+        error={error}
+        onView={() => void onSaved(savedId)}
+      />
     );
   }
 
@@ -376,6 +401,19 @@ export function CommunicationForm({
             />
           </Field>
         </div>
+        <Field>
+          <FieldTitle>附件</FieldTitle>
+          <AttachmentDropZone
+            accept={attachmentAccept}
+            disabled={pending}
+            onFilesSelected={attachments.add}
+          />
+          <AttachmentQueue
+            items={attachments.items}
+            disabled={pending}
+            onRemove={attachments.remove}
+          />
+        </Field>
       </form>
 
       <VersionConflictDialog

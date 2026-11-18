@@ -1,5 +1,6 @@
 import { createFileRoute, useLocation } from "@tanstack/react-router";
 
+import { useAttachmentUploadQueue } from "@/components/communication/attachments/use-upload-queue";
 import {
   CommunicationForm,
   CommunicationFormLoadError,
@@ -9,6 +10,7 @@ import { readCommunicationListQueryFromState } from "@/components/communication/
 import { readCommunicationOrigin } from "@/components/communication/navigation";
 import { readListQueryFromState } from "@/components/customers/list-query";
 import { getCommunication } from "@/request/communication";
+import type { Communication } from "@/request/communication";
 
 export const Route = createFileRoute(
   "/_protected/communication/$communicationId/edit"
@@ -27,6 +29,17 @@ export const Route = createFileRoute(
 function EditCommunicationPage() {
   const { viewer } = Route.useRouteContext();
   const { communication } = Route.useLoaderData();
+  return (
+    <EditCommunicationSession
+      key={JSON.stringify([viewer.account.id, communication.id])}
+      communication={communication}
+    />
+  );
+}
+
+function EditCommunicationSession({ communication }: { communication: Communication }) {
+  const { viewer } = Route.useRouteContext();
+  const attachments = useAttachmentUploadQueue();
   const { customerId } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { state } = useLocation();
@@ -45,9 +58,9 @@ function EditCommunicationPage() {
 
   return (
     <CommunicationForm
-      key={communication.id}
       record={communication}
       viewer={viewer}
+      attachments={attachments}
       onCancel={() => void returnToDetail()}
       onUnavailable={() => {
         void navigate({
