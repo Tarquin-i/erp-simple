@@ -56,7 +56,10 @@ function attachmentPath(communicationId: string) {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(path, options);
+  const response = await fetch(path, options).catch((failure: unknown) => {
+    if (options?.signal?.aborted) throw failure;
+    throw new Error("暂时无法连接附件服务，请重试。", { cause: failure });
+  });
   if (response.ok) {
     if (response.status === 204) return undefined as T;
     return response.json();

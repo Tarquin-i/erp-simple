@@ -25,6 +25,7 @@ import type {
   CommunicationStatus,
 } from "@/request/communication";
 
+import { CommunicationAttachmentsTab } from "./attachments/tab";
 import { CommunicationCustomerLink } from "./customer-link";
 
 function DetailField({
@@ -260,12 +261,22 @@ export function CommunicationDetail({
         </DetailField>
       </dl>
 
-      <Tabs defaultValue="relations" className="mt-6 gap-4">
+      <Tabs defaultValue="attachments" className="mt-6 gap-4">
         <TabsList aria-label="沟通关联信息">
+          <TabsTrigger className="min-w-[88px]" value="attachments">
+            附件
+          </TabsTrigger>
           <TabsTrigger className="min-w-[88px]" value="relations">
             关联项
           </TabsTrigger>
         </TabsList>
+        <TabsContent
+          value="attachments"
+          forceMount
+          className="data-[state=inactive]:hidden"
+        >
+          <CommunicationAttachmentsTab communicationId={record.id} />
+        </TabsContent>
         <TabsContent value="relations">
           <p className="py-8 text-center text-sm text-muted-foreground">
             待开发

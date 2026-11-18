@@ -16,25 +16,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-export type AttachmentRow = {
-  id: string;
-  fileName: string;
-  fileSize: number;
-  mimeType: string;
-  uploaderUserId: string;
-  uploaderName: string;
-  uploadedAt: string | null;
-  deletionPending: boolean;
-};
+import type { Attachment } from "@/request/communication-attachments";
 
 type AttachmentTableProps = {
-  attachments: readonly AttachmentRow[];
+  attachments: readonly Attachment[];
   downloadingIds?: ReadonlySet<string>;
   deletingId?: string;
   disabled?: boolean;
-  onDownload: (attachment: AttachmentRow) => void;
-  onDelete?: (attachment: AttachmentRow) => void;
+  onDownload: (attachment: Attachment) => void;
+  onDelete?: (attachment: Attachment) => void;
 };
 
 const dateFormat = new Intl.DateTimeFormat("zh-CN", {
