@@ -8,6 +8,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -20,7 +21,7 @@ import {
 type Difference = { label: string; current: string; proposed: string };
 
 /**
- * 展示服务端当前值和用户拟提交值，等待用户取消或确认覆盖。
+ * 展示服务端当前值和拟提交值，并区分关闭弹窗、覆盖保存与写回旧值。
  * @param props 对比行、可选的说明、提交状态和弹窗回调。`differences` 为 `null` 时关闭弹窗。
  * @returns 由调用方控制开关和异步提交状态的确认弹窗。
  */
@@ -28,16 +29,20 @@ export function VersionConflictDialog({
   differences,
   description = "比较当前资料和你的修改。确认覆盖后，只保存你提交的字段。",
   pending = false,
+  pendingLabel,
   overwriteBlocked = false,
   onCancel,
+  onRestore,
   onOverwrite,
   onCloseAutoFocus,
 }: {
   differences: Difference[] | null;
   description?: string;
   pending?: boolean;
+  pendingLabel?: string;
   overwriteBlocked?: boolean;
   onCancel: () => void;
+  onRestore?: () => void;
   onOverwrite: () => void;
   onCloseAutoFocus?: (event: Event) => void;
 }) {
@@ -54,7 +59,10 @@ export function VersionConflictDialog({
       >
         <AlertDialogHeader>
           <AlertDialogTitle>资料已被更新</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
+          <AlertDialogDescription>
+            {description}
+            {onRestore && "写回旧值会立即更新远端资料，并保留当前表单草稿。"}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         {differences?.length ? (
           <div className="max-h-[45vh] overflow-auto rounded-lg border">
@@ -87,7 +95,19 @@ export function VersionConflictDialog({
           </div>
         ) : null}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>取消</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>
+            {onRestore ? "关闭" : "取消"}
+          </AlertDialogCancel>
+          {onRestore && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={onRestore}
+            >
+              {pendingLabel ?? "取消覆盖并写回旧值"}
+            </Button>
+          )}
           <AlertDialogAction
             disabled={pending || overwriteBlocked}
             onClick={(event) => {
@@ -96,7 +116,7 @@ export function VersionConflictDialog({
               onOverwrite();
             }}
           >
-            {pending ? "正在保存…" : "覆盖保存"}
+            {pending && !pendingLabel ? "正在保存…" : "覆盖保存"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

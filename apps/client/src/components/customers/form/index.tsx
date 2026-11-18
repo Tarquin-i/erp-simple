@@ -117,6 +117,7 @@ export function CustomerForm({
 
     // 保存途中若路由已切换，响应到达后不再触发跳转或打开错误弹窗。
     let leftForm = false;
+    let savedDraft = false;
     const unsubscribe = router.history.subscribe(() => {
       leftForm = true;
     });
@@ -145,8 +146,17 @@ export function CustomerForm({
           ...(departmentId ? { departmentId } : {}),
         });
       }
+      if (leftForm) return;
+      savedDraft = true;
+      setConflict(null);
+      await onSaved();
     } catch (failure) {
       if (leftForm) return;
+      if (savedDraft) {
+        setDraft(openedDraft);
+        setTerminalError("资料已保存。页面跳转失败，请返回查看。");
+        return;
+      }
       if (
         failure instanceof CustomerApiError &&
         failure.code === "version_conflict" &&
@@ -183,10 +193,6 @@ export function CustomerForm({
       saving.current = false;
       setSavingAction(undefined);
     }
-    if (!leftForm) {
-      setConflict(null);
-      await onSaved();
-    }
   }
 
   function restoreOldValues() {
@@ -198,7 +204,9 @@ export function CustomerForm({
         ...oldValues,
         // 即使当前值已相同，显式写回也要进行一次版本校验并产生新版本。
         companyName: openedDraft.companyName,
-        ...(assignableOwners && ownerUserId !== undefined ? { ownerUserId } : {}),
+        ...(assignableOwners && ownerUserId !== undefined
+          ? { ownerUserId }
+          : {}),
       },
       { customer: conflict.current, draft: latest },
       "restore"
@@ -221,7 +229,7 @@ export function CustomerForm({
         <h1 className="text-xl font-semibold">本次编辑已结束</h1>
         <FieldError>{terminalError}</FieldError>
         <Button type="button" variant="outline" onClick={onCancel}>
-          返回客户详情
+          {isEdit ? "返回客户详情" : "返回客户列表"}
         </Button>
       </main>
     );
