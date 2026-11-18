@@ -7,6 +7,7 @@ import type {
 declare module "@tanstack/react-router" {
   interface HistoryState {
     communicationListQuery?: CommunicationListQuery;
+    communicationRecoveryMessage?: string;
   }
 }
 

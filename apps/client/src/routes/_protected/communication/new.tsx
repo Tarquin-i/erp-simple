@@ -11,24 +11,36 @@ import { readCreationRecovery } from "@/components/communication/form/creation-s
 import type { CreationRecovery } from "@/components/communication/form/creation-submission";
 import type { CustomerChoice } from "@/components/communication/form/customer-field";
 import { readCommunicationListQueryFromState } from "@/components/communication/list/query";
-import { readCommunicationOrigin } from "@/components/communication/navigation";
+import { readCommunicationCreationSearch } from "@/components/communication/navigation";
 import { readListQueryFromState } from "@/components/customers/list-query";
+import { Button } from "@/components/ui/button";
 import { getCustomer } from "@/request/customers";
 import type { Viewer } from "@/request/organization";
 
 export const Route = createFileRoute("/_protected/communication/new")({
-  validateSearch: readCommunicationOrigin,
+  validateSearch: readCommunicationCreationSearch,
   component: NewCommunicationPage,
 });
 
 type RecoveryState = {
   recovery?: CreationRecovery;
   error?: string;
+  unavailable?: boolean;
 };
 
-function readRecovery(accountId: string): RecoveryState {
+function readRecovery(
+  accountId: string,
+  submissionId?: string,
+  message?: string
+): RecoveryState {
   try {
-    return { recovery: readCreationRecovery(accountId) };
+    const recovery = readCreationRecovery(accountId);
+    if (submissionId && recovery?.submission.id !== submissionId) {
+      return { unavailable: true };
+    }
+    return {
+      recovery: recovery && message ? { ...recovery, message } : recovery,
+    };
   } catch (failure) {
     return {
       error:
@@ -39,12 +51,13 @@ function readRecovery(accountId: string): RecoveryState {
 
 function NewCommunicationPage() {
   const { viewer } = Route.useRouteContext();
-  const { customerId } = Route.useSearch();
+  const { customerId, submissionId } = Route.useSearch();
   return (
     <NewCommunicationSession
-      key={JSON.stringify([viewer.account.id, customerId])}
+      key={JSON.stringify([viewer.account.id, customerId, submissionId])}
       viewer={viewer}
       customerId={customerId}
+      submissionId={submissionId}
     />
   );
 }
@@ -52,15 +65,19 @@ function NewCommunicationPage() {
 function NewCommunicationSession({
   viewer,
   customerId,
+  submissionId,
 }: {
   viewer: Viewer;
   customerId?: string;
+  submissionId?: string;
 }) {
   const accountId = viewer.account.id;
-  const [recoveryState, setRecovery] = useState(() => readRecovery(accountId));
-  const { recovery, error } = recoveryState;
   const navigate = Route.useNavigate();
   const { state } = useLocation();
+  const [recoveryState, setRecovery] = useState(() =>
+    readRecovery(accountId, submissionId, state.communicationRecoveryMessage)
+  );
+  const { recovery, error, unavailable } = recoveryState;
   const customerListQuery = readListQueryFromState(state);
   const communicationListQuery = readCommunicationListQueryFromState(state);
 
@@ -121,8 +138,32 @@ function NewCommunicationSession({
     return (
       <CommunicationFormLoadError
         error={new Error(error)}
-        reset={() => setRecovery(readRecovery(accountId))}
+        reset={() =>
+          setRecovery(
+            readRecovery(
+              accountId,
+              submissionId,
+              state.communicationRecoveryMessage
+            )
+          )
+        }
       />
+    );
+  }
+
+  if (unavailable) {
+    return (
+      <main className="flex-1 space-y-4 bg-background px-5 py-6 sm:px-7 lg:px-8">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          无法继续确认这笔提交
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          这笔提交的待确认状态已结束，请返回沟通列表核对保存结果。
+        </p>
+        <Button type="button" variant="outline" onClick={returnToList}>
+          返回沟通列表
+        </Button>
+      </main>
     );
   }
 
