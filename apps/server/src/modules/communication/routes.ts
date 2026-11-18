@@ -11,6 +11,7 @@ import {
   readUuid,
 } from "../customer/input";
 import { fail } from "../organization/errors";
+import { communicationAttachmentRoutes } from "./attachment-routes";
 import { communicationDictionaryRoutes } from "./dictionaries";
 import {
   createCommunication,
@@ -84,6 +85,7 @@ export const communicationRoutes = new Hono<BusinessAccessEnv>();
 
 communicationRoutes.use("*", requireBusinessAccess);
 communicationRoutes.route("/", communicationDictionaryRoutes);
+communicationRoutes.route("/", communicationAttachmentRoutes);
 
 communicationRoutes.get("/", async (c) => {
   const { search, customerId, status, tagId, ownerUserId, page, pageSize } =
