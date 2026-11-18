@@ -55,6 +55,25 @@
 
 打开后端地址，看到 `Hello Hono!` 即表示后端已启动并通过数据库连接检查。前端开发服务会把 `/api` 请求转发到后端。若修改 `SERVER_PORT`，同步更新 `apps/client/vite.config.ts` 的代理目标。
 
+## 沟通附件存储
+
+本地开发在 `apps/server/.env` 配置以下两项，重启后端后即可通过现有 `/api` 上传和下载附件。
+
+```dotenv
+COMMUNICATION_ATTACHMENT_STORAGE=local
+COMMUNICATION_ATTACHMENT_LOCAL_DIR=../../../.erp-simple-private/communication-attachments
+```
+
+附件存储目录须位于仓库和所有静态文件服务目录（包括前端 `public`）之外。相对路径以 API 的工作目录为基准。通过 `bun run dev` 启动时，以上示例将附件存放在与仓库同级的 `.erp-simple-private/communication-attachments/`。已完成的文件位于 `<目录>/<storageKey>`，暂存文件位于 `<目录>/single-staging/<storageKey>`，数据库保存附件元数据。需要保留数据时，将该目录与数据库一起备份，容器部署时使用持久卷。
+
+本地模式单个文件上限为 128 MiB，OSS 单次直传上限为 5 GiB。两种模式均可通过 `COMMUNICATION_ATTACHMENT_MAX_BYTES` 按字节调低上限。
+
+未配置 `COMMUNICATION_ATTACHMENT_STORAGE` 的环境沿用 OSS。已有本地附件的环境切换到 OSS 时，按以下顺序操作。
+
+1. 暂停附件上传和删除，处理未完成的上传和待删除文件，备份数据库与本地附件目录。
+2. 把每条已上传且未归档的附件从本地目录下的 `<storageKey>` 复制到私有 OSS 桶的 `communication/attachments/<storageKey>`。保留附件的 `Content-Type` 和私有 ACL，并对照数据库核验 SHA-256。数据库中的元数据和附件 ID 保持原样。
+3. 在 OSS 桶的 CORS 中允许实际前端来源（含协议和端口）、`PUT` 方法和 `content-type`、`x-oss-forbid-overwrite`、`x-oss-object-acl` 请求头。在 `apps/server/.env` 中设置 `COMMUNICATION_ATTACHMENT_STORAGE=oss`，填好 `OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET`、`OSS_BUCKET`、`OSS_REGION` 并重启后端。验证已有附件可下载，再验证新附件的上传、下载和删除。
+
 ## 本地种子账号
 
 执行 `bun run db:push` 同步数据库表后，在仓库根目录运行 `bun run seed`。种子会创建业务一部、业务二部、技术部和产品部，以及四个预置客户渠道。技术部和产品部仅创建部门。
