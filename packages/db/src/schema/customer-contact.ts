@@ -6,6 +6,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  text,
   timestamp,
   uniqueIndex,
   uuid,
@@ -37,6 +38,10 @@ export const customerContact = pgTable(
       .notNull()
       .references(() => customer.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 128 }).notNull(),
+    // 历史记录可留空，新增记录保留原始提交标识和内容摘要。
+    creationActorUserId: text("creation_actor_user_id"),
+    creationRequestId: uuid("creation_request_id"),
+    creationRequestHash: varchar("creation_request_hash", { length: 64 }),
     // 改名、新增、删除和切换主要联系方式时校验联系人版本。
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -49,6 +54,16 @@ export const customerContact = pgTable(
   },
   (table) => [
     index("customer_contact_customer_idx").on(table.customerId),
+    uniqueIndex("customer_contact_creation_request_unique").on(
+      table.creationActorUserId,
+      table.creationRequestId
+    ),
+    check(
+      "customer_contact_creation_request_check",
+      sql`(${table.creationActorUserId} is null and ${table.creationRequestId} is null and ${table.creationRequestHash} is null)
+        or (${table.creationActorUserId} is not null and ${table.creationRequestId} is not null
+          and ${table.creationRequestHash} is not null and ${table.creationRequestHash} ~ '^[0-9a-f]{64}$')`
+    ),
     check("customer_contact_name_nonempty", sql`btrim(${table.name}) <> ''`),
   ]
 );

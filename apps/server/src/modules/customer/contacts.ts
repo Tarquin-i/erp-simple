@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   customer,
   customerContact,
@@ -30,7 +31,19 @@ import {
   readUuid,
 } from "./input";
 
-type Contact = typeof customerContact.$inferSelect;
+const contactColumns = {
+  id: customerContact.id,
+  customerId: customerContact.customerId,
+  name: customerContact.name,
+  version: customerContact.version,
+  createdAt: customerContact.createdAt,
+  updatedAt: customerContact.updatedAt,
+};
+
+type Contact = Pick<
+  typeof customerContact.$inferSelect,
+  keyof typeof contactColumns
+>;
 type Method = typeof customerContactMethod.$inferSelect;
 type ContactWithMethods = Contact & { methods: Method[] };
 type MethodType = Method["type"];
@@ -148,7 +161,7 @@ async function listContacts(access: BusinessAccess, customerId: string) {
     access.userId,
     (tx, currentAccess) =>
       tx
-        .select({ contact: customerContact, method: customerContactMethod })
+        .select({ contact: contactColumns, method: customerContactMethod })
         .from(customer)
         .leftJoin(customerContact, eq(customerContact.customerId, customer.id))
         .leftJoin(
@@ -203,27 +216,91 @@ async function listMethods(tx: DatabaseTransaction, contactId: string) {
 }
 
 /**
- * 校验客户的写入权限，在同一事务中创建联系人及其联系方式。
+ * 按创建人和提交 ID 去重，在同一事务中创建联系人及其联系方式。
  * @param access 调用方的业务权限。
  * @param customerId 所属客户 ID。
  * @param name 已校验的联系人姓名。
  * @param methods 已校验的联系方式，包含一个主要项。
- * @returns 新建的联系人及其联系方式。
- * @throws 客户不可见时抛出 HTTP 404，锁定客户时的权限检查失败则抛出 HTTP 401 或 403。
+ * @param requestId 同一次新建在断线重试时复用的提交 UUID。
+ * @returns 新建或已提交的联系人及其联系方式。
+ * @throws 客户不可见时抛出 HTTP 404，权限检查失败时抛出 HTTP 401 或 403，同一提交 ID 用于不同内容时抛出 HTTP 409。
  */
 async function createContact(
   access: BusinessAccess,
   customerId: string,
   name: string,
-  methods: MethodInput[]
+  methods: MethodInput[],
+  requestId: string
 ) {
+  const requestHash = createHash("sha256")
+    .update(
+      JSON.stringify({
+        customerId,
+        name,
+        methods: methods.toSorted(
+          (a, b) =>
+            customerContactMethodType.enumValues.indexOf(a.type) -
+            customerContactMethodType.enumValues.indexOf(b.type)
+        ),
+      })
+    )
+    .digest("hex");
   return database.db.transaction(async (tx) => {
-    await lockCustomerForWrite(tx, access, customerId);
+    // 同一账号的同一次提交排队，避免并发重试分别创建联系人。
+    const lockKey = JSON.stringify([
+      "customer-contact-create",
+      access.userId,
+      requestId,
+    ]);
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`
+    );
+    const [existing] = await tx
+      .select({
+        id: customerContact.id,
+        customerId: customerContact.customerId,
+        requestHash: customerContact.creationRequestHash,
+      })
+      .from(customerContact)
+      .where(
+        and(
+          eq(customerContact.creationActorUserId, access.userId),
+          eq(customerContact.creationRequestId, requestId)
+        )
+      );
+
+    await lockCustomerForWrite(tx, access, existing?.customerId ?? customerId);
+    if (existing) {
+      if (existing.requestHash !== requestHash) {
+        throw new HTTPException(409, {
+          res: Response.json(
+            {
+              code: "idempotency_conflict",
+              message: "该提交 ID 已用于不同的联系人内容。",
+            },
+            { status: 409 }
+          ),
+        });
+      }
+      // 联系人可能在等待客户锁期间被修改，读取锁定后的资料。
+      const [contact] = await tx
+        .select(contactColumns)
+        .from(customerContact)
+        .where(eq(customerContact.id, existing.id));
+      if (!contact) fail(404, "联系人不存在。");
+      return { ...contact, methods: await listMethods(tx, contact.id) };
+    }
 
     const [contact] = await tx
       .insert(customerContact)
-      .values({ customerId, name })
-      .returning();
+      .values({
+        customerId,
+        name,
+        creationActorUserId: access.userId,
+        creationRequestId: requestId,
+        creationRequestHash: requestHash,
+      })
+      .returning(contactColumns);
     await tx
       .insert(customerContactMethod)
       .values(methods.map((method) => ({ ...method, contactId: contact.id })));
@@ -258,7 +335,7 @@ async function changeContact(
       await lockCustomerForWrite(tx, access, customerId);
       // 读取或变更主要联系方式前，先让同一联系人的并发更新排队。
       const [locked] = await tx
-        .select()
+        .select(contactColumns)
         .from(customerContact)
         .where(
           and(
@@ -295,7 +372,7 @@ async function changeContact(
             eq(customerContact.customerId, customerId)
           )
         )
-        .returning();
+        .returning(contactColumns);
       return { ...contact, methods: await listMethods(tx, contactId) };
     });
   } catch (error) {
@@ -374,15 +451,21 @@ customerContactRoutes.get("/:customerId/contacts", async (c) => {
 });
 
 customerContactRoutes.post("/:customerId/contacts", async (c) => {
+  const access = c.get("businessAccess");
+  const expectedAccountId = c.req.header("X-Expected-Account-Id");
+  if (expectedAccountId !== undefined && expectedAccountId !== access.userId) {
+    fail(401, "当前登录账号已变更，请刷新页面后重试。");
+  }
   const customerId = readUuid(c.req.param("customerId"), "客户 ID");
   const body = await readObject(c, ["name", "methods"]);
   const name = readString(body.name, "联系人姓名", 128);
   const methods = readNewContactMethods(body.methods);
   const contact = await createContact(
-    c.get("businessAccess"),
+    access,
     customerId,
     name,
-    methods
+    methods,
+    readUuid(c.req.header("Idempotency-Key"), "提交 ID")
   );
   return c.json({ contact }, 201);
 });
