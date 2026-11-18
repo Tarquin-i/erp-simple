@@ -2,9 +2,17 @@ import {
   Link,
   useNavigate,
   useRouteContext,
+  useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { Clock, Filter, MessagesSquare, Plus, Search } from "lucide-react";
+import {
+  Clock,
+  Filter,
+  LoaderCircle,
+  MessagesSquare,
+  Plus,
+  Search,
+} from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -25,6 +33,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -53,6 +62,7 @@ import type {
 import { CommunicationCustomerLink } from "../customer-link";
 import {
   hasPendingCreation,
+  readCreationRecovery,
   subscribeToCreationSubmissions,
 } from "../form/creation-submission";
 import { CommunicationListFilters } from "./filters";
@@ -103,6 +113,7 @@ export function CommunicationList({
   onQueryChange: (update: QueryUpdater, replace?: boolean) => void;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
   const {
     viewer: { account },
   } = useRouteContext({ from: "/_protected" });
@@ -115,7 +126,6 @@ export function CommunicationList({
     readPendingCreation,
     noPendingCreation
   );
-  const CreateIcon = hasPending ? Clock : Plus;
   const previousState = useRouterState({
     select: (state) => state.location.state,
   });
@@ -127,6 +137,9 @@ export function CommunicationList({
   const [load, setLoad] = useState<ListState>();
   const [retry, setRetry] = useState(0);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [creationError, setCreationError] = useState("");
+  const openingRef = useRef(false);
   const current =
     load?.query === query && load.customerId === customerId ? load : undefined;
   const result = current?.result;
@@ -181,6 +194,65 @@ export function CommunicationList({
       ),
     [onQueryChange]
   );
+
+  async function openPendingCreation() {
+    if (openingRef.current) return;
+    openingRef.current = true;
+    setOpening(true);
+    setCreationError("");
+
+    let leftList = false;
+    const unsubscribe = router.history.subscribe(() => {
+      leftList = true;
+    });
+
+    try {
+      const recovery = readCreationRecovery(account.id);
+      // 在当前列表等待点击时的请求，期间不另发保存，也不进入空白表单。
+      const outcome = await recovery?.attempt;
+      if (leftList) return;
+
+      if (outcome?.status === "saved") {
+        const { communication } = outcome;
+        await navigate({
+          to: "/communication/$communicationId",
+          params: { communicationId: communication.id },
+          search:
+            communication.canViewCustomer &&
+            communication.customerId === customerId
+              ? origin
+              : {},
+          state: navigationState,
+        });
+      } else if (recovery && (!outcome || outcome.status === "pending")) {
+        await navigate({
+          to: "/communication/new",
+          search: { ...origin, submissionId: recovery.submission.id },
+          state: {
+            ...navigationState,
+            communicationRecoveryMessage: outcome?.message,
+          },
+        });
+      } else if (outcome?.status === "rejected") {
+        setCreationError(`本次提交未保存。${outcome.error.message}`);
+      } else {
+        setCreationError("这笔提交的待确认状态已结束，请在列表核对保存结果。");
+        setRetry((attempt) => attempt + 1);
+      }
+    } catch (failure) {
+      if (!leftList) {
+        setCreationError(
+          failure instanceof Error
+            ? failure.message
+            : "暂时无法打开待确认提交。"
+        );
+      }
+    } finally {
+      unsubscribe();
+      openingRef.current = false;
+      setOpening(false);
+    }
+  }
 
   return (
     <section aria-label={customerId ? "客户沟通记录" : "沟通记录"}>
@@ -247,21 +319,43 @@ export function CommunicationList({
               )}
             </PopoverContent>
           </Popover>
-          {canCreate && (
-            <Button asChild className="h-10 px-4">
-              <Link
-                aria-label={hasPending ? pendingCreationLabel : "新建沟通"}
-                to="/communication/new"
-                search={origin}
-                state={navigationState}
+          {canCreate &&
+            (opening || hasPending ? (
+              <Button
+                type="button"
+                className="h-10 px-4"
+                aria-busy={opening}
+                disabled={opening}
+                onClick={() => void openPendingCreation()}
               >
-                <CreateIcon data-icon="inline-start" />
-                {hasPending ? pendingCreationLabel : "新建"}
-              </Link>
-            </Button>
-          )}
+                {opening ? (
+                  <LoaderCircle
+                    className="motion-safe:animate-spin"
+                    data-icon="inline-start"
+                  />
+                ) : (
+                  <Clock data-icon="inline-start" />
+                )}
+                {opening ? "正在等待保存结果…" : pendingCreationLabel}
+              </Button>
+            ) : (
+              <Button asChild className="h-10 px-4">
+                <Link
+                  aria-label="新建沟通"
+                  to="/communication/new"
+                  search={origin}
+                  state={navigationState}
+                >
+                  <Plus data-icon="inline-start" />
+                  新建
+                </Link>
+              </Button>
+            ))}
         </div>
       </div>
+      {creationError && (
+        <FieldError className="mb-4">{creationError}</FieldError>
+      )}
       {current?.error ? (
         <Empty className="min-h-52 border">
           <EmptyHeader>
