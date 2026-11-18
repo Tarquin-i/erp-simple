@@ -175,6 +175,17 @@ function uploadForCommunication(
   );
 }
 
+function uploadForUploader(
+  communicationId: string,
+  uploadClientId: string,
+  uploaderUserId: string
+) {
+  return and(
+    uploadForCommunication(communicationId, uploadClientId),
+    eq(communicationAttachment.uploaderUserId, uploaderUserId)
+  );
+}
+
 async function publicAttachment(tx: DatabaseTransaction, attachmentId: string) {
   const [row] = await tx
     .select(attachmentMetadata)
@@ -352,7 +363,7 @@ export async function initCommunicationAttachment(
   };
 }
 
-async function readUpload(
+async function lockUpload(
   tx: DatabaseTransaction,
   access: BusinessAccess,
   communicationId: string,
@@ -361,15 +372,48 @@ async function readUpload(
   const [row] = await tx
     .select()
     .from(communicationAttachment)
-    .where(
-      and(
-        uploadForCommunication(communicationId, uploadClientId),
-        eq(communicationAttachment.uploaderUserId, access.userId)
-      )
-    )
+    .where(uploadForUploader(communicationId, uploadClientId, access.userId))
     .for("update");
+  return row;
+}
+
+async function readUpload(
+  tx: DatabaseTransaction,
+  access: BusinessAccess,
+  communicationId: string,
+  uploadClientId: string
+) {
+  const row = await lockUpload(tx, access, communicationId, uploadClientId);
   if (!row) fail(404, "附件上传不存在。");
   return row;
+}
+
+/**
+ * 查询原上传人在当前沟通下的上传会话状态，无需访问附件存储。
+ * @param access 当前账号。
+ * @param communicationId 所属沟通 ID。
+ * @param uploadClientId 初始化时使用的上传 ID。
+ * @returns 未完成、已发布或无可用会话。已归档的会话视为不可用。
+ * @throws 无权查看沟通时返回 404。
+ */
+export function getCommunicationAttachmentUpload(
+  access: BusinessAccess,
+  communicationId: string,
+  uploadClientId: string
+) {
+  return withBusinessReadSnapshot(access.userId, async (tx, freshAccess) => {
+    await requireCommunication(tx, freshAccess, communicationId);
+    const [row] = await tx
+      .select({
+        uploadState: communicationAttachment.uploadState,
+        archivedAt: communicationAttachment.archivedAt,
+      })
+      .from(communicationAttachment)
+      .where(uploadForUploader(communicationId, uploadClientId, access.userId));
+    return {
+      state: row && !row.archivedAt ? row.uploadState : ("missing" as const),
+    };
+  });
 }
 
 /** 按当前沟通权限和原上传人校验，将请求体流式写入本地暂存区。 */
@@ -502,6 +546,55 @@ async function cleanupArchived(row: Attachment, storage: AttachmentStorage) {
         isNull(communicationAttachment.objectDeletedAt)
       )
     );
+}
+
+/**
+ * 取消原上传人的未完成会话。先归档，再清理暂存和正式对象。
+ * @param access 当前账号。
+ * @param communicationId 所属沟通 ID。
+ * @param uploadClientId 初始化时使用的上传 ID。
+ * @param getStorage 按需读取存储配置。
+ * @returns `ready` 表示附件已发布并予以保留，`missing` 表示会话不存在或已清理。
+ * @throws 无权访问沟通时返回 404，文件清理失败时返回 503，可用同一上传 ID 重试。
+ */
+export async function cancelCommunicationAttachmentUpload(
+  access: BusinessAccess,
+  communicationId: string,
+  uploadClientId: string,
+  getStorage: GetStorage
+) {
+  const { state, row } = await withAttachmentWrite(
+    access,
+    communicationId,
+    async (tx) => {
+      const current = await lockUpload(
+        tx,
+        access,
+        communicationId,
+        uploadClientId
+      );
+      if (!current || current.objectDeletedAt) {
+        return { state: "missing" as const, row: null };
+      }
+      // 与完成请求竞争同一行锁。附件已发布时，不能通过取消上传删掉它。
+      if (current.uploadState === "ready") {
+        return {
+          state: current.archivedAt ? ("missing" as const) : ("ready" as const),
+          row: null,
+        };
+      }
+      if (current.archivedAt)
+        return { state: "missing" as const, row: current };
+      const [archived] = await tx
+        .update(communicationAttachment)
+        .set({ archivedAt: sql`now()`, archivedByUserId: access.userId })
+        .where(eq(communicationAttachment.id, current.id))
+        .returning();
+      return { state: "missing" as const, row: archived };
+    }
+  );
+  if (row) await cleanupArchived(row, await useStorage(getStorage));
+  return { state };
 }
 
 async function archivePendingUpload(access: BusinessAccess, row: Attachment) {
