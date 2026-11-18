@@ -3,10 +3,12 @@ import { getBunServer } from "hono/bun";
 
 import type { BusinessAccessEnv } from "../business/access";
 import { readObject, readPositiveInteger, readUuid } from "../customer/input";
+import { fail } from "../organization/errors";
 import {
   attachmentUploadFields,
   readAttachmentUpload,
 } from "./attachment-files";
+import { readAttachmentListCursor } from "./attachment-list-cursor";
 import { attachmentStorageFromEnv } from "./attachment-storage";
 import {
   cancelCommunicationAttachmentUpload,
@@ -16,6 +18,7 @@ import {
   getCommunicationAttachmentUpload,
   initCommunicationAttachment,
   listCommunicationAttachments,
+  readCommunicationAttachmentDeletion,
   readCommunicationAttachmentImage,
   readLocalCommunicationAttachment,
   writeLocalCommunicationAttachment,
@@ -28,18 +31,23 @@ export const communicationAttachmentRoutes = new Hono<BusinessAccessEnv>();
 
 communicationAttachmentRoutes.get(path, async (c) => {
   const communicationId = readUuid(c.req.param("communicationId"), "沟通 ID");
+  const page = c.req.query("page");
+  const cursor = c.req.query("cursor");
+  if (page !== undefined && cursor !== undefined) {
+    fail(400, "页码与游标不能同时使用。");
+  }
+  const pageSize = readPositiveInteger(
+    c.req.query("pageSize"),
+    "每页条数",
+    20,
+    100
+  );
   const result = await listCommunicationAttachments(
     c.get("businessAccess"),
     communicationId,
-    {
-      page: readPositiveInteger(c.req.query("page"), "页码", 1, 1_000_000),
-      pageSize: readPositiveInteger(
-        c.req.query("pageSize"),
-        "每页条数",
-        20,
-        100
-      ),
-    }
+    page === undefined
+      ? { cursor: readAttachmentListCursor(cursor), pageSize }
+      : { page: readPositiveInteger(page, "页码", 1, 1_000_000), pageSize }
   );
   return c.json(result);
 });
@@ -141,6 +149,16 @@ for (const variant of ["thumbnail", "preview"] as const) {
     );
   });
 }
+
+communicationAttachmentRoutes.get(`${path}/:attachmentId`, async (c) => {
+  c.header("Cache-Control", "private, no-store");
+  const result = await readCommunicationAttachmentDeletion(
+    c.get("businessAccess"),
+    readUuid(c.req.param("communicationId"), "沟通 ID"),
+    readUuid(c.req.param("attachmentId"), "附件 ID")
+  );
+  return c.json(result);
+});
 
 communicationAttachmentRoutes.delete(`${path}/:attachmentId`, async (c) => {
   const communicationId = readUuid(c.req.param("communicationId"), "沟通 ID");

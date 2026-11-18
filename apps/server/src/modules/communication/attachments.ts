@@ -1,5 +1,15 @@
 import { communication, communicationAttachment, user } from "@repo/db/schema";
-import { and, count, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 
 import {
@@ -16,6 +26,10 @@ import { fail } from "../organization/errors";
 import { verifyAttachmentContent } from "./attachment-files";
 import type { AttachmentUploadInput } from "./attachment-files";
 import { attachmentImageResponse } from "./attachment-images";
+import {
+  encodeAttachmentListCursor,
+  type AttachmentListCursor,
+} from "./attachment-list-cursor";
 import { LocalAttachmentSizeError } from "./attachment-local-storage";
 import { attachmentDownloadDisposition } from "./attachment-oss-signing";
 import type { AttachmentStorage } from "./attachment-storage";
@@ -196,25 +210,72 @@ async function publicAttachment(tx: DatabaseTransaction, attachmentId: string) {
   return row;
 }
 
+type AttachmentPagination = {
+  pageSize: number;
+} & ({ page: number } | { cursor: AttachmentListCursor | null });
+
+function afterAttachmentCursor(cursor: AttachmentListCursor | null) {
+  if (!cursor) return undefined;
+  const { id, uploadedAt } = communicationAttachment;
+  if (cursor.uploadedAt === null) {
+    return and(isNull(uploadedAt), lt(id, cursor.id));
+  }
+  return or(
+    isNull(uploadedAt),
+    sql`(${uploadedAt}, ${id}) < (${cursor.uploadedAt}::timestamptz, ${cursor.id}::uuid)`
+  );
+}
+
 /**
  * 查询可用和待清理附件。正在上传的记录不会进入普通列表。
  * @param access 当前账号。
  * @param communicationId 所属沟通 ID。
- * @param page 页码与页大小。
- * @returns 一页附件及总数。
+ * @param pagination 每批大小及排序游标，也支持显式页码。
+ * @returns 游标批次及下一批游标，或兼容旧调用的页码结果。
  * @throws 无权查看沟通时返回 404。
  */
 export function listCommunicationAttachments(
   access: BusinessAccess,
   communicationId: string,
-  { page, pageSize }: { page: number; pageSize: number }
+  pagination: AttachmentPagination
 ) {
+  const { pageSize } = pagination;
   return withBusinessReadSnapshot(access.userId, async (tx, freshAccess) => {
     await requireCommunication(tx, freshAccess, communicationId);
     const where = and(
       eq(communicationAttachment.communicationId, communicationId),
       visibleAttachment
     );
+    if ("cursor" in pagination) {
+      const rows = await tx
+        .select({
+          ...attachmentMetadata,
+          // 直接读取 PostgreSQL 的微秒时间，避免游标经 JS Date 截成毫秒。
+          uploadedAt: sql<
+            string | null
+          >`to_char(${communicationAttachment.uploadedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+        })
+        .from(communicationAttachment)
+        .innerJoin(user, eq(user.id, communicationAttachment.uploaderUserId))
+        .where(and(where, afterAttachmentCursor(pagination.cursor)))
+        .orderBy(
+          sql`${communicationAttachment.uploadedAt} desc nulls last`,
+          desc(communicationAttachment.id)
+        )
+        .limit(pageSize + 1);
+      const attachments = rows.slice(0, pageSize);
+      const last = attachments.at(-1);
+      return {
+        attachments,
+        nextCursor:
+          rows.length > pageSize && last
+            ? encodeAttachmentListCursor(last)
+            : null,
+        pageSize,
+      };
+    }
+
+    const { page } = pagination;
     const [attachments, [total]] = await Promise.all([
       tx
         .select(attachmentMetadata)
@@ -845,6 +906,35 @@ export async function readCommunicationAttachmentImage(
       signal
     )
   );
+}
+
+/**
+ * 核对附件删除结果。附件已归档但存储清理尚未完成时，仍可重试删除。
+ * @param access 当前账号。
+ * @param communicationId 所属沟通 ID。
+ * @param attachmentId 附件 ID。
+ * @returns 尚未归档、待清理或删除完成的状态。
+ * @throws 无权查看沟通或附件不存在时返回 404。
+ */
+export function readCommunicationAttachmentDeletion(
+  access: BusinessAccess,
+  communicationId: string,
+  attachmentId: string
+) {
+  return withBusinessReadSnapshot(access.userId, async (tx, freshAccess) => {
+    await requireCommunication(tx, freshAccess, communicationId);
+    const [attachment] = await tx
+      .select({
+        archivedAt: communicationAttachment.archivedAt,
+        objectDeletedAt: communicationAttachment.objectDeletedAt,
+      })
+      .from(communicationAttachment)
+      .where(attachmentForCommunication(communicationId, attachmentId));
+    if (!attachment) fail(404, "附件不存在。");
+    if (attachment.objectDeletedAt) return { state: "deleted" } as const;
+    if (attachment.archivedAt) return { state: "pending" } as const;
+    return { state: "available" } as const;
+  });
 }
 
 /**
