@@ -55,6 +55,10 @@ function attachmentPath(communicationId: string) {
   return `/api/communications/${encodeURIComponent(communicationId)}/attachments`;
 }
 
+function uploadPath(communicationId: string, uploadClientId: string) {
+  return `${attachmentPath(communicationId)}/uploads/${encodeURIComponent(uploadClientId)}`;
+}
+
 function attachmentApiError(
   status: number,
   body: { message?: unknown; code?: unknown } | null
@@ -120,8 +124,32 @@ export function completeCommunicationAttachment(
   signal?: AbortSignal
 ) {
   return request<{ attachment: Attachment }>(
-    `${attachmentPath(communicationId)}/uploads/${encodeURIComponent(uploadClientId)}/complete`,
+    `${uploadPath(communicationId, uploadClientId)}/complete`,
     { method: "POST", signal }
+  );
+}
+
+/** 完成结果不明确时，确认原上传会话是否已经发布。 */
+export function readCommunicationAttachmentUpload(
+  communicationId: string,
+  uploadClientId: string,
+  signal?: AbortSignal
+) {
+  return request<{ state: "pending" | "ready" | "missing" }>(
+    uploadPath(communicationId, uploadClientId),
+    { cache: "no-store", signal }
+  );
+}
+
+/** 移除未完成的上传。若附件已发布，返回其状态并保留文件。 */
+export function cancelCommunicationAttachmentUpload(
+  communicationId: string,
+  uploadClientId: string,
+  signal?: AbortSignal
+) {
+  return request<{ state: "ready" | "missing" }>(
+    uploadPath(communicationId, uploadClientId),
+    { method: "DELETE", signal }
   );
 }
 

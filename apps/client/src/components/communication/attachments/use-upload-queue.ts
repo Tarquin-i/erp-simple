@@ -1,19 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createUuid } from "@/lib/uuid";
 import { CommunicationApiError } from "@/request/communication";
 import {
+  cancelCommunicationAttachmentUpload,
   completeCommunicationAttachment,
   hashAttachment,
   initCommunicationAttachment,
   putAttachment,
+  readCommunicationAttachmentUpload,
   readAttachmentMimeType,
   validateAttachmentFile,
 } from "@/request/communication-attachments";
 
 import type { AttachmentQueueItem } from "./queue";
 
-type UploadItem = AttachmentQueueItem & { contentSha256?: string };
+type UploadItem = AttachmentQueueItem & {
+  attachmentId?: string;
+  contentSha256?: string;
+  initializationSent?: boolean;
+};
 
 function canRetry(failure: unknown) {
   if (!(failure instanceof CommunicationApiError)) return true;
@@ -25,6 +31,25 @@ function canRetry(failure: unknown) {
   );
 }
 
+/** 响应丢失或返回暂时错误时，以原上传会话的实际保存状态为准。 */
+async function completeUpload(
+  communicationId: string,
+  id: string,
+  signal: AbortSignal
+) {
+  try {
+    await completeCommunicationAttachment(communicationId, id, signal);
+  } catch (failure) {
+    if (signal.aborted || !canRetry(failure)) throw failure;
+    const upload = await readCommunicationAttachmentUpload(
+      communicationId,
+      id,
+      signal
+    ).catch(() => null);
+    if (upload?.state !== "ready") throw failure;
+  }
+}
+
 /** 持有当前页面的文件草稿，重试时沿用原上传 ID 和已计算的摘要。 */
 export function useAttachmentUploadQueue() {
   const itemsRef = useRef<UploadItem[]>([]);
@@ -34,10 +59,10 @@ export function useAttachmentUploadQueue() {
 
   useEffect(() => () => active.current?.abort(), []);
 
-  function setQueue(next: UploadItem[]) {
+  const setQueue = useCallback((next: UploadItem[]) => {
     itemsRef.current = next;
     setItems(next);
-  }
+  }, []);
 
   function update(id: string, changes: Partial<UploadItem>) {
     setQueue(
@@ -61,9 +86,49 @@ export function useAttachmentUploadQueue() {
     ]);
   }
 
-  function remove(id: string) {
+  /** 移除本地草稿，或通过原上传 ID 清理后端未完成的文件。 */
+  async function remove(id: string, communicationId?: string) {
     if (active.current) return;
-    setQueue(itemsRef.current.filter((item) => item.id !== id));
+    const item = itemsRef.current.find((file) => file.id === id);
+    if (!item || !["queued", "failed", "remove-failed"].includes(item.status))
+      return;
+    if (!item.initializationSent || !communicationId) {
+      setQueue(itemsRef.current.filter((file) => file.id !== id));
+      return "removed" as const;
+    }
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    active.current = controller;
+    setBusy(true);
+    update(id, { status: "removing", error: undefined, progress: undefined });
+    try {
+      const upload = await cancelCommunicationAttachmentUpload(
+        communicationId,
+        id,
+        signal
+      );
+      signal.throwIfAborted();
+      if (upload.state === "ready") {
+        update(id, { status: "succeeded" });
+        return "ready" as const;
+      }
+      setQueue(itemsRef.current.filter((file) => file.id !== id));
+      return "removed" as const;
+    } catch (failure) {
+      if (!signal.aborted) {
+        update(id, {
+          status: "remove-failed",
+          error:
+            failure instanceof Error
+              ? failure.message
+              : "移除附件失败，请重试。",
+        });
+      }
+    } finally {
+      active.current = null;
+      if (!signal.aborted) setBusy(false);
+    }
   }
 
   /** 新文件逐个提交。单个失败会留在队列，其余文件继续上传。 */
@@ -96,18 +161,21 @@ export function useAttachmentUploadQueue() {
           const contentSha256 =
             item.contentSha256 ?? (await hashAttachment(file, signal));
           signal.throwIfAborted();
-          update(id, { contentSha256 });
-          const { upload: request } = await initCommunicationAttachment(
-            communicationId,
-            {
-              fileName: file.name,
-              fileSize: file.size,
-              mimeType,
-              contentSha256,
-              uploadClientId: id,
-            },
-            signal
-          );
+          update(id, { contentSha256, initializationSent: true });
+          const { attachmentId, upload: request } =
+            await initCommunicationAttachment(
+              communicationId,
+              {
+                fileName: file.name,
+                fileSize: file.size,
+                mimeType,
+                contentSha256,
+                uploadClientId: id,
+              },
+              signal
+            );
+          signal.throwIfAborted();
+          update(id, { attachmentId });
           if (request) {
             update(id, { status: "uploading", progress: 0 });
             await putAttachment(request, file, signal, (progress) => {
@@ -116,7 +184,7 @@ export function useAttachmentUploadQueue() {
           }
           signal.throwIfAborted();
           update(id, { status: "completing" });
-          await completeCommunicationAttachment(communicationId, id, signal);
+          await completeUpload(communicationId, id, signal);
           signal.throwIfAborted();
           update(id, { status: "succeeded" });
         } catch (failure) {
@@ -137,9 +205,24 @@ export function useAttachmentUploadQueue() {
     }
   }
 
-  function clearCompleted() {
-    setQueue(itemsRef.current.filter((item) => item.status !== "succeeded"));
-  }
+  const clearCompleted = useCallback(
+    (listedIds?: ReadonlySet<string>) => {
+      const previous = itemsRef.current;
+      const remaining = previous.filter((item) => {
+        if (item.status === "succeeded") return false;
+        // 完成还在收尾或状态核对暂不可用时，列表里的正式附件也是已保存的证据。
+        return !(
+          (item.status === "failed" || item.status === "remove-failed") &&
+          item.attachmentId &&
+          listedIds?.has(item.attachmentId)
+        );
+      });
+      if (remaining.length === previous.length) return false;
+      setQueue(remaining);
+      return true;
+    },
+    [setQueue]
+  );
 
   return { items, busy, add, remove, upload, clearCompleted };
 }

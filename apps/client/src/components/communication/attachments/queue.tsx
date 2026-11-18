@@ -10,7 +10,9 @@ type AttachmentQueueStatus =
   | "uploading"
   | "completing"
   | "succeeded"
-  | "failed";
+  | "failed"
+  | "removing"
+  | "remove-failed";
 
 export type AttachmentQueueItem = {
   id: string;
@@ -35,6 +37,8 @@ const statusLabels: Record<AttachmentQueueStatus, string> = {
   completing: "正在确认",
   succeeded: "已上传",
   failed: "上传失败",
+  removing: "正在移除",
+  "remove-failed": "移除失败",
 };
 
 const fileSizeFormat = new Intl.NumberFormat("zh-CN", {
@@ -66,7 +70,11 @@ export function AttachmentQueue({
             : Math.min(100, Math.max(0, Math.round(progress)));
         const canRetry = onRetry && status === "failed" && retryable !== false;
         const canRemove =
-          onRemove && (status === "queued" || status === "failed");
+          onRemove &&
+          (status === "queued" ||
+            status === "failed" ||
+            status === "remove-failed");
+        const removeLabel = status === "remove-failed" ? "重试移除" : "移除";
         return (
           <li key={id} className="flex gap-3 px-3 py-2.5">
             <Paperclip
@@ -83,7 +91,11 @@ export function AttachmentQueue({
                 </span>
                 <Badge
                   role="status"
-                  variant={status === "failed" ? "destructive" : "secondary"}
+                  variant={
+                    status === "failed" || status === "remove-failed"
+                      ? "destructive"
+                      : "secondary"
+                  }
                 >
                   {statusLabels[status]}
                 </Badge>
@@ -124,11 +136,11 @@ export function AttachmentQueue({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    aria-label={`移除 ${file.name}`}
+                    aria-label={`${removeLabel} ${file.name}`}
                     disabled={disabled}
                     onClick={() => onRemove(id)}
                   >
-                    移除
+                    {removeLabel}
                   </Button>
                 )}
               </div>

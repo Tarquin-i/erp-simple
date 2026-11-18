@@ -60,6 +60,7 @@ export function CommunicationAttachmentsTab({
   communicationId: string;
 }) {
   const uploads = useAttachmentUploadQueue();
+  const { clearCompleted } = uploads;
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<AttachmentListResult>();
@@ -74,6 +75,7 @@ export function CommunicationAttachmentsTab({
   const [deleteTarget, setDeleteTarget] = useState<Attachment>();
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [uploadMessage, setUploadMessage] = useState("");
   const downloadRequests = useRef(new Map<string, AbortController>());
   const deleteRequest = useRef<AbortController | null>(null);
   const mounted = useRef(true);
@@ -99,8 +101,17 @@ export function CommunicationAttachmentsTab({
       (next) => {
         if (controller.signal.aborted) return;
         const lastPage = Math.max(1, Math.ceil(next.total / next.pageSize));
-        if (page > lastPage) setPage(lastPage);
-        else setResult(next);
+        if (page > lastPage) {
+          setPage(lastPage);
+          return;
+        }
+        const readyIds = new Set(
+          next.attachments
+            .filter((item) => !item.deletionPending)
+            .map(({ id }) => id)
+        );
+        if (clearCompleted(readyIds)) setUploadMessage("附件上传成功。");
+        setResult(next);
       },
       (failure: unknown) => {
         if (!controller.signal.aborted) {
@@ -113,17 +124,30 @@ export function CommunicationAttachmentsTab({
       }
     );
     return () => controller.abort();
-  }, [communicationId, page, revision]);
+  }, [communicationId, page, revision, clearCompleted]);
 
   function refresh() {
     setRevision((previous) => previous + 1);
   }
 
   async function upload(retryId?: string) {
-    await uploads.upload(communicationId, retryId);
+    setUploadMessage("");
+    const succeeded = await uploads.upload(communicationId, retryId);
     if (!mounted.current) return;
-    uploads.clearCompleted();
+    clearCompleted();
+    if (succeeded) setUploadMessage("附件上传成功。");
     setPage(1);
+    refresh();
+  }
+
+  async function removeUpload(id: string) {
+    setUploadMessage("");
+    const result = await uploads.remove(id, communicationId);
+    if (!mounted.current || !result) return;
+    if (result === "ready") {
+      clearCompleted();
+      setUploadMessage("附件已上传成功，已保留。");
+    }
     refresh();
   }
 
@@ -222,8 +246,13 @@ export function CommunicationAttachmentsTab({
         items={uploads.items}
         disabled={uploads.busy || inaccessible}
         onRetry={(id) => void upload(id)}
-        onRemove={uploads.remove}
+        onRemove={(id) => void removeUpload(id)}
       />
+      {uploadMessage && (
+        <p className="text-sm text-muted-foreground" role="status">
+          {uploadMessage}
+        </p>
+      )}
       {downloadError && (
         <div className="flex flex-wrap items-center gap-2">
           <FieldError>{downloadError.message}</FieldError>
