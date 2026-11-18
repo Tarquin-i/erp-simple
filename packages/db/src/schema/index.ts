@@ -1,5 +1,6 @@
 export * from "./auth";
 export * from "./communication";
+export * from "./communication-attachment";
 export * from "./customer";
 export * from "./customer-contact";
 export * from "./department-access";
