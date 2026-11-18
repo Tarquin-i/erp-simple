@@ -1,3 +1,15 @@
+import { existsSync, realpathSync } from "node:fs";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
+
+import { createLocalAttachmentStorage } from "./attachment-local-storage";
 import {
   attachmentDownloadDisposition,
   presignAttachmentOssUrl,
@@ -231,6 +243,7 @@ export function createAttachmentStorage(
   }
 
   return {
+    kind: "oss" as const,
     createSingleUploadRequest(
       storageKey: string,
       fileSize: number,
@@ -323,19 +336,67 @@ export function createAttachmentStorage(
   };
 }
 
-export type AttachmentStorage = ReturnType<typeof createAttachmentStorage>;
+export type AttachmentStorage =
+  | ReturnType<typeof createAttachmentStorage>
+  | ReturnType<typeof createLocalAttachmentStorage>;
+
+const sourceWorkspace = resolve(import.meta.dir, "../../../../..");
+const developmentWorkspace = [sourceWorkspace, process.cwd()].find((root) =>
+  existsSync(join(root, "apps/client/vite.config.ts"))
+);
+
+function realDirectoryPath(directory: string): string {
+  try {
+    return realpathSync(directory);
+  } catch (error) {
+    const parent = dirname(directory);
+    if (
+      (error as NodeJS.ErrnoException).code !== "ENOENT" ||
+      parent === directory
+    ) {
+      throw error;
+    }
+    return join(realDirectoryPath(parent), basename(directory));
+  }
+}
+
+function localStorageDirectory(value: string) {
+  const directory = resolve(value);
+  if (!developmentWorkspace) return directory;
+
+  // Vite 默认允许读取整个工作区，附件目录必须在该范围之外。
+  const root = realpathSync(developmentWorkspace);
+  const within = (rootPath: string, filePath: string) => {
+    const path = relative(rootPath, filePath);
+    return path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
+  };
+  if (
+    within(developmentWorkspace, directory) ||
+    within(root, realDirectoryPath(directory))
+  ) {
+    throw new AttachmentStorageError("本地附件目录必须位于开发工作区之外。");
+  }
+  return directory;
+}
 
 /**
  * 在真正需要访问附件存储时读取后端配置。
- * @returns 使用当前环境中 OSS 凭据构建的存储适配器。
- * @throws 缺少任意一项 OSS 配置时抛出不包含配置值的错误。
+ * @returns 当前模式的存储适配器，未指定模式时沿用 OSS。
+ * @throws 模式未知或缺少所选模式的配置时抛出不包含配置值的错误。
  */
-export function attachmentStorageFromEnv() {
+export function attachmentStorageFromEnv(): AttachmentStorage {
   const read = (name: string) => {
     const value = process.env[name]?.trim();
     if (!value) throw new AttachmentStorageError(`缺少附件存储配置 ${name}。`);
     return value;
   };
+  const mode = process.env.COMMUNICATION_ATTACHMENT_STORAGE?.trim() || "oss";
+  if (mode === "local") {
+    return createLocalAttachmentStorage(
+      localStorageDirectory(read("COMMUNICATION_ATTACHMENT_LOCAL_DIR"))
+    );
+  }
+  if (mode !== "oss") throw new AttachmentStorageError("附件存储模式无效。");
   return createAttachmentStorage({
     accessKeyId: read("OSS_ACCESS_KEY_ID"),
     accessKeySecret: read("OSS_ACCESS_KEY_SECRET"),
