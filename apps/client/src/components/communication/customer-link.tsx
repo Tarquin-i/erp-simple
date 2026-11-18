@@ -15,16 +15,18 @@ import { Button } from "@/components/ui/button";
 export function CommunicationCustomerLink({
   customer,
   showNumber = false,
+  className = "wrap-anywhere underline-offset-4 hover:underline",
 }: {
   customer?: { id: string; companyName: string; customerNo?: string } | null;
   showNumber?: boolean;
+  className?: string;
 }) {
   if (customer) {
     return (
       <Link
         to="/customers/$customerId"
         params={{ customerId: customer.id }}
-        className="wrap-anywhere underline-offset-4 hover:underline"
+        className={className}
       >
         {customer.companyName}
         {showNumber && customer.customerNo && (

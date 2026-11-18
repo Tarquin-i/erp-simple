@@ -86,9 +86,10 @@ export function CustomerDetail({
   activeTab: CustomerDetailTab;
   onTabChange: (tab: CustomerDetailTab) => void;
 }) {
-  // 联系方式组件通过此插槽将新建按钮放在页签栏右侧。
-  const [contactAddButtonSlot, setContactAddButtonSlot] =
-    useState<HTMLDivElement | null>(null);
+  // 联系方式和沟通记录共用页签栏右侧的新建位置。
+  const [tabActionsSlot, setTabActionsSlot] = useState<HTMLDivElement | null>(
+    null
+  );
   // 鼠标点击仅显示选中样式，键盘操作时保留焦点提示。
   const [pointerFocus, setPointerFocus] = useState(false);
   const tabTriggerClass = `min-w-[88px] focus-visible:border-transparent focus-visible:ring-0 ${pointerFocus ? "focus-visible:outline-none" : "focus-visible:outline-2 focus-visible:outline-offset-1"}`;
@@ -190,20 +191,23 @@ export function CustomerDetail({
             </TabsList>
           </div>
           <div
-            ref={setContactAddButtonSlot}
+            ref={setTabActionsSlot}
             className="ml-auto shrink-0 empty:hidden"
           />
         </div>
         <TabsContent value="contacts">
           <CustomerContacts
             customerId={customer.id}
-            addButtonSlot={contactAddButtonSlot}
+            addButtonSlot={tabActionsSlot}
           />
         </TabsContent>
         {relatedTabs.map((tab) => (
           <TabsContent key={tab.value} value={tab.value}>
             {tab.value === "communication" ? (
-              <CustomerCommunicationTab customerId={customer.id} />
+              <CustomerCommunicationTab
+                customerId={customer.id}
+                createActionSlot={tabActionsSlot}
+              />
             ) : (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 待开发

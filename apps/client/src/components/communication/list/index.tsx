@@ -21,6 +21,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { readListQueryFromState } from "@/components/customers/list-query";
 import { CustomerPagination } from "@/components/customers/pagination";
@@ -80,20 +81,26 @@ type ListState = {
 
 const defaultColumns = ["主题", "客户", "标签", "状态", "业务员", "最近更新"];
 const customerColumns = defaultColumns.filter((name) => name !== "客户");
+// 用可见文本盒绘制下划线，让省略号也被覆盖。
+const listLinkClassName =
+  "block w-fit max-w-full truncate bg-size-[100%_1px] bg-bottom bg-no-repeat outline-none hover:bg-[linear-gradient(currentColor,currentColor)] focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring";
 const pendingCreationLabel = "处理待确认提交";
 const noPendingCreation = () => false;
 
-/** 在客户详情中查询当前客户的沟通，复用独立列表的筛选、分页和新建入口。 */
+/** 在客户详情中展示当前客户的沟通和分页，并把新建入口放到页签栏。 */
 export function CustomerCommunicationTab({
   customerId,
+  createActionSlot,
 }: {
   customerId: string;
+  createActionSlot: HTMLDivElement | null;
 }) {
   const [query, setQuery] = useState<CommunicationListQuery>({});
   return (
     <CommunicationList
       canCreate
       customerId={customerId}
+      createActionSlot={createActionSlot}
       query={query}
       onQueryChange={setQuery}
     />
@@ -104,11 +111,13 @@ export function CustomerCommunicationTab({
 export function CommunicationList({
   canCreate,
   customerId,
+  createActionSlot,
   query,
   onQueryChange,
 }: {
   canCreate: boolean;
   customerId?: string;
+  createActionSlot?: HTMLDivElement | null;
   query: CommunicationListQuery;
   onQueryChange: (update: QueryUpdater, replace?: boolean) => void;
 }) {
@@ -254,105 +263,114 @@ export function CommunicationList({
     }
   }
 
+  const createButtonClass = customerId ? "h-8 px-3" : "h-10 px-4";
+  const createAction =
+    canCreate &&
+    (opening || hasPending ? (
+      <Button
+        type="button"
+        className={createButtonClass}
+        aria-busy={opening}
+        disabled={opening}
+        onClick={() => void openPendingCreation()}
+      >
+        {opening ? (
+          <LoaderCircle
+            className="motion-safe:animate-spin"
+            data-icon="inline-start"
+          />
+        ) : (
+          <Clock data-icon="inline-start" />
+        )}
+        {opening ? "正在等待保存结果…" : pendingCreationLabel}
+      </Button>
+    ) : (
+      <Button asChild className={createButtonClass}>
+        <Link
+          aria-label="新建沟通"
+          to="/communication/new"
+          search={origin}
+          state={navigationState}
+        >
+          <Plus data-icon="inline-start" />
+          新建
+        </Link>
+      </Button>
+    ));
+
   return (
     <section aria-label={customerId ? "客户沟通记录" : "沟通记录"}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        {!customerId && (
+      {customerId ? (
+        createActionSlot && createPortal(createAction, createActionSlot)
+      ) : (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-[22px] leading-tight font-semibold tracking-tight">
             沟通
           </h1>
-        )}
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <CommunicationSearch
-            search={query.search ?? ""}
-            onSearch={submitSearch}
-          />
-          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                className="h-10 gap-2 px-4"
-                variant={filterCount ? "secondary" : "outline"}
-                aria-label={
-                  filterCount ? `筛选，已应用 ${filterCount} 项` : "筛选"
-                }
-              >
-                <Filter data-icon="inline-start" />
-                筛选
-                {filterCount > 0 && (
-                  <Badge variant="outline" className="size-5 p-0 tabular-nums">
-                    {filterCount}
-                  </Badge>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              sideOffset={8}
-              aria-label="沟通筛选"
-              className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
-            >
-              {filterOpen && (
-                <CommunicationListFilters
-                  filters={{
-                    status: query.status,
-                    tagId: query.tagId,
-                    ownerUserId: query.ownerUserId,
-                  }}
-                  selectedTag={selectedTag}
-                  onApply={({ status, tagId, ownerUserId }) => {
-                    setFilterOpen(false);
-                    if (
-                      status === query.status &&
-                      tagId === query.tagId &&
-                      ownerUserId === query.ownerUserId
-                    )
-                      return;
-                    onQueryChange((previous) => ({
-                      ...previous,
-                      status,
-                      tagId,
-                      ownerUserId,
-                      page: undefined,
-                    }));
-                  }}
-                />
-              )}
-            </PopoverContent>
-          </Popover>
-          {canCreate &&
-            (opening || hasPending ? (
-              <Button
-                type="button"
-                className="h-10 px-4"
-                aria-busy={opening}
-                disabled={opening}
-                onClick={() => void openPendingCreation()}
-              >
-                {opening ? (
-                  <LoaderCircle
-                    className="motion-safe:animate-spin"
-                    data-icon="inline-start"
-                  />
-                ) : (
-                  <Clock data-icon="inline-start" />
-                )}
-                {opening ? "正在等待保存结果…" : pendingCreationLabel}
-              </Button>
-            ) : (
-              <Button asChild className="h-10 px-4">
-                <Link
-                  aria-label="新建沟通"
-                  to="/communication/new"
-                  search={origin}
-                  state={navigationState}
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <CommunicationSearch
+              search={query.search ?? ""}
+              onSearch={submitSearch}
+            />
+            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  className="h-10 gap-2 px-4"
+                  variant={filterCount ? "secondary" : "outline"}
+                  aria-label={
+                    filterCount ? `筛选，已应用 ${filterCount} 项` : "筛选"
+                  }
                 >
-                  <Plus data-icon="inline-start" />
-                  新建
-                </Link>
-              </Button>
-            ))}
+                  <Filter data-icon="inline-start" />
+                  筛选
+                  {filterCount > 0 && (
+                    <Badge
+                      variant="outline"
+                      className="size-5 p-0 tabular-nums"
+                    >
+                      {filterCount}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                sideOffset={8}
+                aria-label="沟通筛选"
+                className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
+              >
+                {filterOpen && (
+                  <CommunicationListFilters
+                    filters={{
+                      status: query.status,
+                      tagId: query.tagId,
+                      ownerUserId: query.ownerUserId,
+                    }}
+                    selectedTag={selectedTag}
+                    onApply={({ status, tagId, ownerUserId }) => {
+                      setFilterOpen(false);
+                      if (
+                        status === query.status &&
+                        tagId === query.tagId &&
+                        ownerUserId === query.ownerUserId
+                      )
+                        return;
+                      onQueryChange((previous) => ({
+                        ...previous,
+                        status,
+                        tagId,
+                        ownerUserId,
+                        page: undefined,
+                      }));
+                    }}
+                  />
+                )}
+              </PopoverContent>
+            </Popover>
+            {createAction}
+          </div>
         </div>
-      </div>
+      )}
       {creationError && (
         <FieldError className="mb-4">{creationError}</FieldError>
       )}
@@ -397,13 +415,15 @@ export function CommunicationList({
               <MessagesSquare />
             </EmptyMedia>
             <EmptyTitle className="text-xl font-semibold">
-              没有找到符合条件的沟通记录
+              {customerId ? "暂无沟通记录" : "没有找到符合条件的沟通记录"}
             </EmptyTitle>
-            <EmptyDescription>
-              {canCreate && !hasPending
-                ? "新建，或者修改你的筛选条件。"
-                : "试试修改你的筛选条件。"}
-            </EmptyDescription>
+            {!customerId && (
+              <EmptyDescription>
+                {canCreate && !hasPending
+                  ? "新建，或者修改你的筛选条件。"
+                  : "试试修改你的筛选条件。"}
+              </EmptyDescription>
+            )}
           </EmptyHeader>
         </Empty>
       ) : (
@@ -441,7 +461,7 @@ export function CommunicationList({
                     <Link
                       {...destination}
                       preload={false}
-                      className="block w-fit max-w-full truncate rounded-sm underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                      className={listLinkClassName}
                       title={communication.title}
                     >
                       {communication.title}
@@ -450,6 +470,7 @@ export function CommunicationList({
                   {!customerId && (
                     <TableCell className="max-w-0 truncate px-2.5">
                       <CommunicationCustomerLink
+                        className={listLinkClassName}
                         customer={
                           communication.canViewCustomer
                             ? communication.customer
