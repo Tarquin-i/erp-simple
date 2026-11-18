@@ -4,6 +4,7 @@ import {
   count,
   desc,
   eq,
+  inArray,
   isNotNull,
   isNull,
   lt,
@@ -32,6 +33,7 @@ import {
 } from "./attachment-list-cursor";
 import { LocalAttachmentSizeError } from "./attachment-local-storage";
 import { attachmentDownloadDisposition } from "./attachment-oss-signing";
+import { attachmentStorageFromEnv } from "./attachment-storage";
 import type { AttachmentStorage } from "./attachment-storage";
 
 type Attachment = typeof communicationAttachment.$inferSelect;
@@ -42,10 +44,7 @@ const activeHashConstraint = "communication_attachment_active_sha256_unique";
 const maxLocalUploadBytes = 128 * 1024 ** 2;
 const visibleAttachment = and(
   isNull(communicationAttachment.objectDeletedAt),
-  or(
-    eq(communicationAttachment.uploadState, "ready"),
-    isNotNull(communicationAttachment.archivedAt)
-  )
+  eq(communicationAttachment.uploadState, "ready")
 );
 const attachmentMetadata = {
   id: communicationAttachment.id,
@@ -608,6 +607,85 @@ async function cleanupArchived(row: Attachment, storage: AttachmentStorage) {
         isNull(communicationAttachment.objectDeletedAt)
       )
     );
+}
+
+/**
+ * 回收已创建超过 24 小时的本地未完成上传，每次最多处理 100 条。
+ * @param getStorage 创建当前的本地附件存储适配器。
+ * @returns 本批回收结束，单条清理失败时保留记录供下次重试。
+ * @throws 存储配置无效或数据库查询失败时抛出异常。
+ */
+export async function cleanupExpiredAttachmentUploads(getStorage: GetStorage) {
+  const storage = requireLocalStorage(getStorage);
+  const expired = await database.db.transaction(async (tx) => {
+    const rows = await tx
+      .select()
+      .from(communicationAttachment)
+      .where(
+        and(
+          sql`${communicationAttachment.uploadState} = 'pending'`,
+          isNull(communicationAttachment.objectDeletedAt),
+          lt(
+            communicationAttachment.createdAt,
+            sql`now() - interval '24 hours'`
+          )
+        )
+      )
+      .orderBy(communicationAttachment.createdAt, communicationAttachment.id)
+      .limit(100)
+      .for("update", { skipLocked: true });
+
+    // 完成上传也锁定同一行。先归档才能删文件，已发布的行不会被选中。
+    const pendingIds = rows
+      .filter((row) => !row.archivedAt)
+      .map((row) => row.id);
+    if (pendingIds.length) {
+      await tx
+        .update(communicationAttachment)
+        .set({
+          archivedAt: sql`now()`,
+          archivedByUserId: communicationAttachment.uploaderUserId,
+        })
+        .where(inArray(communicationAttachment.id, pendingIds));
+    }
+    return rows;
+  });
+
+  for (const row of expired) {
+    await cleanupArchived(row, storage).catch(() => {
+      console.warn("回收过期的沟通附件上传失败，下次将重试。", row.id);
+    });
+  }
+}
+
+const cleanupTimerMs = 15 * 60 * 1000;
+const cleanupRuntime = globalThis as typeof globalThis & {
+  communicationAttachmentCleanupTimer?: ReturnType<typeof setInterval>;
+};
+
+/** 启动本地附件过期回收，服务启动时立即执行，之后每 15 分钟一次。 */
+export function startAttachmentUploadCleanup() {
+  clearInterval(cleanupRuntime.communicationAttachmentCleanupTimer);
+  if (process.env.COMMUNICATION_ATTACHMENT_STORAGE?.trim() !== "local") return;
+
+  let running = false;
+  async function runCleanup() {
+    if (running) return;
+    running = true;
+    try {
+      await cleanupExpiredAttachmentUploads(attachmentStorageFromEnv);
+    } catch {
+      console.warn("无法执行沟通附件上传过期回收，下次将重试。");
+    } finally {
+      running = false;
+    }
+  }
+
+  void runCleanup();
+  cleanupRuntime.communicationAttachmentCleanupTimer = setInterval(
+    runCleanup,
+    cleanupTimerMs
+  ).unref();
 }
 
 /**

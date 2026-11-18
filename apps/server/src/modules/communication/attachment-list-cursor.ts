@@ -32,7 +32,7 @@ function isUtcTimestamp(value: unknown): value is string {
 /**
  * 将附件列表游标还原为排序键，保留数据库时间的微秒位。
  * @param cursor 请求中的 Base64URL 游标，省略表示首批。
- * @returns 附件 ID 和上传时间，空时间对应待清理的未完成上传。
+ * @returns 附件 ID 和上传时间，兼容上传时间为空的旧游标。
  * @throws 游标格式或时间无效时返回 400。
  */
 export function readAttachmentListCursor(cursor: string | undefined) {

@@ -88,6 +88,11 @@ export const communicationAttachment = pgTable(
       table.uploadedAt,
       table.id
     ),
+    index("communication_attachment_pending_cleanup_idx")
+      .on(table.createdAt, table.id)
+      .where(
+        sql`${table.uploadState} = 'pending' and ${table.objectDeletedAt} is null`
+      ),
     check(
       "communication_attachment_storage_key_check",
       sql`${table.storageKey} = left(${table.uploadClientId}::text, 2) || '/' || ${table.communicationId}::text || '/' || ${table.uploadClientId}::text`

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { startAttachmentUploadCleanup } from "./modules/communication/attachments";
 import { communicationRoutes } from "./modules/communication/routes";
 import { customerRoutes } from "./modules/customer/routes";
 import { auth, database } from "./modules/identity/auth/better-auth";
@@ -23,6 +24,8 @@ try {
   await database.close();
   throw new Error("Could not connect to PostgreSQL", { cause: error });
 }
+
+startAttachmentUploadCleanup();
 
 const server = {
   port: Number(process.env.SERVER_PORT || 4201),
