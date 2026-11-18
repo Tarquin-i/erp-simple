@@ -3,10 +3,12 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema/index.ts"
+    "./schema": "./src/schema/index.ts",
+    "./local": "./src/local-database.ts"
   },
   "scripts": {
-    "db:push": "bun src/push.ts",
+    "db:push": "bun --no-env-file src/scripts/sync-database.ts",
+    "db:reset": "bun --no-env-file src/scripts/reset-local-database.ts",
     "db:studio": "drizzle-kit studio",
     "check-types": "tsc -p tsconfig.json --noEmit"
   },

@@ -5,6 +5,7 @@
     "auth:init-admin": "bun run --cwd apps/server auth:init-admin",
     "build": "turbo run build",
     "db:push": "turbo run db:push --filter=@repo/db",
+    "db:reset": "turbo run db:reset --filter=@repo/db",
     "db:studio": "turbo run db:studio --filter=@repo/db",
     "dev": "turbo run dev",
     "dev:server": "turbo run dev --filter=server",

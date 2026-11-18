@@ -5,7 +5,24 @@
     "db:push": {
       "cache": false,
       "outputs": [],
-      "passThroughEnv": ["DATABASE_URL"]
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "NODE_ENV",
+        "APP_ENV",
+        "VERCEL_ENV",
+        "ENVIRONMENT"
+      ]
+    },
+    "db:reset": {
+      "cache": false,
+      "outputs": [],
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "NODE_ENV",
+        "APP_ENV",
+        "VERCEL_ENV",
+        "ENVIRONMENT"
+      ]
     },
     "db:studio": {
       "cache": false,

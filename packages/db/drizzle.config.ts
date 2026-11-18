@@ -1,11 +1,8 @@
-import { existsSync } from "node:fs";
 import { defineConfig } from "drizzle-kit";
 
-const serverEnvFile = "../../apps/server/.env";
-// 优先使用环境中已有的 DATABASE_URL，缺失时从后端 .env 读取。
-if (!process.env.DATABASE_URL && existsSync(serverEnvFile)) {
-  process.loadEnvFile?.(serverEnvFile);
-}
+import { loadDatabaseEnv } from "./src/local-database";
+
+loadDatabaseEnv();
 
 export default defineConfig({
   out: "./drizzle",
