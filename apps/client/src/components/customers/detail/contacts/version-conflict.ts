@@ -5,13 +5,15 @@ import type {
 } from "@/request/customers";
 
 import { contactMethodLabels } from "./method-labels";
-import { contactValueError } from "./method-value";
+import { contactValueError, sameContactValue } from "./method-value";
 import type { ContactChange } from "./mutations";
 
 export type ContactConflict = {
   change: Exclude<ContactChange, { kind: "create" }>;
   latest: CustomerContact;
   primaryAlreadyApplied?: boolean;
+  phoneValueAlreadyApplied?: boolean;
+  rebasedPhoneValue?: string;
 };
 
 /**
@@ -84,6 +86,7 @@ export function conflictDifferences({
   change,
   latest,
   primaryAlreadyApplied,
+  phoneValueAlreadyApplied,
 }: ContactConflict) {
   const primary = latest.methods.find((method) => method.isPrimary);
   // 服务端已经按主要项、创建时间和 ID 排序，递补时取首条其他记录。
@@ -155,7 +158,15 @@ export function conflictDifferences({
               ? "保留当前方式"
               : contactMethodLabels[change.fields.type],
         });
-      if (change.fields.value !== undefined || current.value !== original.value)
+      if (
+        !phoneValueAlreadyApplied &&
+        (change.fields.value !== undefined ||
+          !sameContactValue(
+            current.type === original.type ? current.type : "",
+            current.value,
+            original.value
+          ))
+      )
         differences.push({
           label: "联系信息",
           current: current.value,

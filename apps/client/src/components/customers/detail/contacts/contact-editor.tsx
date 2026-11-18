@@ -1,13 +1,21 @@
-import { type FormEvent, type Ref, useEffect, useId, useState } from "react";
+import {
+  type CountryCode,
+  DEFAULT_PHONE_COUNTRY,
+  getCountryCallingCode,
+  normalizeMobilePhone,
+} from "@repo/phone";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  type Ref,
+  useEffect,
+  useId,
+  useState,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -32,8 +40,13 @@ import type {
 } from "@/request/customers";
 
 import { contactMethodLabels } from "./method-labels";
-import { contactValueError } from "./method-value";
+import {
+  contactValueError,
+  isPhoneMethod,
+  sameContactValue,
+} from "./method-value";
 import type { ContactChange } from "./mutations";
+import { PhoneNumberInput, readPhoneDraft } from "./phone-number-input";
 
 export type ContactEditorMode =
   | { kind: "add"; contacts: CustomerContact[]; selectedContactId?: string }
@@ -66,6 +79,8 @@ export function CustomerContactEditor({
   mode,
   latestContact,
   primaryAlreadyApplied,
+  phoneValueAlreadyApplied,
+  rebasedPhoneValue,
   inputRef,
   pending,
   locked,
@@ -76,6 +91,8 @@ export function CustomerContactEditor({
   mode: ContactEditorMode;
   latestContact?: CustomerContact;
   primaryAlreadyApplied?: boolean;
+  phoneValueAlreadyApplied?: boolean;
+  rebasedPhoneValue?: string;
   inputRef: Ref<HTMLInputElement>;
   pending: boolean;
   locked: boolean;
@@ -97,6 +114,7 @@ export function CustomerContactEditor({
     CustomerContactMethodType | ""
   >();
   const [valueOverride, setValueOverride] = useState<string>();
+  const [countryOverride, setCountryOverride] = useState<CountryCode>();
   const [primaryOverride, setPrimaryOverride] = useState<boolean>();
   const [validation, setValidation] = useState("");
 
@@ -111,6 +129,27 @@ export function CustomerContactEditor({
       : undefined;
   const type = typeOverride ?? currentMethod?.type ?? "";
   const value = valueOverride ?? currentMethod?.value ?? "";
+  const phone = isPhoneMethod(type);
+  const savedCountry =
+    currentMethod && isPhoneMethod(currentMethod.type)
+      ? (readPhoneDraft(currentMethod.value, DEFAULT_PHONE_COUNTRY).number
+          ?.country ?? DEFAULT_PHONE_COUNTRY)
+      : DEFAULT_PHONE_COUNTRY;
+  const phoneInputCountry =
+    (valueOverride !== undefined && countryOverride) || savedCountry;
+  const phoneDraft = phone
+    ? readPhoneDraft(value, phoneInputCountry)
+    : undefined;
+  const phoneCountry = phoneDraft?.number?.country ?? phoneInputCountry;
+  const canonicalPhone = phone
+    ? normalizeMobilePhone(value, phoneInputCountry)
+    : undefined;
+  // 同一号码的本地写法和国际写法不会产生额外的编辑或版本变化。
+  const valueMatchesCurrent =
+    phone && type === currentMethod?.type && canonicalPhone
+      ? sameContactValue(type, canonicalPhone, currentMethod.value)
+      : value.trim() === currentMethod?.value &&
+        (!phone || phoneCountry === savedCountry);
   const currentPrimary = currentMethod?.isPrimary;
   const isPrimary = primaryOverride ?? currentPrimary ?? false;
   const showName = mode.kind === "rename" || !selected;
@@ -123,8 +162,7 @@ export function CustomerContactEditor({
     mode.kind !== "edit" || (selected?.methods.length ?? 0) > 1;
   const typeChanged =
     typeOverride !== undefined && type !== currentMethod?.type;
-  const valueChanged =
-    valueOverride !== undefined && value.trim() !== currentMethod?.value;
+  const valueChanged = valueOverride !== undefined && !valueMatchesCurrent;
   const primaryChanged =
     canChangePrimary &&
     primaryOverride !== undefined &&
@@ -141,12 +179,28 @@ export function CustomerContactEditor({
   }, [canChangePrimary, currentPrimary, primaryOverride]);
 
   useEffect(() => {
-    if (!primaryAlreadyApplied || !currentMethod) return;
+    if (rebasedPhoneValue !== undefined) setValueOverride(rebasedPhoneValue);
+  }, [rebasedPhoneValue]);
+
+  useEffect(() => {
+    if (!currentMethod) return;
     // 同事已经应用的字段也从草稿移除，后续版本变化时保留服务端值。
-    if (typeOverride === currentMethod.type) setTypeOverride(undefined);
-    if (valueOverride?.trim() === currentMethod.value)
+    if (primaryAlreadyApplied && typeOverride === currentMethod.type)
+      setTypeOverride(undefined);
+    if (
+      (primaryAlreadyApplied || phoneValueAlreadyApplied) &&
+      valueOverride !== undefined &&
+      valueMatchesCurrent
+    )
       setValueOverride(undefined);
-  }, [currentMethod, primaryAlreadyApplied, typeOverride, valueOverride]);
+  }, [
+    currentMethod,
+    phoneValueAlreadyApplied,
+    primaryAlreadyApplied,
+    typeOverride,
+    valueMatchesCurrent,
+    valueOverride,
+  ]);
 
   const title =
     mode.kind === "rename"
@@ -184,7 +238,11 @@ export function CustomerContactEditor({
       return;
     }
     if (mode.kind !== "edit" || typeChanged || valueChanged) {
-      const valueError = contactValueError(type, cleanedValue);
+      const valueError = contactValueError(
+        type,
+        cleanedValue,
+        phoneInputCountry
+      );
       if (valueError) {
         setValidation(valueError);
         return;
@@ -194,7 +252,7 @@ export function CustomerContactEditor({
       const fields: Partial<CustomerContactMethodInput> = {};
       // 用最新快照展示和校验，只提交用户改动的字段；版本由提交方按编辑基线选取。
       if (typeChanged) fields.type = type;
-      if (valueChanged) fields.value = cleanedValue;
+      if (valueChanged) fields.value = canonicalPhone ?? cleanedValue;
       if (primaryChanged) fields.isPrimary = isPrimary;
       onSubmit({
         kind: "edit",
@@ -205,13 +263,53 @@ export function CustomerContactEditor({
       return;
     }
 
-    const newMethod = { type, value: cleanedValue, isPrimary };
+    const newMethod = {
+      type,
+      value: canonicalPhone ?? cleanedValue,
+      isPrimary,
+    };
     onSubmit(
       selected
         ? { kind: "add", contact: selected, method: newMethod }
         : { kind: "create", name: cleanedName, method: newMethod }
     );
   }
+
+  const valueInputProps = {
+    id: `${id}-value`,
+    ref: inputRef,
+    value,
+    maxLength: 320,
+    disabled: locked,
+    required: true,
+    "aria-invalid": Boolean(
+      validation &&
+        type &&
+        validation === contactValueError(type, value, phoneInputCountry)
+    ),
+    onChange: (event: ChangeEvent<HTMLInputElement>) => {
+      const next = event.target.value;
+      if (phone) {
+        const draft = readPhoneDraft(next, phoneInputCountry);
+        const normalized = draft.international
+          ? normalizeMobilePhone(next, phoneInputCountry)
+          : undefined;
+        // 将可保存的国际拨号格式转为 "+"，换到目的地后仍按同一个号码解析。
+        setCountryOverride(
+          (normalized && draft.number?.country) || phoneInputCountry
+        );
+        setValueOverride(
+          normalized && !next.trimStart().startsWith("+") ? normalized : next
+        );
+      } else {
+        setValueOverride(next === currentMethod?.value ? undefined : next);
+      }
+      setValidation("");
+    },
+    onBlur: () => {
+      if (valueMatchesCurrent) setValueOverride(undefined);
+    },
+  };
 
   return (
     <Sheet
@@ -332,37 +430,29 @@ export function CustomerContactEditor({
                 </Field>
                 <Field>
                   <FieldLabel htmlFor={`${id}-value`}>联系信息</FieldLabel>
-                  <Input
-                    id={`${id}-value`}
-                    ref={inputRef}
-                    type={
-                      type === "email"
-                        ? "email"
-                        : type === "phone" || type === "whatsapp"
-                          ? "tel"
-                          : "text"
-                    }
-                    value={value}
-                    maxLength={320}
-                    disabled={locked}
-                    required
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      setValueOverride(
-                        next === currentMethod?.value ? undefined : next
-                      );
-                      setValidation("");
-                    }}
-                    onBlur={() => {
-                      if (value.trim() === currentMethod?.value) {
-                        setValueOverride(undefined);
-                      }
-                    }}
-                  />
-                  {(type === "phone" || type === "whatsapp") && (
-                    <FieldDescription>
-                      仅支持中国大陆手机号，可带 +86。
-                    </FieldDescription>
+                  {phone ? (
+                    <PhoneNumberInput
+                      {...valueInputProps}
+                      country={phoneCountry}
+                      callingCode={phoneDraft?.callingCode}
+                      onCountryChange={(next) => {
+                        if (
+                          next === phoneCountry &&
+                          (!phoneDraft?.callingCode ||
+                            phoneDraft.callingCode ===
+                              getCountryCallingCode(next))
+                        )
+                          return;
+                        setCountryOverride(next);
+                        setValueOverride(phoneDraft?.nationalValue ?? value);
+                        setValidation("");
+                      }}
+                    />
+                  ) : (
+                    <Input
+                      {...valueInputProps}
+                      type={type === "email" ? "email" : "text"}
+                    />
                   )}
                 </Field>
                 {selected &&

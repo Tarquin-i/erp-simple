@@ -5,11 +5,9 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 
-import {
-  CustomerDetail,
-  isCustomerDetailTab,
-} from "@/components/customers/detail";
-import type { CustomerDetailTab } from "@/components/customers/detail";
+import { CustomerDetail } from "@/components/customers/detail";
+import { isCustomerDetailTab } from "@/components/customers/detail/tabs";
+import type { CustomerDetailTab } from "@/components/customers/detail/tabs";
 import { readListQueryFromState } from "@/components/customers/list-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

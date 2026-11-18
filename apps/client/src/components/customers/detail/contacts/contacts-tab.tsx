@@ -40,6 +40,7 @@ import { VersionConflictDialog } from "../../version-conflict-dialog";
 import { CustomerContactEditor } from "./contact-editor";
 import type { ContactEditorMode } from "./contact-editor";
 import { contactMethodLabels } from "./method-labels";
+import { isPhoneMethod, sameContactValue } from "./method-value";
 import { contactRequest } from "./mutations";
 import type { ContactChange, DeleteChange } from "./mutations";
 import {
@@ -250,51 +251,77 @@ export function CustomerContacts({
             return;
           }
           let pendingChange = change;
+          const comparisonBase = versionFrom ?? change.contact;
+          let phoneValueAlreadyApplied = false;
+          let rebasedPhoneValue: string | undefined;
           const primaryAlreadyApplied =
             change.kind === "edit" &&
             currentMethod !== undefined &&
             change.fields.isPrimary === currentMethod.isPrimary;
-          if (
-            change.kind === "edit" &&
-            currentMethod &&
-            (primaryAlreadyApplied || reviewed?.primaryAlreadyApplied)
-          ) {
+          if (change.kind === "edit" && currentMethod) {
             const { isPrimary, type, value } = change.fields;
-            const fields = {
-              ...(type !== undefined && type !== currentMethod.type
-                ? { type }
-                : {}),
-              ...(value !== undefined && value !== currentMethod.value
-                ? { value }
-                : {}),
-              ...(isPrimary !== undefined && !primaryAlreadyApplied
-                ? { isPrimary }
-                : {}),
-            };
-            if (Object.keys(fields).length === 0) {
-              setConflict(null);
-              closeEditor();
-              let text = "最新联系方式已包含你的修改。";
-              if (primaryAlreadyApplied)
-                text = isPrimary
-                  ? `${contactMethodLabels[currentMethod.type]}已设为主要联系方式。`
-                  : "主要联系方式标记已取消。";
-              setNotice({
-                text,
-                visible: true,
-              });
-              return;
+            const sameType = type === undefined || type === currentMethod.type;
+            const sameValue =
+              value !== undefined &&
+              sameContactValue(
+                sameType ? currentMethod.type : "",
+                value,
+                currentMethod.value
+              );
+            phoneValueAlreadyApplied =
+              sameType && isPhoneMethod(currentMethod.type) && sameValue;
+            const originalMethod = comparisonBase.methods.find(
+              (method) => method.id === currentMethod.id
+            );
+            if (
+              type === undefined &&
+              value !== undefined &&
+              originalMethod &&
+              isPhoneMethod(originalMethod.type) &&
+              !isPhoneMethod(currentMethod.type)
+            ) {
+              // 类型由最新资料接管时，保留刚提交的完整号码，避免丢失草稿里的区号。
+              rebasedPhoneValue = value;
             }
-            pendingChange = { ...change, fields };
+            if (
+              phoneValueAlreadyApplied ||
+              primaryAlreadyApplied ||
+              reviewed?.primaryAlreadyApplied
+            ) {
+              const fields = {
+                ...(sameType ? {} : { type }),
+                ...(sameValue || value === undefined ? {} : { value }),
+                ...(isPrimary !== undefined && !primaryAlreadyApplied
+                  ? { isPrimary }
+                  : {}),
+              };
+              if (Object.keys(fields).length === 0) {
+                setConflict(null);
+                closeEditor();
+                let text = "最新联系方式已包含你的修改。";
+                if (primaryAlreadyApplied)
+                  text = isPrimary
+                    ? `${contactMethodLabels[currentMethod.type]}已设为主要联系方式。`
+                    : "主要联系方式标记已取消。";
+                setNotice({
+                  text,
+                  visible: true,
+                });
+                return;
+              }
+              pendingChange = { ...change, fields };
+            }
           }
           setConflict({
             change: {
               ...pendingChange,
-              contact: versionFrom ?? change.contact,
+              contact: comparisonBase,
             },
             latest,
             primaryAlreadyApplied:
               primaryAlreadyApplied || reviewed?.primaryAlreadyApplied,
+            phoneValueAlreadyApplied,
+            rebasedPhoneValue,
           });
           return;
         }
@@ -511,6 +538,8 @@ export function CustomerContacts({
           mode={editor}
           latestContact={latestEditedContact}
           primaryAlreadyApplied={conflict?.primaryAlreadyApplied}
+          phoneValueAlreadyApplied={conflict?.phoneValueAlreadyApplied}
+          rebasedPhoneValue={conflict?.rebasedPhoneValue}
           inputRef={editorInput}
           pending={pending}
           locked={pending || conflict !== null}
