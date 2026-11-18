@@ -14,6 +14,8 @@ import {
   downloadCommunicationAttachment,
   initCommunicationAttachment,
   listCommunicationAttachments,
+  readLocalCommunicationAttachment,
+  writeLocalCommunicationAttachment,
 } from "./attachments";
 
 const path = "/:communicationId/attachments";
@@ -51,12 +53,26 @@ communicationAttachmentRoutes.post(`${path}/uploads`, async (c) => {
   return c.json(result, 201);
 });
 
+communicationAttachmentRoutes.put(
+  `${path}/uploads/:uploadClientId/content`,
+  async (c) => {
+    await writeLocalCommunicationAttachment(
+      c.get("businessAccess"),
+      readUuid(c.req.param("communicationId"), "沟通 ID"),
+      readUuid(c.req.param("uploadClientId"), "上传 ID"),
+      c.req.raw,
+      attachmentStorageFromEnv
+    );
+    return c.body(null, 204);
+  }
+);
+
 communicationAttachmentRoutes.post(
   `${path}/uploads/:uploadClientId/complete`,
   async (c) => {
     const communicationId = readUuid(c.req.param("communicationId"), "沟通 ID");
     const uploadClientId = readUuid(c.req.param("uploadClientId"), "上传 ID");
-    // 文件转正和流式校验使用 OSS 自身的超时，允许超过 Bun 默认的 HTTP 空闲时间。
+    // 文件转正和流式校验可能超过 Bun 默认的 HTTP 空闲时间。
     if (c.env) getBunServer<Bun.Server<unknown>>(c)?.timeout?.(c.req.raw, 0);
     const attachment = await completeCommunicationAttachment(
       c.get("businessAccess"),
@@ -82,6 +98,15 @@ communicationAttachmentRoutes.get(
     c.header("Cache-Control", "no-store");
     return c.json(result);
   }
+);
+
+communicationAttachmentRoutes.get(`${path}/:attachmentId/content`, (c) =>
+  readLocalCommunicationAttachment(
+    c.get("businessAccess"),
+    readUuid(c.req.param("communicationId"), "沟通 ID"),
+    readUuid(c.req.param("attachmentId"), "附件 ID"),
+    attachmentStorageFromEnv
+  )
 );
 
 communicationAttachmentRoutes.delete(`${path}/:attachmentId`, async (c) => {

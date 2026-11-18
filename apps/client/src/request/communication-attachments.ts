@@ -32,7 +32,7 @@ export type AttachmentUploadInput = {
 export type SignedAttachmentUpload = {
   url: string;
   headers: Record<string, string>;
-  expiresAt: string;
+  expiresAt: string | null;
 };
 
 export type AttachmentUploadSession = {
@@ -55,6 +55,19 @@ function attachmentPath(communicationId: string) {
   return `/api/communications/${encodeURIComponent(communicationId)}/attachments`;
 }
 
+function attachmentApiError(
+  status: number,
+  body: { message?: unknown; code?: unknown } | null
+) {
+  return new CommunicationApiError(
+    typeof body?.message === "string"
+      ? body.message
+      : `附件请求失败（HTTP ${status}），请重试。`,
+    status,
+    typeof body?.code === "string" ? body.code : undefined
+  );
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, options).catch((failure: unknown) => {
     if (options?.signal?.aborted) throw failure;
@@ -65,13 +78,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     return response.json();
   }
   const body = await response.json().catch(() => null);
-  throw new CommunicationApiError(
-    typeof body?.message === "string"
-      ? body.message
-      : "附件请求失败，请稍后重试。",
-    response.status,
-    typeof body?.code === "string" ? body.code : undefined
-  );
+  throw attachmentApiError(response.status, body);
 }
 
 export function listCommunicationAttachments(
@@ -123,7 +130,7 @@ export function downloadCommunicationAttachment(
   attachmentId: string,
   signal?: AbortSignal
 ) {
-  return request<{ downloadUrl: string; expiresAt: string }>(
+  return request<{ downloadUrl: string; expiresAt: string | null }>(
     `${attachmentPath(communicationId)}/${encodeURIComponent(attachmentId)}/download`,
     { signal }
   );
@@ -182,11 +189,11 @@ export async function hashAttachment(file: Blob, signal?: AbortSignal) {
 
 /**
  * 使用服务端签发的请求直传整个文件，进度最多显示 99%，直至调用方完成校验。
- * @param upload OSS 短期签名地址及请求头。
+ * @param upload 本地写入地址或 OSS 短期签名地址，以及对应请求头。
  * @param file 已计算摘要的原文件。
  * @param signal 可选的取消信号。
  * @param onProgress 可选的上传百分比回调。
- * @returns OSS 接收请求后完成，收到 409 时由后续完成接口校验已有对象。
+ * @returns 文件接收成功后完成，收到 409 时由后续完成接口校验已有文件。
  * @throws 请求失败、超时或取消时拒绝。
  */
 export async function putAttachment(
@@ -223,6 +230,14 @@ export async function putAttachment(
       const { status } = xhr;
       if ((status >= 200 && status < 300) || status === 409) {
         resolve();
+      } else if (upload.url.startsWith("/")) {
+        let body = null;
+        try {
+          body = JSON.parse(xhr.responseText);
+        } catch {
+          // 代理或服务器拒绝请求时可能返回纯文本。
+        }
+        reject(attachmentApiError(status, body));
       } else {
         reject(new Error(`附件上传失败（HTTP ${status}），请重试。`));
       }

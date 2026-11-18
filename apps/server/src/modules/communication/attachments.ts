@@ -15,12 +15,16 @@ import { lockDepartment } from "../organization/departments";
 import { fail } from "../organization/errors";
 import { verifyAttachmentContent } from "./attachment-files";
 import type { AttachmentUploadInput } from "./attachment-files";
+import { LocalAttachmentSizeError } from "./attachment-local-storage";
+import { attachmentDownloadDisposition } from "./attachment-oss-signing";
 import type { AttachmentStorage } from "./attachment-storage";
 
 type Attachment = typeof communicationAttachment.$inferSelect;
 type GetStorage = () => AttachmentStorage;
 
 const activeHashConstraint = "communication_attachment_active_sha256_unique";
+// 本地单次上传受 Bun HTTP 请求体默认上限约束。
+const maxLocalUploadBytes = 128 * 1024 ** 2;
 const visibleAttachment = and(
   isNull(communicationAttachment.objectDeletedAt),
   or(
@@ -66,7 +70,7 @@ function storageUnavailable(): never {
 }
 
 /**
- * 将 OSS 及流读取失败转换成可重试错误，保留业务校验响应。
+ * 将存储及流读取失败转换成可重试错误，保留业务校验响应。
  * @param run 一次读取、签名或清理操作。
  * @returns 操作的结果。
  * @throws 业务错误原样返回，存储错误返回 503。
@@ -76,8 +80,29 @@ async function useStorage<T>(run: () => T | Promise<T>): Promise<T> {
     return await run();
   } catch (error) {
     if (error instanceof HTTPException) throw error;
+    if (error instanceof LocalAttachmentSizeError) {
+      fail(400, "附件实际大小与声明不一致。");
+    }
     return storageUnavailable();
   }
+}
+
+function attachmentPath(communicationId: string) {
+  return `/api/communications/${communicationId}/attachments`;
+}
+
+function requireLocalStorage(getStorage: GetStorage) {
+  const storage = getStorage();
+  if (storage.kind !== "local") fail(404, "本地附件存储未启用。");
+  return storage;
+}
+
+async function uploadStorage(getStorage: GetStorage, fileSize: number) {
+  const storage = await useStorage(getStorage);
+  if (storage.kind === "local" && fileSize > maxLocalUploadBytes) {
+    fail(400, "本地存储的单个附件不能超过 128 MiB。");
+  }
+  return storage;
 }
 
 async function requireCommunication(
@@ -109,7 +134,7 @@ async function requireCommunication(
  * 在短事务中按部门、沟通记录、附件的顺序加锁，改派后以当前权限为准。
  * @param access 当前账号及其业务范围。
  * @param communicationId 附件归属的沟通 ID。
- * @param write 只执行数据库工作，OSS 传输在事务外进行。
+ * @param write 只执行数据库工作，文件传输在事务外进行。
  * @returns 写入或读取结果。
  */
 function withAttachmentWrite<T>(
@@ -229,7 +254,7 @@ function assertSameUpload(
  * @param communicationId 所属沟通 ID。
  * @param file 已校验的文件元数据和上传 ID。
  * @param getStorage 按需读取存储配置。
- * @returns 上传会话。OSS 已收到对象时，upload 为 null，可继续完成校验。
+ * @returns 上传会话。存储已收到文件时，upload 为 null，可继续完成校验。
  * @throws 无权访问、重复文件或同一上传 ID 对应的内容不同。
  */
 export async function initCommunicationAttachment(
@@ -256,7 +281,7 @@ export async function initCommunicationAttachment(
           storage:
             previous.uploadState === "ready"
               ? null
-              : await useStorage(getStorage),
+              : await uploadStorage(getStorage, previous.fileSize),
         };
       }
 
@@ -275,7 +300,7 @@ export async function initCommunicationAttachment(
           )
         );
       if (duplicate) duplicateAttachment();
-      const storage = await useStorage(getStorage);
+      const storage = await uploadStorage(getStorage, file.fileSize);
       const [created] = await tx
         .insert(communicationAttachment)
         .values({
@@ -304,6 +329,13 @@ export async function initCommunicationAttachment(
               (await storage.readMetadata(row.storageKey)))
           ) {
             return null;
+          }
+          if (storage.kind === "local") {
+            return {
+              url: `${attachmentPath(communicationId)}/uploads/${row.uploadClientId}/content`,
+              headers: { "content-type": row.mimeType },
+              expiresAt: null,
+            };
           }
           return storage.createSingleUploadRequest(
             row.storageKey,
@@ -338,6 +370,64 @@ async function readUpload(
     .for("update");
   if (!row) fail(404, "附件上传不存在。");
   return row;
+}
+
+/** 按当前沟通权限和原上传人校验，将请求体流式写入本地暂存区。 */
+export async function writeLocalCommunicationAttachment(
+  access: BusinessAccess,
+  communicationId: string,
+  uploadClientId: string,
+  request: Request,
+  getStorage: GetStorage
+) {
+  const row = await withAttachmentWrite(access, communicationId, async (tx) => {
+    const upload = await readUpload(
+      tx,
+      access,
+      communicationId,
+      uploadClientId
+    );
+    if (upload.archivedAt) fail(404, "附件上传已关闭。");
+    return upload;
+  });
+  const storage = await useStorage(() => requireLocalStorage(getStorage));
+  if (row.uploadState === "ready") fail(409, "附件已收到，请完成校验。");
+  if (row.fileSize > maxLocalUploadBytes)
+    fail(400, "本地存储的单个附件不能超过 128 MiB。");
+  if (request.headers.get("content-type") !== row.mimeType) {
+    fail(415, "附件类型与初始化时声明的类型不一致。");
+  }
+  const length = request.headers.get("content-length");
+  if (length !== null && length !== String(row.fileSize)) {
+    fail(400, "附件实际大小与声明不一致。");
+  }
+  const result = await useStorage(() =>
+    storage.writeSingleUpload(
+      row.storageKey,
+      row.fileSize,
+      request.body ?? new Blob().stream(),
+      request.signal
+    )
+  );
+  if (result === "exists") fail(409, "附件已收到，请完成校验。");
+
+  try {
+    await withAttachmentWrite(access, communicationId, async (tx) => {
+      const current = await readUpload(
+        tx,
+        access,
+        communicationId,
+        uploadClientId
+      );
+      if (current.archivedAt) fail(404, "附件上传已关闭。");
+    });
+  } catch (error) {
+    // 写文件期间可能发生改派或删除，回收已不可完成的这次上传。
+    if (isUploadInaccessible(error)) {
+      await cleanupPendingLocalUpload(row, storage).catch(() => {});
+    }
+    throw error;
+  }
 }
 
 async function inspectUpload(row: Attachment, storage: AttachmentStorage) {
@@ -432,6 +522,46 @@ async function archivePendingUpload(access: BusinessAccess, row: Attachment) {
   });
 }
 
+function isUploadInaccessible(error: unknown) {
+  return (
+    error instanceof HTTPException && [401, 403, 404].includes(error.status)
+  );
+}
+
+async function cleanupArchivedUpload(
+  row: Attachment,
+  storage: AttachmentStorage
+) {
+  const [archived] = await database.db
+    .select()
+    .from(communicationAttachment)
+    .where(
+      and(
+        eq(communicationAttachment.id, row.id),
+        isNotNull(communicationAttachment.archivedAt)
+      )
+    );
+  if (archived) await cleanupArchived(archived, storage).catch(() => {});
+}
+
+/** 回收权限变化前已接收的文件，只归档仍未完成的上传。 */
+async function cleanupPendingLocalUpload(
+  row: Attachment,
+  storage: AttachmentStorage
+) {
+  await database.db
+    .update(communicationAttachment)
+    .set({ archivedAt: sql`now()`, archivedByUserId: row.uploaderUserId })
+    .where(
+      and(
+        eq(communicationAttachment.id, row.id),
+        eq(communicationAttachment.uploadState, "pending"),
+        isNull(communicationAttachment.archivedAt)
+      )
+    );
+  await cleanupArchivedUpload(row, storage);
+}
+
 /**
  * 校验正式对象，再用短事务重新检查权限及状态后发布附件。
  * @param access 当前账号。
@@ -494,31 +624,24 @@ export async function completeCommunicationAttachment(
   } catch (error) {
     const duplicate = isConstraintError(error, "23505", activeHashConstraint);
     const invalid = error instanceof HTTPException && error.status === 400;
-    if (duplicate || invalid) {
-      await archivePendingUpload(access, row).catch(() => {});
+    if (storage.kind === "local" && isUploadInaccessible(error)) {
+      await cleanupPendingLocalUpload(row, storage).catch(() => {});
+    } else {
+      if (duplicate || invalid) {
+        await archivePendingUpload(access, row).catch(() => {});
+      }
+      // 完成与删除重叠时，补偿清理晚到的正式文件。
+      await cleanupArchivedUpload(row, storage).catch(() => {});
     }
-    // 兼顾完成与删除重叠，出现晚到的正式对象时再补偿清理一次。
-    const [archived] = await database.db
-      .select()
-      .from(communicationAttachment)
-      .where(
-        and(
-          eq(communicationAttachment.id, row.id),
-          isNotNull(communicationAttachment.archivedAt)
-        )
-      );
-    if (archived) await cleanupArchived(archived, storage).catch(() => {});
     if (duplicate) duplicateAttachment();
     throw error;
   }
 }
 
-/** 校验当前沟通权限和附件状态后，签发带原文件名的短期下载地址。 */
-export function downloadCommunicationAttachment(
+function readDownloadableAttachment(
   access: BusinessAccess,
   communicationId: string,
-  attachmentId: string,
-  getStorage: GetStorage
+  attachmentId: string
 ) {
   return withBusinessReadSnapshot(access.userId, async (tx, freshAccess) => {
     await requireCommunication(tx, freshAccess, communicationId);
@@ -526,6 +649,7 @@ export function downloadCommunicationAttachment(
       .select({
         storageKey: communicationAttachment.storageKey,
         fileName: communicationAttachment.fileName,
+        mimeType: communicationAttachment.mimeType,
       })
       .from(communicationAttachment)
       .where(
@@ -536,14 +660,66 @@ export function downloadCommunicationAttachment(
         )
       );
     if (!row) fail(404, "附件不存在或不可下载。");
-    return useStorage(() =>
-      getStorage().createDownloadUrl(row.storageKey, row.fileName)
-    );
+    return row;
+  });
+}
+
+/** 校验当前沟通权限和附件状态后，返回当前存储模式的下载地址。 */
+export async function downloadCommunicationAttachment(
+  access: BusinessAccess,
+  communicationId: string,
+  attachmentId: string,
+  getStorage: GetStorage
+) {
+  const row = await readDownloadableAttachment(
+    access,
+    communicationId,
+    attachmentId
+  );
+  return useStorage(() => {
+    const storage = getStorage();
+    if (storage.kind === "local") {
+      return {
+        downloadUrl: `${attachmentPath(communicationId)}/${attachmentId}/content`,
+        expiresAt: null,
+      };
+    }
+    return storage.createDownloadUrl(row.storageKey, row.fileName);
+  });
+}
+
+/** 打开本地正式文件的流。每次请求链路都会重新检查沟通权限。 */
+export async function readLocalCommunicationAttachment(
+  access: BusinessAccess,
+  communicationId: string,
+  attachmentId: string,
+  getStorage: GetStorage
+) {
+  const row = await readDownloadableAttachment(
+    access,
+    communicationId,
+    attachmentId
+  );
+  return useStorage(async () => {
+    const storage = requireLocalStorage(getStorage);
+    const file = await storage.openReadStream(row.storageKey);
+    if (!file) fail(404, "附件文件不存在。");
+
+    const headers = new Headers({
+      "Cache-Control": "private, no-store",
+      "Content-Disposition": attachmentDownloadDisposition(row.fileName),
+      "Content-Type": row.mimeType,
+      "X-Content-Type-Options": "nosniff",
+    });
+    if (file.contentLength !== null) {
+      headers.set("Content-Length", String(file.contentLength));
+    }
+    return new Response(file.body, { headers });
   });
 }
 
 /**
- * 先归档阻止新下载，再删除 OSS 对象。失败时保留可重试的归档记录。
+ * 先归档阻止新下载，再删除存储文件。失败时保留可重试的归档记录。
  * @param access 当前账号。
  * @param communicationId 所属沟通 ID。
  * @param attachmentId 附件 ID。
