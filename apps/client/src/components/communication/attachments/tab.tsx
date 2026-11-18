@@ -45,6 +45,12 @@ type AttachmentListRequest = {
 
 type LoadedAttachments = AttachmentListResult & { page: number };
 
+type AttachmentDeleteRequest = {
+  controller: AbortController;
+  loadedPage: number;
+  phase: "deleting" | "checking";
+};
+
 /**
  * 读取下一批附件，或从开头逐批重读已展开的范围。
  * @param communicationId 当前沟通 ID。
@@ -116,8 +122,10 @@ function startDownload(url: string, onFailure: () => void) {
 /** 查看、直传、下载和删除当前沟通的附件。 */
 export function CommunicationAttachmentsTab({
   communicationId,
+  actionsSlot,
 }: {
   communicationId: string;
+  actionsSlot: HTMLDivElement | null;
 }) {
   const uploads = useAttachmentUploadQueue();
   const { clearCompleted } = uploads;
@@ -135,14 +143,13 @@ export function CommunicationAttachmentsTab({
     new Set()
   );
   const [deleteTarget, setDeleteTarget] = useState<Attachment>();
-  const [deleteProgress, setDeleteProgress] = useState<
-    "deleting" | "checking"
-  >();
+  const [deleteProgress, setDeleteProgress] =
+    useState<AttachmentDeleteRequest["phase"]>();
   const deletePending = deleteProgress !== undefined;
   const [deleteError, setDeleteError] = useState("");
   const [uploadMessage, setUploadMessage] = useState("");
   const downloadRequests = useRef(new Map<string, AbortController>());
-  const deleteRequest = useRef<AbortController | null>(null);
+  const deleteRequest = useRef<AttachmentDeleteRequest | null>(null);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -151,7 +158,7 @@ export function CommunicationAttachmentsTab({
     return () => {
       mounted.current = false;
       for (const request of requests.values()) request.abort();
-      deleteRequest.current?.abort();
+      deleteRequest.current?.controller.abort();
     };
   }, []);
 
@@ -285,11 +292,37 @@ export function CommunicationAttachmentsTab({
     }
   }
 
+  function refreshAfterDelete(loadedPage: number) {
+    setListPending(true);
+    setListRequest(({ page }) => ({
+      page: Math.max(page, loadedPage),
+      replacePages: true,
+    }));
+  }
+
+  function closeDeleteDialog() {
+    const request = deleteRequest.current;
+    if (request?.phase === "deleting") return;
+    if (request) {
+      // 先结束本次核对，再取消等待，避免迟到的结果干扰下一次删除。
+      deleteRequest.current = null;
+      request.controller.abort();
+      setDeleteProgress(undefined);
+      refreshAfterDelete(request.loadedPage);
+    }
+    setDeleteTarget(undefined);
+    setDeleteError("");
+  }
+
   async function confirmDelete() {
     if (!deleteTarget || deleteRequest.current) return;
-    const loadedPage = result?.page ?? 1;
     const controller = new AbortController();
-    deleteRequest.current = controller;
+    const request: AttachmentDeleteRequest = {
+      controller,
+      loadedPage: result?.page ?? 1,
+      phase: "deleting",
+    };
+    deleteRequest.current = request;
     setDeleteError("");
     setDeleteProgress("deleting");
     try {
@@ -312,6 +345,7 @@ export function CommunicationAttachmentsTab({
 
         // 网络断开或服务器错误可能发生在实际删除完成之后，按附件 ID 核对。
         if (!apiError || apiError.status >= 500) {
+          request.phase = "checking";
           setDeleteProgress("checking");
           try {
             const checked = await readCommunicationAttachmentDeletion(
@@ -329,7 +363,8 @@ export function CommunicationAttachmentsTab({
           }
         }
       }
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || deleteRequest.current !== request)
+        return;
 
       if (state === "deleted") {
         setDeleteTarget(undefined);
@@ -364,15 +399,13 @@ export function CommunicationAttachmentsTab({
         );
       }
     } finally {
-      deleteRequest.current = null;
-      if (!controller.signal.aborted) {
-        setDeleteProgress(undefined);
-        // 文件可能已归档或删除，只是清理失败或响应未返回。
-        setListPending(true);
-        setListRequest(({ page }) => ({
-          page: Math.max(page, loadedPage),
-          replacePages: true,
-        }));
+      if (deleteRequest.current === request) {
+        deleteRequest.current = null;
+        if (!controller.signal.aborted) {
+          setDeleteProgress(undefined);
+          // 文件可能已归档或删除，只是清理失败或响应未返回。
+          refreshAfterDelete(request.loadedPage);
+        }
       }
     }
   }
@@ -442,6 +475,7 @@ export function CommunicationAttachmentsTab({
             {!inaccessible && result ? (
               <>
                 <AttachmentTimeline
+                  actionsSlot={actionsSlot}
                   attachments={result.attachments}
                   communicationId={communicationId}
                   downloadingIds={downloading}
@@ -458,23 +492,21 @@ export function CommunicationAttachmentsTab({
                     setDeleteTarget(attachment);
                   }}
                   uploadAction={
-                    result.attachments.length > 0 && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label="选择附件"
-                            disabled={uploadDisabled}
-                            onClick={selectFiles}
-                          >
-                            <Upload aria-hidden="true" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>上传附件</TooltipContent>
-                      </Tooltip>
-                    )
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="上传附件"
+                          disabled={uploadDisabled}
+                          onClick={selectFiles}
+                        >
+                          <Upload aria-hidden="true" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>上传附件</TooltipContent>
+                    </Tooltip>
                   }
                   empty={
                     <div className="space-y-2">
@@ -524,7 +556,7 @@ export function CommunicationAttachmentsTab({
       <AlertDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(next) => {
-          if (!next && !deleteRequest.current) setDeleteTarget(undefined);
+          if (!next) closeDeleteDialog();
         }}
       >
         {deleteTarget && (
@@ -532,12 +564,14 @@ export function CommunicationAttachmentsTab({
             <AlertDialogHeader>
               <AlertDialogTitle>删除附件？</AlertDialogTitle>
               <AlertDialogDescription className="wrap-anywhere">
-                确认删除「{deleteTarget.fileName}」？
+                {deleteProgress === "checking"
+                  ? `正在核对「${deleteTarget.fileName}」的删除结果。关闭后会刷新附件列表。`
+                  : `确认删除「${deleteTarget.fileName}」？`}
               </AlertDialogDescription>
             </AlertDialogHeader>
             {deleteError && <FieldError>{deleteError}</FieldError>}
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={deletePending}>
+              <AlertDialogCancel disabled={deleteProgress === "deleting"}>
                 取消
               </AlertDialogCancel>
               <Button

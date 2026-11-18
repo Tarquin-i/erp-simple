@@ -51,6 +51,7 @@ const attachmentExtensions = attachmentAccept.split(",");
 const maxSingleUploadBytes = 5 * 1024 ** 3;
 const hashChunkBytes = 4 * 1024 ** 2;
 const uploadIdleTimeoutMs = 2 * 60 * 1000;
+const attachmentDeletionCheckTimeoutMs = 8_000;
 
 function attachmentPath(communicationId: string) {
   return `/api/communications/${encodeURIComponent(communicationId)}/attachments`;
@@ -191,19 +192,29 @@ export type AttachmentDeletionState = "available" | "pending" | "deleted";
  * 删除结果不明确时，读取指定附件的删除状态。
  * @param communicationId 附件所属的沟通记录 ID。
  * @param attachmentId 要核对的附件 ID。
- * @param signal 页面离开时取消查询的信号。
+ * @param signal 用户关闭弹窗或离开页面时取消查询的信号。
  * @returns 服务端记录的删除状态。
- * @throws 请求失败或没有权限时拒绝。
+ * @throws 查询超时、请求失败或没有权限时拒绝。
  */
-export function readCommunicationAttachmentDeletion(
+export async function readCommunicationAttachmentDeletion(
   communicationId: string,
   attachmentId: string,
   signal?: AbortSignal
 ) {
-  return request<{ state: AttachmentDeletionState }>(
-    `${attachmentPath(communicationId)}/${encodeURIComponent(attachmentId)}`,
-    { cache: "no-store", signal }
-  );
+  signal?.throwIfAborted();
+  const controller = new AbortController();
+  const stopCheck = () => controller.abort();
+  signal?.addEventListener("abort", stopCheck, { once: true });
+  const timeout = setTimeout(stopCheck, attachmentDeletionCheckTimeoutMs);
+  try {
+    return await request<{ state: AttachmentDeletionState }>(
+      `${attachmentPath(communicationId)}/${encodeURIComponent(attachmentId)}`,
+      { cache: "no-store", signal: controller.signal }
+    );
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", stopCheck);
+  }
 }
 
 /** 在读取文件内容前检查支持的扩展名和单次直传的大小上限。 */
