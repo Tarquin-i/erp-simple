@@ -15,6 +15,7 @@ import { lockDepartment } from "../organization/departments";
 import { fail } from "../organization/errors";
 import { verifyAttachmentContent } from "./attachment-files";
 import type { AttachmentUploadInput } from "./attachment-files";
+import { attachmentImageResponse } from "./attachment-images";
 import { LocalAttachmentSizeError } from "./attachment-local-storage";
 import { attachmentDownloadDisposition } from "./attachment-oss-signing";
 import type { AttachmentStorage } from "./attachment-storage";
@@ -742,6 +743,7 @@ function readDownloadableAttachment(
       .select({
         storageKey: communicationAttachment.storageKey,
         fileName: communicationAttachment.fileName,
+        fileSize: communicationAttachment.fileSize,
         mimeType: communicationAttachment.mimeType,
       })
       .from(communicationAttachment)
@@ -809,6 +811,40 @@ export async function readLocalCommunicationAttachment(
     }
     return new Response(file.body, { headers });
   });
+}
+
+/**
+ * 按当前沟通权限读取已发布且未归档的原图或缩略图。
+ * @param access 当前账号。
+ * @param communicationId 所属沟通 ID。
+ * @param attachmentId 附件 ID。
+ * @param variant 要读取的图片版本。
+ * @param getStorage 按需读取存储配置。
+ * @param signal 请求取消信号。
+ * @returns 图片响应，原图保持原始文件字节。
+ * @throws 无权查看及附件不可用时返回 404，非图片返回 415，存储失败时返回 503。
+ */
+export async function readCommunicationAttachmentImage(
+  access: BusinessAccess,
+  communicationId: string,
+  attachmentId: string,
+  variant: "thumbnail" | "preview",
+  getStorage: GetStorage,
+  signal: AbortSignal
+) {
+  const file = await readDownloadableAttachment(
+    access,
+    communicationId,
+    attachmentId
+  );
+  return useStorage(() =>
+    attachmentImageResponse(
+      file,
+      variant,
+      () => getStorage().openReadStream(file.storageKey),
+      signal
+    )
+  );
 }
 
 /**

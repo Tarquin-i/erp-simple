@@ -16,6 +16,7 @@ import {
   getCommunicationAttachmentUpload,
   initCommunicationAttachment,
   listCommunicationAttachments,
+  readCommunicationAttachmentImage,
   readLocalCommunicationAttachment,
   writeLocalCommunicationAttachment,
 } from "./attachments";
@@ -126,6 +127,20 @@ communicationAttachmentRoutes.get(`${path}/:attachmentId/content`, (c) =>
     attachmentStorageFromEnv
   )
 );
+
+for (const variant of ["thumbnail", "preview"] as const) {
+  communicationAttachmentRoutes.get(`${path}/:attachmentId/${variant}`, (c) => {
+    c.header("Cache-Control", "private, no-store");
+    return readCommunicationAttachmentImage(
+      c.get("businessAccess"),
+      readUuid(c.req.param("communicationId"), "沟通 ID"),
+      readUuid(c.req.param("attachmentId"), "附件 ID"),
+      variant,
+      attachmentStorageFromEnv,
+      c.req.raw.signal
+    );
+  });
+}
 
 communicationAttachmentRoutes.delete(`${path}/:attachmentId`, async (c) => {
   const communicationId = readUuid(c.req.param("communicationId"), "沟通 ID");
