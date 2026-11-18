@@ -122,7 +122,9 @@ function NewCommunicationSession({
   function showRecovered(record: Communication) {
     return showSaved(
       record.id,
-      record.canViewCustomer && record.customerId === customerId ? customerId : undefined
+      record.canViewCustomer && record.customerId === customerId
+        ? customerId
+        : undefined
     );
   }
 

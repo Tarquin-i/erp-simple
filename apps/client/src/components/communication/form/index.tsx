@@ -10,7 +10,12 @@ import type { AttachmentUploadQueue } from "@/components/communication/attachmen
 import { CustomerTagPicker } from "@/components/customers/form/channel-tag-selectors";
 import { VersionConflictDialog } from "@/components/customers/version-conflict-dialog";
 import { Button } from "@/components/ui/button";
-import { Field, FieldError, FieldLabel, FieldTitle } from "@/components/ui/field";
+import {
+  Field,
+  FieldError,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -134,7 +139,9 @@ export function CommunicationForm({
   const cannotSave =
     pending ||
     tagPending ||
-    (isEdit ? !hasChanges && !hasFiles : !customerId || (isAdmin && !draft.owner));
+    (isEdit
+      ? !hasChanges && !hasFiles
+      : !customerId || (isAdmin && !draft.owner));
   const SubmitIcon = isEdit ? Check : Save;
 
   async function save(proposed: CommunicationDraft, current = baseline) {

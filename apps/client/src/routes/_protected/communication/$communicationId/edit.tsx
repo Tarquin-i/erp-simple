@@ -37,7 +37,11 @@ function EditCommunicationPage() {
   );
 }
 
-function EditCommunicationSession({ communication }: { communication: Communication }) {
+function EditCommunicationSession({
+  communication,
+}: {
+  communication: Communication;
+}) {
   const { viewer } = Route.useRouteContext();
   const attachments = useAttachmentUploadQueue();
   const { customerId } = Route.useSearch();

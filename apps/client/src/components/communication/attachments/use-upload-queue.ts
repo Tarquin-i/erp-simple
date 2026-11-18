@@ -41,7 +41,9 @@ export function useAttachmentUploadQueue() {
 
   function update(id: string, changes: Partial<UploadItem>) {
     setQueue(
-      itemsRef.current.map((item) => (item.id === id ? { ...item, ...changes } : item))
+      itemsRef.current.map((item) =>
+        item.id === id ? { ...item, ...changes } : item
+      )
     );
   }
 
@@ -49,11 +51,13 @@ export function useAttachmentUploadQueue() {
     if (active.current || !files.length) return;
     setQueue([
       ...itemsRef.current,
-      ...files.map((file): UploadItem => ({
-        id: createUuid(),
-        file,
-        status: "queued",
-      })),
+      ...files.map(
+        (file): UploadItem => ({
+          id: createUuid(),
+          file,
+          status: "queued",
+        })
+      ),
     ]);
   }
 
@@ -82,10 +86,15 @@ export function useAttachmentUploadQueue() {
         if (signal.aborted) return false;
         const { id, file } = item;
         try {
-          update(id, { status: "preparing", error: undefined, progress: undefined });
+          update(id, {
+            status: "preparing",
+            error: undefined,
+            progress: undefined,
+          });
           validateAttachmentFile(file);
           const mimeType = readAttachmentMimeType(file);
-          const contentSha256 = item.contentSha256 ?? await hashAttachment(file, signal);
+          const contentSha256 =
+            item.contentSha256 ?? (await hashAttachment(file, signal));
           signal.throwIfAborted();
           update(id, { contentSha256 });
           const { upload: request } = await initCommunicationAttachment(
@@ -116,7 +125,8 @@ export function useAttachmentUploadQueue() {
           update(id, {
             status: "failed",
             retryable: canRetry(failure),
-            error: failure instanceof Error ? failure.message : "上传失败，请重试。",
+            error:
+              failure instanceof Error ? failure.message : "上传失败，请重试。",
           });
         }
       }
