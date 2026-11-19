@@ -159,12 +159,23 @@ export function CustomerContacts({
     });
   }
 
+  function reloadContacts() {
+    setContacts(null);
+    setLoadError("");
+    setLoadAttempt((attempt) => attempt + 1);
+  }
+
   function closeEditor() {
     restoredContact.current = null;
     setEditor(null);
     setError("");
     setRetryingCreation(false);
-    restoreFocus();
+    if (retryingCreation) {
+      // 上一次新建可能已经保存，刷新完成后再显示新建入口。
+      reloadContacts();
+    } else {
+      restoreFocus();
+    }
   }
 
   function closeDelete() {
@@ -376,13 +387,7 @@ export function CustomerContacts({
     return (
       <div className="flex flex-wrap items-center gap-3 py-4">
         <FieldError>{loadError}</FieldError>
-        <Button
-          variant="outline"
-          onClick={() => {
-            setLoadError("");
-            setLoadAttempt((attempt) => attempt + 1);
-          }}
-        >
+        <Button variant="outline" onClick={reloadContacts}>
           重试
         </Button>
       </div>
