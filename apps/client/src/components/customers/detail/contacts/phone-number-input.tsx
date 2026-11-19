@@ -5,27 +5,14 @@ import {
   getCountryCallingCode,
   parsePhoneNumberFromString,
 } from "@repo/phone";
-import { ChevronDown } from "lucide-react";
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, useId } from "react";
 
-import {
-  Combobox,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@/components/ui/combobox";
 import {
   InputGroup,
   InputGroupAddon,
-  InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 const countryPriority = new Map<CountryCode, number>([
   ["CN", 1],
@@ -35,11 +22,15 @@ const countryPriority = new Map<CountryCode, number>([
 ]);
 const countryNames = new Intl.DisplayNames(["zh-CN"], { type: "region" });
 const countries = getCountries()
-  .map((code) => ({
-    code,
-    name: code === "CN" ? "中国大陆" : (countryNames.of(code) ?? code),
-    callingCode: `+${getCountryCallingCode(code)}`,
-  }))
+  .map((code) => {
+    const callingCode = `+${getCountryCallingCode(code)}`;
+    return {
+      code,
+      name: code === "CN" ? "中国大陆" : (countryNames.of(code) ?? code),
+      callingCode,
+      keywords: `${code} ${callingCode}`,
+    };
+  })
   .sort(
     (a, b) =>
       (countryPriority.get(a.code) ?? 5) - (countryPriority.get(b.code) ?? 5) ||
@@ -80,14 +71,16 @@ export function readPhoneDraft(value: string, defaultCountry: CountryCode) {
 export function PhoneNumberInput({
   country,
   callingCode,
+  portalContainer,
   onCountryChange,
   ...inputProps
 }: ComponentProps<typeof InputGroupInput> & {
   country: CountryCode;
   callingCode?: string;
+  portalContainer?: ComponentProps<typeof SearchableSelect>["container"];
   onCountryChange: (country: CountryCode) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const countryId = useId();
   const current = countries.find((option) => option.code === country);
   const internationalPrefix = callingCode ? `+${callingCode}` : undefined;
   const countryMatches =
@@ -99,68 +92,34 @@ export function PhoneNumberInput({
   return (
     <InputGroup>
       <InputGroupAddon>
-        <Popover open={open && !inputProps.disabled} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <InputGroupButton
-              aria-label={`国家或地区：${countryLabel}`}
-              disabled={inputProps.disabled}
-            >
-              {!countryMatches
-                ? internationalPrefix
-                : internationalPrefix || !current
-                  ? country
-                  : `${country} ${current.callingCode}`}
-              <ChevronDown aria-hidden="true" />
-            </InputGroupButton>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-64 gap-1 p-1.5">
-            <Combobox
-              inline
-              open
-              autoHighlight
-              defaultInputValue=""
-              items={countries}
-              value={countryMatches ? (current ?? null) : null}
-              itemToStringLabel={({ name, code, callingCode }) =>
-                `${name} ${code} ${callingCode}`
-              }
-              onValueChange={(option) => {
-                if (!option) return;
-                onCountryChange(option.code);
-                setOpen(false);
-              }}
-            >
-              <ComboboxInput
-                aria-label="搜索国家、地区或区号"
-                placeholder="搜索国家、地区或区号"
-                showTrigger={false}
-                className="w-full [&_[data-slot=input-group-addon]:empty]:hidden"
-                onKeyDown={(event) => {
-                  if (
-                    event.key === "Enter" &&
-                    (event.nativeEvent.isComposing ||
-                      event.nativeEvent.keyCode === 229)
-                  ) {
-                    event.preventBaseUIHandler();
-                  }
-                }}
-              />
-              <ComboboxEmpty className="not-empty:flex">
-                没有匹配的国家或地区
-              </ComboboxEmpty>
-              <ComboboxList className="max-h-56">
-                {(option) => (
-                  <ComboboxItem key={option.code} value={option}>
-                    <span className="flex-1 truncate">{option.name}</span>
-                    <span className="text-muted-foreground">
-                      {option.callingCode}
-                    </span>
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </Combobox>
-          </PopoverContent>
-        </Popover>
+        <SearchableSelect
+          id={countryId}
+          items={countries}
+          value={countryMatches ? (current ?? null) : null}
+          placeholder={country}
+          searchPlaceholder="搜索国家、地区或区号"
+          emptyMessage="没有匹配的国家或地区"
+          disabled={inputProps.disabled}
+          container={portalContainer}
+          compactTrigger={{
+            label: !countryMatches
+              ? (internationalPrefix ?? country)
+              : internationalPrefix || !current
+                ? country
+                : `${country} ${current.callingCode}`,
+            ariaLabel: `国家或地区：${countryLabel}`,
+          }}
+          getOptionKey={(option) => option.code}
+          renderOption={(option) => (
+            <>
+              <span className="flex-1 truncate">{option.name}</span>
+              <span className="text-muted-foreground">
+                {option.callingCode}
+              </span>
+            </>
+          )}
+          onValueChange={(option) => onCountryChange(option.code)}
+        />
       </InputGroupAddon>
       <InputGroupInput {...inputProps} type="tel" />
     </InputGroup>

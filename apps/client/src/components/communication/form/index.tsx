@@ -382,6 +382,7 @@ export function CommunicationForm({
             value={customerChoice}
             locked={isEdit || Boolean(initialCustomer)}
             disabled={fieldsLocked}
+            triggerClassName="h-10 shadow-xs"
             onChange={(selection) => {
               if (selection?.id === customer?.id) return;
               setCustomer(selection);
