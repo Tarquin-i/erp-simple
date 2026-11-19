@@ -4,7 +4,7 @@ import {
   INVALID_MOBILE_PHONE_MESSAGE,
   normalizeMobilePhone,
 } from "@repo/phone";
-import { Save } from "lucide-react";
+import { CircleAlert, Save } from "lucide-react";
 import { type FormEvent, useId, useMemo, useRef, useState } from "react";
 
 import { CommunicationCustomerField } from "@/components/communication/form/customer-field";
@@ -26,14 +26,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@/components/ui/combobox";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -43,7 +35,13 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   AddressApiError,
   type AddressCustomer,
@@ -75,7 +73,6 @@ const fieldLabels = {
 
 type AddressField = keyof AddressWriteInput;
 type TextField = Exclude<AddressField, "isDefault">;
-type LocationOption = (typeof addressCountries)[number];
 type CreateSubmission = {
   kind: "create";
   customerId: string;
@@ -92,13 +89,6 @@ type Prompt =
   | { kind: "version"; submission: EditSubmission };
 
 const addressFields = Object.keys(fieldLabels) as AddressField[];
-
-/** 支持按中文名称、英文名称或地区代码查找地址选项。 */
-function matchesLocation(option: LocationOption, query: string) {
-  return `${option.name} ${option.keywords}`
-    .toLowerCase()
-    .includes(query.toLowerCase());
-}
 
 /** 从当前地址提取表单字段，新建时填入中国大陆及空白资料。 */
 function readDraft(address?: AddressDetail): AddressWriteInput {
@@ -132,7 +122,7 @@ function phoneCountryFrom(value: string) {
  * @returns 包含待保存字段的更新对象。
  */
 function getPatch(base: AddressDetail, input: Partial<AddressWriteInput>) {
-  return Object.fromEntries(
+  const patch = Object.fromEntries(
     addressFields.flatMap((field) => {
       const value = input[field];
       if (value === undefined || value === base[field]) return [];
@@ -146,6 +136,13 @@ function getPatch(base: AddressDetail, input: Partial<AddressWriteInput>) {
       return [[field, value]];
     })
   ) as Partial<AddressWriteInput>;
+  // 换省时即使重填的城市、区县或邮编与原值相同，也要显式提交。
+  if (patch.province !== undefined) {
+    patch.city = input.city;
+    patch.district = input.district;
+    patch.postalCode = input.postalCode;
+  }
+  return patch;
 }
 
 function displayValue(
@@ -205,11 +202,11 @@ function AddressForm({
   );
   const [base, setBase] = useState(address);
   const [draft, setDraft] = useState(() => readDraft(address));
-  const [countryQuery, setCountryQuery] = useState<string>();
   const [phoneCountry, setPhoneCountry] = useState<CountryCode>(() =>
     phoneCountryFrom(address?.phone ?? "")
   );
   const [prompt, setPrompt] = useState<Prompt | null>(null);
+  const [phoneInvalid, setPhoneInvalid] = useState(false);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -219,16 +216,23 @@ function AddressForm({
   const country = addressCountries.find(
     ({ code }) => code === draft.countryCode
   );
-  const regions = useMemo(
-    () => getAddressRegions(draft.countryCode),
-    [draft.countryCode]
-  );
+  const regions = useMemo(() => {
+    const options = getAddressRegions(draft.countryCode);
+    if (
+      !draft.province ||
+      options.some(({ name }) => name === draft.province)
+    ) {
+      return options;
+    }
+    // 旧地址的自填省名作为当前选项保留，方便只编辑其他字段。
+    return [{ code: "", name: draft.province, keywords: "" }, ...options];
+  }, [draft.countryCode, draft.province]);
   const disabled = pending || saved;
   const versionPrompt = prompt?.kind === "version" ? prompt.submission : null;
   const differences = versionPrompt
     ? addressFields.flatMap((field) => {
         const proposed = versionPrompt.patch[field];
-        return proposed === undefined
+        return proposed === undefined || proposed === versionPrompt.base[field]
           ? []
           : [
               {
@@ -245,6 +249,17 @@ function AddressForm({
     value: AddressWriteInput[FieldName]
   ) {
     setDraft((previous) => ({ ...previous, [field]: value }));
+    setError("");
+  }
+
+  function confirmProvince(province: string) {
+    setDraft((previous) => {
+      const currentProvince = previous.province.trim();
+      if (province === currentProvince) return previous;
+      return currentProvince
+        ? { ...previous, province, city: "", district: null, postalCode: null }
+        : { ...previous, province };
+    });
     setError("");
   }
 
@@ -318,6 +333,14 @@ function AddressForm({
           result = current;
         } else {
           setPrompt(null);
+          if (
+            failure instanceof AddressApiError &&
+            failure.status === 400 &&
+            failure.message === INVALID_MOBILE_PHONE_MESSAGE
+          ) {
+            setPhoneInvalid(true);
+            return;
+          }
           setError(
             failure instanceof Error
               ? failure.message
@@ -342,13 +365,15 @@ function AddressForm({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (disabled || prompt) return;
+    setPhoneInvalid(false);
     if (!selectedCustomer) {
       setError("请选择客户。");
       return;
     }
     const normalizedPhone = normalizeMobilePhone(draft.phone, phoneCountry);
     if (!normalizedPhone) {
-      setError(INVALID_MOBILE_PHONE_MESSAGE);
+      setError("");
+      setPhoneInvalid(true);
       return;
     }
     const rawPhone = draft.phone.trim();
@@ -429,6 +454,7 @@ function AddressForm({
         value={selectedCustomer}
         locked={Boolean(address || customer)}
         disabled={disabled}
+        searchInDropdown
         portalContainer={portalContainer}
         onChange={(choice) => {
           setSelectedCustomer(choice);
@@ -437,61 +463,87 @@ function AddressForm({
       />
       <div className="grid gap-4 sm:grid-cols-2">
         {textField("recipientName", 128, true)}
-        <Field>
+        <Field data-invalid={phoneInvalid || undefined}>
           <FieldLabel htmlFor={`${id}-phone`}>{fieldLabels.phone}</FieldLabel>
-          <PhoneNumberInput
-            id={`${id}-phone`}
-            value={draft.phone}
-            country={phone.number?.country ?? phoneCountry}
-            callingCode={phone.callingCode}
-            required
-            disabled={disabled}
-            type="tel"
-            maxLength={64}
-            onCountryChange={(next) => {
-              setPhoneCountry(next);
-              setField("phone", phone.nationalValue ?? draft.phone);
-            }}
-            onChange={(event) => {
-              const value = event.target.value;
-              const parsed = readPhoneDraft(value, phoneCountry);
-              const normalized = parsed.international
-                ? normalizeMobilePhone(value, phoneCountry)
-                : undefined;
-              if (normalized && parsed.number?.country)
-                setPhoneCountry(parsed.number.country);
-              setField(
-                "phone",
-                normalized && !value.trimStart().startsWith("+")
-                  ? normalized
-                  : value
-              );
-            }}
-          />
+          <div className="relative">
+            <PhoneNumberInput
+              id={`${id}-phone`}
+              value={draft.phone}
+              country={phone.number?.country ?? phoneCountry}
+              callingCode={phone.callingCode}
+              required
+              disabled={disabled}
+              type="tel"
+              maxLength={64}
+              aria-invalid={phoneInvalid || undefined}
+              aria-describedby={phoneInvalid ? `${id}-phone-error` : undefined}
+              className={
+                phoneInvalid ? "pr-8 pointer-coarse:pr-2.5" : undefined
+              }
+              onCountryChange={(next) => {
+                setPhoneInvalid(false);
+                setPhoneCountry(next);
+                setField("phone", phone.nationalValue ?? draft.phone);
+              }}
+              onChange={(event) => {
+                setPhoneInvalid(false);
+                const value = event.target.value;
+                const parsed = readPhoneDraft(value, phoneCountry);
+                const normalized = parsed.international
+                  ? normalizeMobilePhone(value, phoneCountry)
+                  : undefined;
+                if (normalized && parsed.number?.country)
+                  setPhoneCountry(parsed.number.country);
+                setField(
+                  "phone",
+                  normalized && !value.trimStart().startsWith("+")
+                    ? normalized
+                    : value
+                );
+              }}
+            />
+            {phoneInvalid && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="absolute top-1/2 right-1 -translate-y-1/2 text-destructive hover:text-destructive pointer-coarse:hidden"
+                    aria-label="查看联系电话错误"
+                  >
+                    <CircleAlert aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={5}>
+                  {INVALID_MOBILE_PHONE_MESSAGE}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+          {phoneInvalid && (
+            <FieldError
+              id={`${id}-phone-error`}
+              className="sr-only pointer-coarse:not-sr-only"
+            >
+              {INVALID_MOBILE_PHONE_MESSAGE}
+            </FieldError>
+          )}
         </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-country`}>
             {fieldLabels.countryCode}
           </FieldLabel>
-          <Combobox
+          <SearchableSelect
+            id={`${id}-country`}
             items={addressCountries}
             value={country ?? null}
-            inputValue={countryQuery ?? country?.name ?? ""}
+            placeholder="请选择国家或地区"
+            searchPlaceholder="搜索国家或地区名称或代码"
+            emptyMessage="没有匹配的国家或地区"
             disabled={disabled}
-            autoHighlight
-            filter={matchesLocation}
-            itemToStringLabel={(option) => option.name}
-            onInputValueChange={(value, details) => {
-              if (details.reason === "input-change") setCountryQuery(value);
-            }}
-            onOpenChange={(open) => {
-              if (!open) setCountryQuery(undefined);
-            }}
-            onValueChange={(option, details) => {
-              if (!option) {
-                details.cancel();
-                return;
-              }
+            container={portalContainer}
+            onValueChange={(option) => {
               if (option.code === draft.countryCode) return;
               setDraft((previous) => ({
                 ...previous,
@@ -502,87 +554,23 @@ function AddressForm({
               }));
               setError("");
             }}
-          >
-            <ComboboxInput
-              id={`${id}-country`}
-              className="w-full"
-              disabled={disabled}
-              onBlur={(event) => {
-                if (
-                  event.currentTarget.getAttribute("aria-expanded") !== "true"
-                )
-                  setCountryQuery(undefined);
-              }}
-              onKeyDown={(event) => {
-                const input = event.currentTarget;
-                const expanded = input.getAttribute("aria-expanded") === "true";
-                if (
-                  event.key === "Escape" &&
-                  !expanded &&
-                  countryQuery !== undefined
-                ) {
-                  event.preventDefault();
-                  event.preventBaseUIHandler();
-                  setCountryQuery(undefined);
-                }
-                if (
-                  event.key === "Enter" &&
-                  expanded &&
-                  !input.getAttribute("aria-activedescendant")
-                ) {
-                  event.preventDefault();
-                }
-              }}
-            />
-            <ComboboxContent container={portalContainer}>
-              <ComboboxEmpty>没有匹配的国家或地区</ComboboxEmpty>
-              <ComboboxList>
-                {(option: LocationOption) => (
-                  <ComboboxItem key={option.code} value={option}>
-                    {option.name}
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-province`}>
             {fieldLabels.province}
           </FieldLabel>
-          <Combobox
+          <SearchableSelect
+            id={`${id}-province`}
             items={regions}
             value={regions.find(({ name }) => name === draft.province) ?? null}
-            inputValue={draft.province}
+            placeholder="请选择省/州"
+            searchPlaceholder="搜索省/州名称或代码"
+            emptyMessage="没有匹配的省或州"
             disabled={disabled}
-            filter={matchesLocation}
-            itemToStringLabel={(option) => option.name}
-            onInputValueChange={(value, details) => {
-              if (details.reason === "input-change")
-                setField("province", value);
-            }}
-            onValueChange={(option) => {
-              if (option) setField("province", option.name);
-            }}
-          >
-            <ComboboxInput
-              id={`${id}-province`}
-              className="w-full"
-              maxLength={128}
-              required
-              disabled={disabled}
-            />
-            <ComboboxContent container={portalContainer}>
-              <ComboboxEmpty>可直接填写省或州</ComboboxEmpty>
-              <ComboboxList>
-                {(option: LocationOption) => (
-                  <ComboboxItem key={option.name} value={option}>
-                    {option.name}
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
+            container={portalContainer}
+            onValueChange={(option) => confirmProvince(option.name)}
+          />
         </Field>
         {textField("city", 128, true)}
         {textField("district", 128)}
@@ -659,16 +647,6 @@ function AddressForm({
                 )
               ) {
                 event.preventDefault();
-                return;
-              }
-              // 删空时下拉可能仍是关闭的，先恢复已选国家并保留表单。
-              if (
-                countryQuery !== undefined &&
-                event.target instanceof HTMLInputElement &&
-                event.target.id === `${id}-country`
-              ) {
-                event.preventDefault();
-                setCountryQuery(undefined);
               }
             }}
           >

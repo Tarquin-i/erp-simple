@@ -170,12 +170,14 @@ export function createAddress(
 
 /**
  * 编辑地址资料或把它设为默认，客户归属保持为当前记录的客户。
+ * 变更省或州时须提供城市，未提供的区县和邮编会清空。
  * @param access 调用方身份和范围。
  * @param addressId 待编辑的地址 ID。
- * @param input 已校验的部分更新字段，省略时保留原值。
+ * @param input 已校验的部分更新字段。
  * @param expectedVersion 用户读取到的地址版本。
  * @returns 更新后的地址详情。
- * @throws 地址不可见时返回 404，邮编和国家不匹配时返回 400，版本过期或直接取消默认时返回 409。
+ * @throws 地址不可见时返回 404。变更省或州时缺少城市，或邮编无效时返回 400。
+ * 版本过期或直接取消默认时返回 409。
  */
 export function updateAddress(
   access: BusinessAccess,
@@ -197,13 +199,19 @@ export function updateAddress(
         addressView(address, record)
       );
     }
+    const provinceChanged =
+      input.province !== undefined && input.province !== address.province;
+    if (provinceChanged && input.city === undefined) {
+      fail(400, "更换省或州时，请重新填写城市。");
+    }
+    const nextPostalCode = provinceChanged
+      ? (input.postalCode ?? null)
+      : input.postalCode;
     const postalCode =
-      input.countryCode !== undefined || input.postalCode !== undefined
+      input.countryCode !== undefined || nextPostalCode !== undefined
         ? normalizeAddressPostalCode(
             input.countryCode ?? address.countryCode,
-            input.postalCode === undefined
-              ? address.postalCode
-              : input.postalCode
+            nextPostalCode === undefined ? address.postalCode : nextPostalCode
           )
         : undefined;
     if (input.isDefault && !address.isDefault) {
@@ -212,7 +220,12 @@ export function updateAddress(
     }
     const [updated] = await tx
       .update(customerAddress)
-      .set({ ...input, ...revision, postalCode })
+      .set({
+        ...input,
+        ...revision,
+        district: provinceChanged ? (input.district ?? null) : input.district,
+        postalCode,
+      })
       .where(eq(customerAddress.id, addressId))
       .returning();
     return addressView(updated, record);
