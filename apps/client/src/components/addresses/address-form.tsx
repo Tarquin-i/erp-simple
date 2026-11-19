@@ -4,6 +4,7 @@ import {
   INVALID_MOBILE_PHONE_MESSAGE,
   normalizeMobilePhone,
 } from "@repo/phone";
+import { Save } from "lucide-react";
 import { type FormEvent, useId, useMemo, useRef, useState } from "react";
 
 import { CommunicationCustomerField } from "@/components/communication/form/customer-field";
@@ -168,18 +169,37 @@ type AddressFormProps = {
 };
 
 /**
- * 从地址目录或客户地址列表新建、编辑收货地址。
+ * 在独立页面新建地址，也可从已选客户的地址列表发起。
+ * @param props 可选的所属客户，以及取消与保存成功后的导航回调。
+ * @returns 新建地址页面和替换默认地址的确认弹窗。
+ */
+export function AddressCreateForm({
+  onCancel,
+  ...props
+}: Omit<AddressFormProps, "address" | "onClose"> & { onCancel: () => void }) {
+  return <AddressForm {...props} onClose={onCancel} layout="page" />;
+}
+
+/**
+ * 在地址详情中打开地址表单弹窗。
  * @param props 初始地址、可选的所属客户、关闭与保存成功回调。
  * @returns 带默认地址确认及版本冲突处理的表单弹窗。
  */
-export function AddressFormDialog({
+export function AddressFormDialog(props: AddressFormProps) {
+  return <AddressForm {...props} layout="dialog" />;
+}
+
+function AddressForm({
   address,
   customer,
   onClose,
   onSaved,
-}: AddressFormProps) {
+  layout,
+}: AddressFormProps & { layout: "page" | "dialog" }) {
   const id = useId();
   const dialogContent = useRef<HTMLDivElement>(null);
+  const isDialog = layout === "dialog";
+  const portalContainer = isDialog ? dialogContent : undefined;
   const [selectedCustomer, setSelectedCustomer] = useState(
     address?.customer ?? customer ?? null
   );
@@ -403,254 +423,288 @@ export function AddressFormDialog({
     );
   }
 
+  const fields = (
+    <>
+      <CommunicationCustomerField
+        value={selectedCustomer}
+        locked={Boolean(address || customer)}
+        disabled={disabled}
+        portalContainer={portalContainer}
+        onChange={(choice) => {
+          setSelectedCustomer(choice);
+          setError("");
+        }}
+      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        {textField("recipientName", 128, true)}
+        <Field>
+          <FieldLabel htmlFor={`${id}-phone`}>{fieldLabels.phone}</FieldLabel>
+          <PhoneNumberInput
+            id={`${id}-phone`}
+            value={draft.phone}
+            country={phone.number?.country ?? phoneCountry}
+            callingCode={phone.callingCode}
+            required
+            disabled={disabled}
+            type="tel"
+            maxLength={64}
+            onCountryChange={(next) => {
+              setPhoneCountry(next);
+              setField("phone", phone.nationalValue ?? draft.phone);
+            }}
+            onChange={(event) => {
+              const value = event.target.value;
+              const parsed = readPhoneDraft(value, phoneCountry);
+              const normalized = parsed.international
+                ? normalizeMobilePhone(value, phoneCountry)
+                : undefined;
+              if (normalized && parsed.number?.country)
+                setPhoneCountry(parsed.number.country);
+              setField(
+                "phone",
+                normalized && !value.trimStart().startsWith("+")
+                  ? normalized
+                  : value
+              );
+            }}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-country`}>
+            {fieldLabels.countryCode}
+          </FieldLabel>
+          <Combobox
+            items={addressCountries}
+            value={country ?? null}
+            inputValue={countryQuery ?? country?.name ?? ""}
+            disabled={disabled}
+            autoHighlight
+            filter={matchesLocation}
+            itemToStringLabel={(option) => option.name}
+            onInputValueChange={(value, details) => {
+              if (details.reason === "input-change") setCountryQuery(value);
+            }}
+            onOpenChange={(open) => {
+              if (!open) setCountryQuery(undefined);
+            }}
+            onValueChange={(option, details) => {
+              if (!option) {
+                details.cancel();
+                return;
+              }
+              if (option.code === draft.countryCode) return;
+              setDraft((previous) => ({
+                ...previous,
+                countryCode: option.code,
+                province: "",
+                city: "",
+                district: null,
+              }));
+              setError("");
+            }}
+          >
+            <ComboboxInput
+              id={`${id}-country`}
+              className="w-full"
+              disabled={disabled}
+              onBlur={(event) => {
+                if (
+                  event.currentTarget.getAttribute("aria-expanded") !== "true"
+                )
+                  setCountryQuery(undefined);
+              }}
+              onKeyDown={(event) => {
+                const input = event.currentTarget;
+                const expanded = input.getAttribute("aria-expanded") === "true";
+                if (
+                  event.key === "Escape" &&
+                  !expanded &&
+                  countryQuery !== undefined
+                ) {
+                  event.preventDefault();
+                  event.preventBaseUIHandler();
+                  setCountryQuery(undefined);
+                }
+                if (
+                  event.key === "Enter" &&
+                  expanded &&
+                  !input.getAttribute("aria-activedescendant")
+                ) {
+                  event.preventDefault();
+                }
+              }}
+            />
+            <ComboboxContent container={portalContainer}>
+              <ComboboxEmpty>没有匹配的国家或地区</ComboboxEmpty>
+              <ComboboxList>
+                {(option: LocationOption) => (
+                  <ComboboxItem key={option.code} value={option}>
+                    {option.name}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-province`}>
+            {fieldLabels.province}
+          </FieldLabel>
+          <Combobox
+            items={regions}
+            value={regions.find(({ name }) => name === draft.province) ?? null}
+            inputValue={draft.province}
+            disabled={disabled}
+            filter={matchesLocation}
+            itemToStringLabel={(option) => option.name}
+            onInputValueChange={(value, details) => {
+              if (details.reason === "input-change")
+                setField("province", value);
+            }}
+            onValueChange={(option) => {
+              if (option) setField("province", option.name);
+            }}
+          >
+            <ComboboxInput
+              id={`${id}-province`}
+              className="w-full"
+              maxLength={128}
+              required
+              disabled={disabled}
+            />
+            <ComboboxContent container={portalContainer}>
+              <ComboboxEmpty>可直接填写省或州</ComboboxEmpty>
+              <ComboboxList>
+                {(option: LocationOption) => (
+                  <ComboboxItem key={option.name} value={option}>
+                    {option.name}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </Field>
+        {textField("city", 128, true)}
+        {textField("district", 128)}
+        <div className="sm:col-span-2">
+          {textField("addressLine1", 256, true)}
+        </div>
+        {textField("addressLine2", 256)}
+        {textField("postalCode", 32)}
+      </div>
+      <Field>
+        <FieldLabel htmlFor={`${id}-remark`}>{fieldLabels.remark}</FieldLabel>
+        <Textarea
+          id={`${id}-remark`}
+          value={draft.remark}
+          disabled={disabled}
+          maxLength={4096}
+          onChange={(event) => setField("remark", event.target.value)}
+        />
+      </Field>
+      <Field orientation="horizontal">
+        <Checkbox
+          id={`${id}-default`}
+          checked={draft.isDefault}
+          disabled={disabled || base?.isDefault}
+          onCheckedChange={(checked) => setField("isDefault", checked === true)}
+        />
+        <FieldLabel htmlFor={`${id}-default`}>
+          {fieldLabels.isDefault}
+        </FieldLabel>
+      </Field>
+    </>
+  );
+  const actions = (
+    <>
+      <Button
+        variant="outline"
+        type="button"
+        className={isDialog ? undefined : "h-10 px-4"}
+        disabled={pending}
+        onClick={onClose}
+      >
+        {saved ? "关闭" : "取消"}
+      </Button>
+      <Button
+        type="submit"
+        className={isDialog ? undefined : "h-10 px-4"}
+        disabled={disabled}
+        aria-busy={pending}
+      >
+        {!isDialog && <Save aria-hidden="true" />}
+        {pending ? "正在保存…" : "保存"}
+      </Button>
+    </>
+  );
+
   return (
     <>
-      <Dialog
-        open
-        onOpenChange={(open) => {
-          if (!open && !submitting.current && !prompt) onClose();
-        }}
-      >
-        <DialogContent
-          className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)] sm:max-w-2xl"
-          ref={dialogContent}
-          showCloseButton={!pending}
-          onEscapeKeyDown={(event) => {
-            // 已展开的下拉应先消费 Esc，避免关闭地址弹窗并丢弃草稿。
-            if (
-              dialogContent.current?.querySelector(
-                '[role="combobox"][aria-expanded="true"]'
-              )
-            ) {
-              event.preventDefault();
-              return;
-            }
-            // 删空时下拉可能仍是关闭的，先恢复已选国家并保留表单。
-            if (
-              countryQuery !== undefined &&
-              event.target instanceof HTMLInputElement &&
-              event.target.id === `${id}-country`
-            ) {
-              event.preventDefault();
-              setCountryQuery(undefined);
-            }
+      {isDialog ? (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !submitting.current && !prompt) onClose();
           }}
         >
-          <DialogHeader>
-            <DialogTitle>{address ? "编辑地址" : "新建地址"}</DialogTitle>
-            <DialogDescription className="sr-only">
-              填写收货地址。
-            </DialogDescription>
-          </DialogHeader>
-          <form className="flex min-h-0 flex-col gap-4" onSubmit={submit}>
-            <div className="min-h-0 space-y-4 overflow-y-auto p-1">
-              <CommunicationCustomerField
-                value={selectedCustomer}
-                locked={Boolean(address || customer)}
-                disabled={disabled}
-                portalContainer={dialogContent}
-                onChange={(choice) => {
-                  setSelectedCustomer(choice);
-                  setError("");
-                }}
-              />
-              <div className="grid gap-4 sm:grid-cols-2">
-                {textField("recipientName", 128, true)}
-                <Field>
-                  <FieldLabel htmlFor={`${id}-phone`}>
-                    {fieldLabels.phone}
-                  </FieldLabel>
-                  <PhoneNumberInput
-                    id={`${id}-phone`}
-                    value={draft.phone}
-                    country={phone.number?.country ?? phoneCountry}
-                    callingCode={phone.callingCode}
-                    required
-                    disabled={disabled}
-                    type="tel"
-                    maxLength={64}
-                    onCountryChange={(next) => {
-                      setPhoneCountry(next);
-                      setField("phone", phone.nationalValue ?? draft.phone);
-                    }}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      const parsed = readPhoneDraft(value, phoneCountry);
-                      const normalized = parsed.international
-                        ? normalizeMobilePhone(value, phoneCountry)
-                        : undefined;
-                      if (normalized && parsed.number?.country)
-                        setPhoneCountry(parsed.number.country);
-                      setField(
-                        "phone",
-                        normalized && !value.trimStart().startsWith("+")
-                          ? normalized
-                          : value
-                      );
-                    }}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor={`${id}-country`}>
-                    {fieldLabels.countryCode}
-                  </FieldLabel>
-                  <Combobox
-                    items={addressCountries}
-                    value={country ?? null}
-                    inputValue={countryQuery ?? country?.name ?? ""}
-                    disabled={disabled}
-                    autoHighlight
-                    filter={matchesLocation}
-                    itemToStringLabel={(option) => option.name}
-                    onInputValueChange={(value, details) => {
-                      if (details.reason === "input-change")
-                        setCountryQuery(value);
-                    }}
-                    onOpenChange={(open) => {
-                      if (!open) setCountryQuery(undefined);
-                    }}
-                    onValueChange={(option, details) => {
-                      if (!option) {
-                        details.cancel();
-                        return;
-                      }
-                      if (option.code === draft.countryCode) return;
-                      setDraft((previous) => ({
-                        ...previous,
-                        countryCode: option.code,
-                        province: "",
-                        city: "",
-                        district: null,
-                      }));
-                      setError("");
-                    }}
-                  >
-                    <ComboboxInput
-                      id={`${id}-country`}
-                      className="w-full"
-                      disabled={disabled}
-                      onBlur={(event) => {
-                        if (
-                          event.currentTarget.getAttribute("aria-expanded") !==
-                          "true"
-                        )
-                          setCountryQuery(undefined);
-                      }}
-                      onKeyDown={(event) => {
-                        const input = event.currentTarget;
-                        if (
-                          event.key === "Enter" &&
-                          input.getAttribute("aria-expanded") === "true" &&
-                          !input.getAttribute("aria-activedescendant")
-                        ) {
-                          event.preventDefault();
-                        }
-                      }}
-                    />
-                    <ComboboxContent container={dialogContent}>
-                      <ComboboxEmpty>没有匹配的国家或地区</ComboboxEmpty>
-                      <ComboboxList>
-                        {(option: LocationOption) => (
-                          <ComboboxItem key={option.code} value={option}>
-                            {option.name}
-                          </ComboboxItem>
-                        )}
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor={`${id}-province`}>
-                    {fieldLabels.province}
-                  </FieldLabel>
-                  <Combobox
-                    items={regions}
-                    value={
-                      regions.find(({ name }) => name === draft.province) ??
-                      null
-                    }
-                    inputValue={draft.province}
-                    disabled={disabled}
-                    filter={matchesLocation}
-                    itemToStringLabel={(option) => option.name}
-                    onInputValueChange={(value, details) => {
-                      if (details.reason === "input-change")
-                        setField("province", value);
-                    }}
-                    onValueChange={(option) => {
-                      if (option) setField("province", option.name);
-                    }}
-                  >
-                    <ComboboxInput
-                      id={`${id}-province`}
-                      className="w-full"
-                      maxLength={128}
-                      required
-                      disabled={disabled}
-                    />
-                    <ComboboxContent container={dialogContent}>
-                      <ComboboxEmpty>可直接填写省或州</ComboboxEmpty>
-                      <ComboboxList>
-                        {(option: LocationOption) => (
-                          <ComboboxItem key={option.name} value={option}>
-                            {option.name}
-                          </ComboboxItem>
-                        )}
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
-                </Field>
-                {textField("city", 128, true)}
-                {textField("district", 128)}
-                <div className="sm:col-span-2">
-                  {textField("addressLine1", 256, true)}
-                </div>
-                {textField("addressLine2", 256)}
-                {textField("postalCode", 32)}
+          <DialogContent
+            className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)] sm:max-w-2xl"
+            ref={dialogContent}
+            showCloseButton={!pending}
+            onEscapeKeyDown={(event) => {
+              // 已展开的下拉应先消费 Esc，避免关闭地址弹窗并丢弃草稿。
+              if (
+                dialogContent.current?.querySelector(
+                  '[role="combobox"][aria-expanded="true"]'
+                )
+              ) {
+                event.preventDefault();
+                return;
+              }
+              // 删空时下拉可能仍是关闭的，先恢复已选国家并保留表单。
+              if (
+                countryQuery !== undefined &&
+                event.target instanceof HTMLInputElement &&
+                event.target.id === `${id}-country`
+              ) {
+                event.preventDefault();
+                setCountryQuery(undefined);
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>{address ? "编辑地址" : "新建地址"}</DialogTitle>
+              <DialogDescription className="sr-only">
+                填写收货地址。
+              </DialogDescription>
+            </DialogHeader>
+            <form className="flex min-h-0 flex-col gap-4" onSubmit={submit}>
+              <div className="min-h-0 space-y-4 overflow-y-auto p-1">
+                {fields}
+                {error && <FieldError>{error}</FieldError>}
               </div>
-              <Field>
-                <FieldLabel htmlFor={`${id}-remark`}>
-                  {fieldLabels.remark}
-                </FieldLabel>
-                <Textarea
-                  id={`${id}-remark`}
-                  value={draft.remark}
-                  disabled={disabled}
-                  maxLength={4096}
-                  onChange={(event) => setField("remark", event.target.value)}
-                />
-              </Field>
-              <Field orientation="horizontal">
-                <Checkbox
-                  id={`${id}-default`}
-                  checked={draft.isDefault}
-                  disabled={disabled || base?.isDefault}
-                  onCheckedChange={(checked) =>
-                    setField("isDefault", checked === true)
-                  }
-                />
-                <FieldLabel htmlFor={`${id}-default`}>
-                  {fieldLabels.isDefault}
-                </FieldLabel>
-              </Field>
-              {error && <FieldError>{error}</FieldError>}
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                type="button"
-                disabled={pending}
-                onClick={onClose}
-              >
-                {saved ? "关闭" : "取消"}
-              </Button>
-              <Button type="submit" disabled={disabled}>
-                {pending ? "正在保存…" : "保存"}
-              </Button>
-            </DialogFooter>
+              <DialogFooter>{actions}</DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <main className="min-w-0 flex-1 bg-background px-5 py-6 sm:px-7 lg:px-8">
+          <form className="space-y-5" onSubmit={submit}>
+            <header className="flex flex-wrap items-center justify-between gap-4">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                新建地址
+              </h1>
+              <div className="flex items-center gap-2">{actions}</div>
+            </header>
+            {error && (
+              <FieldError className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
+                {error}
+              </FieldError>
+            )}
+            {fields}
           </form>
-        </DialogContent>
-      </Dialog>
+        </main>
+      )}
       <AlertDialog
         open={prompt?.kind === "replace-default"}
         onOpenChange={(open) => {
