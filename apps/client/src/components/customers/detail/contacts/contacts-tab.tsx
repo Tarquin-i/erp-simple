@@ -12,7 +12,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -22,14 +21,6 @@ import {
 } from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { CustomerApiError, listCustomerContacts } from "@/request/customers";
 import type {
   CustomerContact,
@@ -40,6 +31,8 @@ import { CustomerPagination } from "../../pagination";
 import { VersionConflictDialog } from "../../version-conflict-dialog";
 import { CustomerContactEditor } from "./contact-editor";
 import type { ContactEditorMode } from "./contact-editor";
+import { ContactGroup } from "./contact-group";
+import { ContactManagerDialog } from "./contact-manager-dialog";
 import { contactMethodLabels } from "./method-labels";
 import { isPhoneMethod, sameContactValue } from "./method-value";
 import { contactRequest, restoreContactRequest } from "./mutations";
@@ -56,7 +49,7 @@ import {
 } from "./version-conflict";
 import type { ContactConflict } from "./version-conflict";
 
-const rowsPerPage = 10;
+const contactsPerPage = 10;
 const workspaceRoute = getRouteApi("/_protected");
 
 /**
@@ -76,6 +69,7 @@ export function CustomerContacts({
   const [loadError, setLoadError] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [page, setPage] = useState(1);
+  const [managedContactId, setManagedContactId] = useState<string | null>(null);
   const [editor, setEditor] = useState<ContactEditorMode | null>(null);
   const [deletion, setDeletion] = useState<DeleteChange | null>(null);
   const [conflict, setConflict] = useState<ContactConflict | null>(null);
@@ -84,34 +78,42 @@ export function CustomerContacts({
   const [retryingCreation, setRetryingCreation] = useState(false);
   const [notice, setNotice] = useState<{ text: string; visible?: boolean }>();
   const writing = useRef(false);
+  const contactCountBeforeRefresh = useRef<number | null>(null);
   const restoredContact = useRef<CustomerContact | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const managerTrigger = useRef<HTMLButtonElement>(null);
+  const managerAddButton = useRef<HTMLButtonElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const editorInput = useRef<HTMLInputElement>(null);
   const pending = operation !== null;
-  const overwriteError = conflict ? contactOverwriteError(conflict) : undefined;
-  // 按联系方式展开和分页，无联系方式的联系人仍保留一行，方便继续添加。
-  const rows = (contacts ?? []).flatMap((contact) =>
-    (contact.methods.length ? contact.methods : [null]).map((method) => ({
-      contact,
-      method,
-    }))
+  const managedContact = contacts?.find(
+    (contact) => contact.id === managedContactId
   );
-  const pageCount = Math.max(1, Math.ceil(rows.length / rowsPerPage));
+  const overwriteError = conflict ? contactOverwriteError(conflict) : undefined;
+  const contactsLoaded = contacts !== null;
+  const pageCount = Math.max(
+    1,
+    Math.ceil((contacts?.length ?? 0) / contactsPerPage)
+  );
   const currentPage = Math.min(page, pageCount);
-  const pageStart = (currentPage - 1) * rowsPerPage;
-  const visibleRows = rows.slice(pageStart, pageStart + rowsPerPage);
 
   useEffect(() => {
-    setPage((previous) => Math.min(previous, pageCount));
-  }, [pageCount]);
+    if (contactsLoaded) setPage((previous) => Math.min(previous, pageCount));
+  }, [contactsLoaded, pageCount]);
 
   useEffect(() => {
     // 切换客户或重新加载时取消上一笔请求，防止旧结果覆盖当前列表。
     const abort = new AbortController();
     void listCustomerContacts(customerId, abort.signal).then(
       ({ contacts: records }) => {
-        if (!abort.signal.aborted) setContacts(records);
+        if (abort.signal.aborted) return;
+        const previousCount = contactCountBeforeRefresh.current;
+        contactCountBeforeRefresh.current = null;
+        // 后端按创建时间升序返回，刷新确认已有新联系人时定位到末页。
+        if (previousCount !== null && records.length > previousCount) {
+          setPage(Math.ceil(records.length / contactsPerPage));
+        }
+        setContacts(records);
       },
       (error: unknown) => {
         if (!abort.signal.aborted)
@@ -153,10 +155,24 @@ export function CustomerContacts({
 
   function restoreFocus() {
     requestAnimationFrame(() => {
-      // 删除后原按钮可能已离开页面，此时将焦点还给新建按钮。
       if (triggerRef.current?.isConnected) triggerRef.current.focus();
+      // 删除后原行菜单可能已离开页面，焦点回到弹窗的添加按钮。
+      else if (managerAddButton.current) managerAddButton.current.focus();
       else addButton.current?.focus();
     });
+  }
+
+  function openManager(contactId: string, trigger: HTMLButtonElement) {
+    managerTrigger.current = trigger;
+    setError("");
+    setManagedContactId(contactId);
+  }
+
+  function closeManager() {
+    triggerRef.current = managerTrigger.current;
+    setManagedContactId(null);
+    setError("");
+    restoreFocus();
   }
 
   function reloadContacts() {
@@ -172,6 +188,7 @@ export function CustomerContacts({
     setRetryingCreation(false);
     if (retryingCreation) {
       // 上一次新建可能已经保存，刷新完成后再显示新建入口。
+      contactCountBeforeRefresh.current = contacts?.length ?? null;
       reloadContacts();
     } else {
       restoreFocus();
@@ -189,6 +206,9 @@ export function CustomerContacts({
     restoredContact.current = null;
     setError("");
     setEditor(mode);
+    if (managedContact) {
+      requestAnimationFrame(() => editorInput.current?.focus());
+    }
   }
 
   function submitEditor(change: ContactChange) {
@@ -229,9 +249,7 @@ export function CustomerContacts({
       }
       restoredContact.current = null;
       if (change.kind === "create") {
-        setPage(
-          Math.ceil((rows.length + contact.methods.length) / rowsPerPage)
-        );
+        setPage(Math.ceil(((contacts?.length ?? 0) + 1) / contactsPerPage));
       }
       setConflict(null);
       setEditor(null);
@@ -403,6 +421,27 @@ export function CustomerContacts({
     );
   }
 
+  const pageStart = (currentPage - 1) * contactsPerPage;
+  const visibleContacts = contacts.slice(
+    pageStart,
+    pageStart + contactsPerPage
+  );
+  const editorForm = editor && (
+    <CustomerContactEditor
+      accountId={viewer.account.id}
+      embedded={Boolean(managedContact)}
+      mode={editor}
+      restored={restoredContact.current !== null}
+      inputRef={editorInput}
+      pending={pending}
+      locked={pending || conflict !== null}
+      retryingCreation={retryingCreation}
+      error={error}
+      onClose={closeEditor}
+      onSubmit={submitEditor}
+    />
+  );
+
   return (
     <div className="space-y-4">
       {addButtonSlot &&
@@ -420,7 +459,9 @@ export function CustomerContacts({
           </Button>,
           addButtonSlot
         )}
-      {error && !editor && !deletion && <FieldError>{error}</FieldError>}
+      {error && !managedContact && !editor && !deletion && (
+        <FieldError>{error}</FieldError>
+      )}
       <p
         className={
           notice?.visible ? "text-muted-foreground text-sm" : "sr-only"
@@ -441,120 +482,21 @@ export function CustomerContacts({
         </Empty>
       ) : (
         <>
-          <Table aria-label="客户联系方式">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="h-10 w-[22%] px-2.5 text-muted-foreground">
-                  联系人
-                </TableHead>
-                <TableHead className="h-10 w-[18%] px-2.5 text-muted-foreground">
-                  联系方式
-                </TableHead>
-                <TableHead className="h-10 px-2.5 text-muted-foreground">
-                  联系号码
-                </TableHead>
-                <TableHead className="h-10 w-28 px-2.5 text-right text-muted-foreground">
-                  操作
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="[&_tr:last-child]:border-b">
-              {visibleRows.map(({ contact, method }) => (
-                <TableRow key={method?.id ?? contact.id}>
-                  <TableCell className="h-14 px-2.5">
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="h-auto max-w-48 px-0 font-medium"
-                      title="编辑联系人"
-                      onClick={(event) =>
-                        openEditor(
-                          { kind: "rename", contact },
-                          event.currentTarget
-                        )
-                      }
-                    >
-                      <span className="truncate">{contact.name}</span>
-                    </Button>
-                  </TableCell>
-                  <TableCell className="px-2.5">
-                    {method ? (
-                      <Badge>{contactMethodLabels[method.type]}</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="min-w-40 px-2.5 whitespace-normal wrap-anywhere">
-                    {method ? (
-                      <>
-                        <span>{method.value}</span>
-                        {method.isPrimary && (
-                          <Badge
-                            variant="secondary"
-                            className="ml-2 align-middle"
-                          >
-                            主要
-                          </Badge>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-muted-foreground">
-                        暂无联系方式
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="pr-3 text-right">
-                    {method ? (
-                      <div className="inline-flex gap-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={(event) =>
-                            openEditor(
-                              { kind: "edit", contact, method },
-                              event.currentTarget
-                            )
-                          }
-                        >
-                          编辑
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive hover:text-destructive"
-                          onClick={(event) =>
-                            openDelete(contact, method, event.currentTarget)
-                          }
-                        >
-                          删除
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={(event) =>
-                          openEditor(
-                            {
-                              kind: "add",
-                              contacts,
-                              selectedContactId: contact.id,
-                            },
-                            event.currentTarget
-                          )
-                        }
-                      >
-                        添加
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <ul aria-label="客户联系方式" className="space-y-3">
+            {visibleContacts.map((contact) => (
+              <ContactGroup
+                key={contact.id}
+                contact={contact}
+                onManage={(trigger) => openManager(contact.id, trigger)}
+                onAdd={(trigger) =>
+                  openEditor(
+                    { kind: "add", contacts, fixedContactId: contact.id },
+                    trigger
+                  )
+                }
+              />
+            ))}
+          </ul>
           <CustomerPagination
             label="联系方式分页"
             page={currentPage}
@@ -564,19 +506,42 @@ export function CustomerContacts({
         </>
       )}
 
-      {editor && (
-        <CustomerContactEditor
-          accountId={viewer.account.id}
-          mode={editor}
-          restored={restoredContact.current !== null}
-          inputRef={editorInput}
-          pending={pending}
-          locked={pending || conflict !== null}
-          retryingCreation={retryingCreation}
-          error={error}
-          onClose={closeEditor}
-          onSubmit={submitEditor}
+      {managedContact ? (
+        <ContactManagerDialog
+          contact={managedContact}
+          title={
+            editor?.kind === "edit"
+              ? "编辑联系方式"
+              : editor?.kind === "add"
+                ? "添加联系方式"
+                : "编辑联系人"
+          }
+          form={editorForm}
+          locked={pending || conflict !== null || deletion !== null}
+          error={deletion ? "" : error}
+          addButtonRef={managerAddButton}
+          onClose={editor ? closeEditor : closeManager}
+          onRename={(trigger) =>
+            openEditor({ kind: "rename", contact: managedContact }, trigger)
+          }
+          onAdd={(trigger) =>
+            openEditor(
+              { kind: "add", contacts, fixedContactId: managedContact.id },
+              trigger
+            )
+          }
+          onEdit={(method, trigger) =>
+            openEditor(
+              { kind: "edit", contact: managedContact, method },
+              trigger
+            )
+          }
+          onDelete={(method, trigger) =>
+            openDelete(managedContact, method, trigger)
+          }
         />
+      ) : (
+        editorForm
       )}
       <AlertDialog
         open={deletion !== null && conflict === null}

@@ -48,7 +48,7 @@ import type { ContactChange, ContactEditSnapshot } from "./mutations";
 import { PhoneNumberInput, readPhoneDraft } from "./phone-number-input";
 
 export type ContactEditorMode =
-  | { kind: "add"; contacts: CustomerContact[]; selectedContactId?: string }
+  | { kind: "add"; contacts: CustomerContact[]; fixedContactId?: string }
   | ContactEditSnapshot;
 
 const newContactId = "new-contact";
@@ -75,6 +75,7 @@ function contactOptionLabel(
 
 export function CustomerContactEditor({
   accountId,
+  embedded = false,
   mode,
   restored,
   inputRef,
@@ -86,6 +87,7 @@ export function CustomerContactEditor({
   onSubmit,
 }: {
   accountId: string;
+  embedded?: boolean;
   mode: ContactEditorMode;
   restored: boolean;
   inputRef: Ref<HTMLInputElement>;
@@ -103,7 +105,7 @@ export function CustomerContactEditor({
   const initialMethod = mode.kind === "edit" ? mode.method : undefined;
   const [selectedContactId, setSelectedContactId] = useState(
     mode.kind === "add"
-      ? (mode.selectedContactId ?? newContactId)
+      ? (mode.fixedContactId ?? newContactId)
       : mode.contact.id
   );
   const [name, setName] = useState(
@@ -275,6 +277,191 @@ export function CustomerContactEditor({
     },
   };
 
+  const form = (
+    <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit} noValidate>
+      <div
+        className={
+          embedded
+            ? "min-h-0 flex-1 space-y-4 overflow-y-auto py-2"
+            : "flex-1 space-y-5 overflow-y-auto p-6"
+        }
+      >
+        {mode.kind === "add" &&
+          !mode.fixedContactId &&
+          mode.contacts.length > 0 && (
+            <Field>
+              <FieldLabel htmlFor={`${id}-person`}>联系人</FieldLabel>
+              <Select
+                disabled={fieldsLocked}
+                value={selectedContactId}
+                onValueChange={(next) => {
+                  setSelectedContactId(next);
+                  setValidation("");
+                  if (
+                    mode.contacts
+                      .find((contact) => contact.id === next)
+                      ?.methods.some((item) => item.type === type)
+                  )
+                    setTypeOverride("");
+                  if (typeTaken) setPrimaryOverride(undefined);
+                }}
+              >
+                <SelectTrigger className="w-full" id={`${id}-person`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={newContactId}>新建联系人</SelectItem>
+                  {mode.contacts.map((contact) => (
+                    <SelectItem key={contact.id} value={contact.id}>
+                      {contactOptionLabel(contact, mode.contacts)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+        {showName && (
+          <Field>
+            <FieldLabel htmlFor={`${id}-name`}>联系人姓名</FieldLabel>
+            <Input
+              id={`${id}-name`}
+              ref={mode.kind === "rename" ? inputRef : undefined}
+              value={name}
+              maxLength={128}
+              disabled={fieldsLocked}
+              required
+              onChange={(event) => {
+                setName(event.target.value);
+                setValidation("");
+              }}
+            />
+          </Field>
+        )}
+        {(mode.kind === "edit" ||
+          (mode.kind === "add" && mode.fixedContactId)) && (
+          <div className="space-y-1.5 text-sm">
+            <p className="text-muted-foreground">联系人</p>
+            <p className="font-medium">{selected?.name}</p>
+          </div>
+        )}
+        {mode.kind !== "rename" && (
+          <>
+            <Field>
+              <FieldLabel htmlFor={`${id}-type`}>联系方式</FieldLabel>
+              <Select
+                disabled={fieldsLocked}
+                value={typeTaken ? "" : type}
+                onValueChange={(next) => {
+                  // 冲突后改选类型时，重新确认是否要替换最新的主要项。
+                  if (mode.kind === "add" && typeTaken) {
+                    setPrimaryOverride(undefined);
+                  }
+                  setTypeOverride(
+                    next === initialMethod?.type
+                      ? undefined
+                      : (next as CustomerContactMethodType)
+                  );
+                  setValidation("");
+                }}
+              >
+                <SelectTrigger className="w-full" id={`${id}-type`}>
+                  <SelectValue placeholder="选择联系方式" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(contactMethodLabels).map(
+                    ([methodType, label]) => (
+                      <SelectItem
+                        key={methodType}
+                        value={methodType}
+                        disabled={takenTypes.some(
+                          (taken) => taken === methodType
+                        )}
+                      >
+                        {label}
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${id}-value`}>联系信息</FieldLabel>
+              {phone ? (
+                <PhoneNumberInput
+                  {...valueInputProps}
+                  country={phoneCountry}
+                  callingCode={phoneDraft?.callingCode}
+                  onCountryChange={(next) => {
+                    if (
+                      next === phoneCountry &&
+                      (!phoneDraft?.callingCode ||
+                        phoneDraft.callingCode === getCountryCallingCode(next))
+                    )
+                      return;
+                    setCountryOverride(next);
+                    setValueOverride(phoneDraft?.nationalValue ?? value);
+                    setValidation("");
+                  }}
+                />
+              ) : (
+                <Input
+                  {...valueInputProps}
+                  type={type === "email" ? "email" : "text"}
+                />
+              )}
+            </Field>
+            {selected &&
+              (selected.methods.length > 1 ||
+                (mode.kind === "add" && selected.methods.length > 0)) && (
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={isPrimary && !typeTaken}
+                    disabled={fieldsLocked || typeTaken}
+                    onCheckedChange={(checked) => {
+                      const next = checked === true;
+                      setPrimaryOverride(
+                        next === (initialMethod?.isPrimary ?? false)
+                          ? undefined
+                          : next
+                      );
+                    }}
+                  />
+                  设为主要联系方式
+                </label>
+              )}
+          </>
+        )}
+        {restored && (
+          <p className="text-muted-foreground text-sm" role="status">
+            旧值已写回，草稿尚未保存。
+          </p>
+        )}
+        <FieldError>{validation || error}</FieldError>
+      </div>
+      <SheetFooter
+        className={
+          embedded
+            ? "flex-row justify-end gap-2 border-t px-0 pt-4 pb-0"
+            : "flex-row justify-end gap-2 border-t px-6 py-4"
+        }
+      >
+        <Button
+          type="button"
+          variant="outline"
+          disabled={locked}
+          onClick={onClose}
+        >
+          取消
+        </Button>
+        <Button type="submit" disabled={locked || !changed || typeTaken}>
+          {pending ? "正在保存…" : "保存"}
+        </Button>
+      </SheetFooter>
+    </form>
+  );
+
+  if (embedded) return form;
+
   return (
     <Sheet
       open
@@ -289,176 +476,7 @@ export function CustomerContactEditor({
             维护当前客户的联系人及联系信息。
           </SheetDescription>
         </SheetHeader>
-        <form
-          className="flex min-h-0 flex-1 flex-col"
-          onSubmit={submit}
-          noValidate
-        >
-          <div className="flex-1 space-y-5 overflow-y-auto p-6">
-            {mode.kind === "add" && mode.contacts.length > 0 && (
-              <Field>
-                <FieldLabel htmlFor={`${id}-person`}>联系人</FieldLabel>
-                <Select
-                  disabled={fieldsLocked}
-                  value={selectedContactId}
-                  onValueChange={(next) => {
-                    setSelectedContactId(next);
-                    setValidation("");
-                    if (
-                      mode.contacts
-                        .find((contact) => contact.id === next)
-                        ?.methods.some((item) => item.type === type)
-                    )
-                      setTypeOverride("");
-                    if (typeTaken) setPrimaryOverride(undefined);
-                  }}
-                >
-                  <SelectTrigger className="w-full" id={`${id}-person`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={newContactId}>新建联系人</SelectItem>
-                    {mode.contacts.map((contact) => (
-                      <SelectItem key={contact.id} value={contact.id}>
-                        {contactOptionLabel(contact, mode.contacts)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            )}
-            {showName && (
-              <Field>
-                <FieldLabel htmlFor={`${id}-name`}>联系人姓名</FieldLabel>
-                <Input
-                  id={`${id}-name`}
-                  ref={mode.kind === "rename" ? inputRef : undefined}
-                  value={name}
-                  maxLength={128}
-                  disabled={fieldsLocked}
-                  required
-                  onChange={(event) => {
-                    setName(event.target.value);
-                    setValidation("");
-                  }}
-                />
-              </Field>
-            )}
-            {mode.kind === "edit" && (
-              <div className="space-y-1.5 text-sm">
-                <p className="text-muted-foreground">联系人</p>
-                <p className="font-medium">{mode.contact.name}</p>
-              </div>
-            )}
-            {mode.kind !== "rename" && (
-              <>
-                <Field>
-                  <FieldLabel htmlFor={`${id}-type`}>联系方式</FieldLabel>
-                  <Select
-                    disabled={fieldsLocked}
-                    value={typeTaken ? "" : type}
-                    onValueChange={(next) => {
-                      // 冲突后改选类型时，重新确认是否要替换最新的主要项。
-                      if (mode.kind === "add" && typeTaken) {
-                        setPrimaryOverride(undefined);
-                      }
-                      setTypeOverride(
-                        next === initialMethod?.type
-                          ? undefined
-                          : (next as CustomerContactMethodType)
-                      );
-                      setValidation("");
-                    }}
-                  >
-                    <SelectTrigger className="w-full" id={`${id}-type`}>
-                      <SelectValue placeholder="选择联系方式" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(contactMethodLabels).map(
-                        ([methodType, label]) => (
-                          <SelectItem
-                            key={methodType}
-                            value={methodType}
-                            disabled={takenTypes.some(
-                              (taken) => taken === methodType
-                            )}
-                          >
-                            {label}
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor={`${id}-value`}>联系信息</FieldLabel>
-                  {phone ? (
-                    <PhoneNumberInput
-                      {...valueInputProps}
-                      country={phoneCountry}
-                      callingCode={phoneDraft?.callingCode}
-                      onCountryChange={(next) => {
-                        if (
-                          next === phoneCountry &&
-                          (!phoneDraft?.callingCode ||
-                            phoneDraft.callingCode ===
-                              getCountryCallingCode(next))
-                        )
-                          return;
-                        setCountryOverride(next);
-                        setValueOverride(phoneDraft?.nationalValue ?? value);
-                        setValidation("");
-                      }}
-                    />
-                  ) : (
-                    <Input
-                      {...valueInputProps}
-                      type={type === "email" ? "email" : "text"}
-                    />
-                  )}
-                </Field>
-                {selected &&
-                  (selected.methods.length > 1 ||
-                    (mode.kind === "add" && selected.methods.length > 0)) && (
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={isPrimary && !typeTaken}
-                        disabled={fieldsLocked || typeTaken}
-                        onCheckedChange={(checked) => {
-                          const next = checked === true;
-                          setPrimaryOverride(
-                            next === (initialMethod?.isPrimary ?? false)
-                              ? undefined
-                              : next
-                          );
-                        }}
-                      />
-                      设为主要联系方式
-                    </label>
-                  )}
-              </>
-            )}
-            {restored && (
-              <p className="text-muted-foreground text-sm" role="status">
-                旧值已写回，草稿尚未保存。
-              </p>
-            )}
-            <FieldError>{validation || error}</FieldError>
-          </div>
-          <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-4">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={locked}
-              onClick={onClose}
-            >
-              取消
-            </Button>
-            <Button type="submit" disabled={locked || !changed || typeTaken}>
-              {pending ? "正在保存…" : "保存"}
-            </Button>
-          </SheetFooter>
-        </form>
+        {form}
       </SheetContent>
     </Sheet>
   );
