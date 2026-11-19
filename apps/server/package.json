@@ -10,8 +10,10 @@
     "@repo/db": "workspace:*",
     "@repo/phone": "workspace:*",
     "better-auth": "^1.7.20",
+    "country-region-data": "4.1.0",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.16",
+    "postal-code-checker": "2.3.0",
     "sharp": "0.35.5"
   },
   "devDependencies": {
