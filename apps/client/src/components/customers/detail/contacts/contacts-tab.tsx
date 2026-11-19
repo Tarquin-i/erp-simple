@@ -140,17 +140,11 @@ export function CustomerContacts({
    * @returns 无返回值。仅替换对应联系人的资料。
    */
   function updateEditorContact(latest: CustomerContact) {
-    setEditor((mode) => {
-      if (mode?.kind === "add") {
-        return {
-          ...mode,
-          contacts: mode.contacts.map((contact) =>
-            contact.id === latest.id ? latest : contact
-          ),
-        };
-      }
-      return mode;
-    });
+    setEditor((mode) =>
+      mode?.kind === "add" && mode.contact.id === latest.id
+        ? { ...mode, contact: latest }
+        : mode
+    );
   }
 
   function restoreFocus() {
@@ -448,10 +442,10 @@ export function CustomerContacts({
         createPortal(
           <Button
             ref={addButton}
-            aria-label="添加联系方式"
+            aria-label="新建联系人"
             className="h-8 px-3"
             onClick={(event) =>
-              openEditor({ kind: "add", contacts }, event.currentTarget)
+              openEditor({ kind: "create" }, event.currentTarget)
             }
           >
             <Plus data-icon="inline-start" />
@@ -489,10 +483,7 @@ export function CustomerContacts({
                 contact={contact}
                 onManage={(trigger) => openManager(contact.id, trigger)}
                 onAdd={(trigger) =>
-                  openEditor(
-                    { kind: "add", contacts, fixedContactId: contact.id },
-                    trigger
-                  )
+                  openEditor({ kind: "add", contact }, trigger)
                 }
               />
             ))}
@@ -525,10 +516,7 @@ export function CustomerContacts({
             openEditor({ kind: "rename", contact: managedContact }, trigger)
           }
           onAdd={(trigger) =>
-            openEditor(
-              { kind: "add", contacts, fixedContactId: managedContact.id },
-              trigger
-            )
+            openEditor({ kind: "add", contact: managedContact }, trigger)
           }
           onEdit={(method, trigger) =>
             openEditor(

@@ -31,12 +31,12 @@ export function ContactGroup({
   return (
     <Collapsible asChild defaultOpen>
       <li>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 rounded-lg pr-1 transition-colors hover:bg-muted/70">
           <CollapsibleTrigger asChild>
             <Button
               type="button"
               variant="ghost"
-              className="group/contact h-9 min-w-0 shrink justify-start gap-2 px-2.5 aria-expanded:bg-transparent"
+              className="group/contact h-9 min-w-0 shrink justify-start gap-2 px-2.5 hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent"
             >
               <UserRound aria-hidden="true" className="text-muted-foreground" />
               <span className="truncate">{contact.name}</span>
@@ -53,6 +53,7 @@ export function ContactGroup({
             type="button"
             size="icon-xs"
             variant="ghost"
+            className="ml-auto"
             aria-label={`编辑联系人 ${contact.name}`}
             title="编辑联系人"
             onClick={(event) => onManage(event.currentTarget)}

@@ -48,30 +48,16 @@ import type { ContactChange, ContactEditSnapshot } from "./mutations";
 import { PhoneNumberInput, readPhoneDraft } from "./phone-number-input";
 
 export type ContactEditorMode =
-  | { kind: "add"; contacts: CustomerContact[]; fixedContactId?: string }
+  | { kind: "create" }
+  | { kind: "add"; contact: CustomerContact }
   | ContactEditSnapshot;
 
-const newContactId = "new-contact";
-
-/**
- * 为同名联系人附上序号和主要联系方式，便于在下拉选项中区分。
- * @param contact 要显示的联系人。
- * @param contacts 下拉选项对应的完整联系人列表。
- * @returns 联系人名称，存在同名项时返回带区分信息的标签。
- */
-function contactOptionLabel(
-  contact: CustomerContact,
-  contacts: CustomerContact[]
-) {
-  const sameName = contacts.filter((item) => item.name === contact.name);
-  if (sameName.length === 1) return contact.name;
-
-  const primaryValue = contact.methods.find(
-    (method) => method.isPrimary
-  )?.value;
-  const position = sameName.findIndex((item) => item.id === contact.id) + 1;
-  return `${contact.name}（同名 ${position}） · ${primaryValue ?? "暂无联系方式"}`;
-}
+const editorTitles = {
+  create: "新建联系人",
+  add: "添加联系方式",
+  edit: "编辑联系方式",
+  rename: "编辑联系人",
+} satisfies Record<ContactEditorMode["kind"], string>;
 
 export function CustomerContactEditor({
   accountId,
@@ -103,11 +89,6 @@ export function CustomerContactEditor({
   const fieldsLocked = locked || retryingCreation;
   // 冲突返回的远端资料用于弹窗和版本校验，表单始终从打开时的快照取值。
   const initialMethod = mode.kind === "edit" ? mode.method : undefined;
-  const [selectedContactId, setSelectedContactId] = useState(
-    mode.kind === "add"
-      ? (mode.fixedContactId ?? newContactId)
-      : mode.contact.id
-  );
   const [name, setName] = useState(
     mode.kind === "rename" ? mode.contact.name : ""
   );
@@ -119,10 +100,7 @@ export function CustomerContactEditor({
   const [primaryOverride, setPrimaryOverride] = useState<boolean>();
   const [validation, setValidation] = useState("");
 
-  const selected =
-    mode.kind === "add"
-      ? mode.contacts.find((contact) => contact.id === selectedContactId)
-      : mode.contact;
+  const selected = mode.kind === "create" ? undefined : mode.contact;
   const type = typeOverride ?? initialMethod?.type ?? "";
   const value = valueOverride ?? initialMethod?.value ?? "";
   const phone = isPhoneMethod(type);
@@ -148,7 +126,7 @@ export function CustomerContactEditor({
         (!phone || phoneCountry === savedCountry);
   const currentPrimary = initialMethod?.isPrimary;
   const isPrimary = primaryOverride ?? currentPrimary ?? false;
-  const showName = mode.kind === "rename" || !selected;
+  const showName = mode.kind === "rename" || mode.kind === "create";
   const takenTypes =
     selected?.methods
       .filter((item) => item.id !== initialMethod?.id)
@@ -164,12 +142,6 @@ export function CustomerContactEditor({
     primaryOverride !== undefined &&
     isPrimary !== currentPrimary;
 
-  const title =
-    mode.kind === "rename"
-      ? "编辑联系人"
-      : mode.kind === "edit"
-        ? "编辑联系方式"
-        : "添加联系方式";
   const changed =
     mode.kind === "rename"
       ? name.trim() !== mode.contact.name
@@ -230,8 +202,8 @@ export function CustomerContactEditor({
       value: canonicalPhone ?? cleanedValue,
       isPrimary,
     };
-    if (selected) {
-      onSubmit({ kind: "add", contact: selected, method: newMethod });
+    if (mode.kind === "add") {
+      onSubmit({ kind: "add", contact: mode.contact, method: newMethod });
       return;
     }
     // 保存结果待确认时，保留同一次提交的身份和已填写内容。
@@ -286,40 +258,6 @@ export function CustomerContactEditor({
             : "flex-1 space-y-5 overflow-y-auto p-6"
         }
       >
-        {mode.kind === "add" &&
-          !mode.fixedContactId &&
-          mode.contacts.length > 0 && (
-            <Field>
-              <FieldLabel htmlFor={`${id}-person`}>联系人</FieldLabel>
-              <Select
-                disabled={fieldsLocked}
-                value={selectedContactId}
-                onValueChange={(next) => {
-                  setSelectedContactId(next);
-                  setValidation("");
-                  if (
-                    mode.contacts
-                      .find((contact) => contact.id === next)
-                      ?.methods.some((item) => item.type === type)
-                  )
-                    setTypeOverride("");
-                  if (typeTaken) setPrimaryOverride(undefined);
-                }}
-              >
-                <SelectTrigger className="w-full" id={`${id}-person`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={newContactId}>新建联系人</SelectItem>
-                  {mode.contacts.map((contact) => (
-                    <SelectItem key={contact.id} value={contact.id}>
-                      {contactOptionLabel(contact, mode.contacts)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
         {showName && (
           <Field>
             <FieldLabel htmlFor={`${id}-name`}>联系人姓名</FieldLabel>
@@ -337,11 +275,10 @@ export function CustomerContactEditor({
             />
           </Field>
         )}
-        {(mode.kind === "edit" ||
-          (mode.kind === "add" && mode.fixedContactId)) && (
+        {(mode.kind === "edit" || mode.kind === "add") && (
           <div className="space-y-1.5 text-sm">
             <p className="text-muted-foreground">联系人</p>
-            <p className="font-medium">{selected?.name}</p>
+            <p className="font-medium">{mode.contact.name}</p>
           </div>
         )}
         {mode.kind !== "rename" && (
@@ -471,7 +408,9 @@ export function CustomerContactEditor({
     >
       <SheetContent className="w-full gap-0 sm:max-w-md">
         <SheetHeader className="border-b px-6 py-5">
-          <SheetTitle className="text-lg font-semibold">{title}</SheetTitle>
+          <SheetTitle className="text-lg font-semibold">
+            {editorTitles[mode.kind]}
+          </SheetTitle>
           <SheetDescription className="sr-only">
             维护当前客户的联系人及联系信息。
           </SheetDescription>
