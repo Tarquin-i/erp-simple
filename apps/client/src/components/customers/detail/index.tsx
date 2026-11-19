@@ -1,7 +1,16 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import {
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 
+import { AddressCollectionPending } from "@/components/addresses/address-collection";
 import { CustomerCommunicationTab } from "@/components/communication/list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +21,8 @@ import { readListQueryFromState } from "../list-query";
 import { CustomerContacts } from "./contacts/contacts-tab";
 import { isCustomerDetailTab, relatedTabs } from "./tabs";
 import type { CustomerDetailTab } from "./tabs";
+
+const CustomerAddressesTab = lazy(() => import("./addresses-tab"));
 
 function DetailField({
   label,
@@ -86,16 +97,36 @@ export function CustomerDetail({
   activeTab: CustomerDetailTab;
   onTabChange: (tab: CustomerDetailTab) => void;
 }) {
-  // 联系方式和沟通记录共用页签栏右侧的新建位置。
+  // 客户关联页签共用页签栏右侧的新建位置。
   const [tabActionsSlot, setTabActionsSlot] = useState<HTMLDivElement | null>(
     null
   );
+  const tabViewport = useRef<HTMLDivElement>(null);
+  const addressTabTrigger = useRef<HTMLButtonElement>(null);
   // 鼠标点击仅显示选中样式，键盘操作时保留焦点提示。
   const [pointerFocus, setPointerFocus] = useState(false);
   const tabTriggerClass = `min-w-[88px] focus-visible:border-transparent focus-visible:ring-0 ${pointerFocus ? "focus-visible:outline-none" : "focus-visible:outline-2 focus-visible:outline-offset-1"}`;
   const listQuery = readListQueryFromState(
     useRouterState({ select: (state) => state.location.state })
   );
+
+  useEffect(() => {
+    const viewport = tabViewport.current;
+    const trigger = addressTabTrigger.current;
+    if (activeTab !== "addresses" || !viewport || !trigger) return;
+
+    // 窄屏右侧出现新建按钮后，仍让当前选中的地址页签完整可见。
+    const revealAddressTab = () => {
+      const overflow =
+        trigger.getBoundingClientRect().right -
+        viewport.getBoundingClientRect().right;
+      if (overflow > 0) viewport.scrollLeft += Math.ceil(overflow);
+    };
+    revealAddressTab();
+    const observer = new ResizeObserver(revealAddressTab);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [activeTab]);
 
   return (
     <main className="min-w-0 flex-1 bg-background px-4 py-6 sm:px-6">
@@ -156,7 +187,10 @@ export function CustomerDetail({
         className="mt-6 gap-4"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className="min-w-0 overflow-x-auto overflow-y-hidden py-1">
+          <div
+            ref={tabViewport}
+            className="min-w-0 overflow-x-auto overflow-y-hidden py-1"
+          >
             <TabsList
               aria-label="客户关联信息"
               onPointerDownCapture={(event) => {
@@ -181,6 +215,9 @@ export function CustomerDetail({
               </TabsTrigger>
               {relatedTabs.map((tab) => (
                 <TabsTrigger
+                  ref={
+                    tab.value === "addresses" ? addressTabTrigger : undefined
+                  }
                   className={tabTriggerClass}
                   key={tab.value}
                   value={tab.value}
@@ -208,6 +245,13 @@ export function CustomerDetail({
                 customerId={customer.id}
                 createActionSlot={tabActionsSlot}
               />
+            ) : tab.value === "addresses" ? (
+              <Suspense fallback={<AddressCollectionPending />}>
+                <CustomerAddressesTab
+                  customer={customer}
+                  createActionSlot={tabActionsSlot}
+                />
+              </Suspense>
             ) : (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 待开发
