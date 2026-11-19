@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 
+import { customerAddressRoutes } from "../address/routes";
 import { requireBusinessAccess } from "../business/access";
 import type { BusinessAccessEnv } from "../business/access";
 import { fail } from "../organization/errors";
@@ -78,6 +79,7 @@ export const customerRoutes = new Hono<BusinessAccessEnv>();
 customerRoutes.use("*", requireBusinessAccess);
 customerRoutes.route("/", customerDictionaryRoutes);
 customerRoutes.route("/", customerContactRoutes);
+customerRoutes.route("/", customerAddressRoutes);
 
 customerRoutes.get("/", async (c) => {
   const { search, channelCode, tagId, ownerUserId, page, pageSize } =
