@@ -55,7 +55,9 @@ function InputGroupAddon({
       data-align={align}
       className={cn(inputGroupAddonVariants({ align }), className)}
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest("button")) {
+        const target = e.target as HTMLElement;
+        // Portal 内的点击也会冒泡到这里，焦点应留在弹层内。
+        if (!e.currentTarget.contains(target) || target.closest("button")) {
           return;
         }
         e.currentTarget.parentElement?.querySelector("input")?.focus();
