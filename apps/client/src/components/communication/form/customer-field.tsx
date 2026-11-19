@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/combobox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { Communication } from "@/request/communication";
 import { listCustomers } from "@/request/customers";
 
@@ -27,6 +28,14 @@ type PortalContainer = ComponentProps<typeof ComboboxContent>["container"];
 const pageSize = 20;
 const customerLabel = ({ companyName, customerNo }: CustomerChoice) =>
   `${companyName}（${customerNo}）`;
+const renderCustomerOption = (customer: CustomerChoice) => (
+  <>
+    <span className="truncate">{customer.companyName}</span>
+    <span className="shrink-0 text-xs text-muted-foreground">
+      {customer.customerNo}
+    </span>
+  </>
+);
 
 export function CommunicationCustomerField({
   value,
@@ -34,12 +43,14 @@ export function CommunicationCustomerField({
   disabled,
   onChange,
   portalContainer,
+  searchInDropdown = false,
 }: {
   value: CustomerChoice | null;
   locked: boolean;
   disabled: boolean;
   onChange: (customer: CustomerChoice | null) => void;
   portalContainer?: PortalContainer;
+  searchInDropdown?: boolean;
 }) {
   if (locked) {
     return (
@@ -61,6 +72,7 @@ export function CommunicationCustomerField({
       disabled={disabled}
       onChange={onChange}
       portalContainer={portalContainer}
+      searchInDropdown={searchInDropdown}
     />
   );
 }
@@ -71,11 +83,13 @@ function CustomerPicker({
   disabled,
   onChange,
   portalContainer,
+  searchInDropdown,
 }: {
   value: CustomerChoice | null;
   disabled: boolean;
   onChange: (customer: CustomerChoice | null) => void;
   portalContainer?: PortalContainer;
+  searchInDropdown: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -138,99 +152,131 @@ function CustomerPicker({
     };
   }, [keyword, open, page, retry]);
 
+  function changeOpen(next: boolean) {
+    setOpen(next);
+    if (!next) {
+      setSearch("");
+      setPage(1);
+    }
+  }
+
+  function changeSearch(next: string) {
+    setSearch(next);
+    if (next.trim() !== keyword) {
+      setLookup(undefined);
+      setPage(1);
+      setError("");
+    }
+  }
+
+  const emptyMessage = error || (loading ? "正在加载客户…" : "没有匹配的客户");
+  const footer =
+    error || (result && result.page * pageSize < result.total) ? (
+      <div className="shrink-0 border-t p-1">
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full"
+          disabled={loading}
+          onClick={() => {
+            if (error) {
+              setError("");
+              setRetry((attempt) => attempt + 1);
+            } else if (result) {
+              setPage(result.page + 1);
+            }
+          }}
+        >
+          {error ? "重试加载客户" : "加载更多客户"}
+        </Button>
+      </div>
+    ) : null;
+
   return (
     <Field className="min-w-0">
       <FieldLabel htmlFor="communication-form-customer">客户</FieldLabel>
-      <Combobox
-        items={result?.customers ?? []}
-        filter={null}
-        open={open}
-        disabled={disabled}
-        inputValue={open ? search : value ? customerLabel(value) : ""}
-        value={value}
-        itemToStringLabel={customerLabel}
-        isItemEqualToValue={(item, selected) => item.id === selected.id}
-        onOpenChange={(next) => {
-          setOpen(next);
-          if (!next) {
-            setSearch("");
-            setPage(1);
-          }
-        }}
-        onInputValueChange={(next, details) => {
-          if (details.reason !== "input-change") return;
-          setSearch(next);
-          if (next.trim() !== keyword) {
-            setLookup(undefined);
-            setPage(1);
-            setError("");
-          }
-        }}
-        onValueChange={onChange}
-      >
-        <ComboboxInput
+      {searchInDropdown ? (
+        <SearchableSelect
           id="communication-form-customer"
-          className="h-10 w-full shadow-xs"
+          items={(result?.customers ?? []).map((customer) => ({
+            ...customer,
+            name: customerLabel(customer),
+          }))}
+          value={value ? { ...value, name: customerLabel(value) } : null}
           placeholder="搜索并选择客户"
-          maxLength={256}
-          aria-required="true"
-          onCompositionStart={() => {
-            composing.current = true;
+          searchPlaceholder="搜索客户名称或编号"
+          emptyMessage={emptyMessage}
+          disabled={disabled}
+          container={portalContainer}
+          remoteSearch={{
+            open,
+            query: search,
+            onOpenChange: changeOpen,
+            onQueryChange: changeSearch,
           }}
-          onCompositionEnd={() => {
-            composing.current = false;
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" || !open) return;
-            if (
-              composing.current ||
-              event.nativeEvent.isComposing ||
-              event.nativeEvent.keyCode === 229
-            ) {
-              event.preventBaseUIHandler();
-            } else if (
-              !event.currentTarget.getAttribute("aria-activedescendant")
-            ) {
-              event.preventDefault();
-            }
-          }}
+          getOptionKey={(customer) => customer.id}
+          renderOption={renderCustomerOption}
+          footer={footer}
+          onValueChange={({ id, companyName, customerNo }) =>
+            onChange({ id, companyName, customerNo })
+          }
         />
-        <ComboboxContent container={portalContainer}>
-          <ComboboxEmpty>
-            {error || (loading ? "正在加载客户…" : "没有匹配的客户")}
-          </ComboboxEmpty>
-          <ComboboxList>
-            {(customer: CustomerChoice) => (
-              <ComboboxItem key={customer.id} value={customer}>
-                <span className="truncate">{customer.companyName}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {customer.customerNo}
-                </span>
-              </ComboboxItem>
-            )}
-          </ComboboxList>
-          {error || (result && result.page * pageSize < result.total) ? (
-            <div className="border-t p-1">
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                disabled={loading}
-                onClick={() => {
-                  if (error) {
-                    setError("");
-                    setRetry((attempt) => attempt + 1);
-                  } else if (result) {
-                    setPage(result.page + 1);
-                  }
-                }}
-              >
-                {error ? "重试加载客户" : "加载更多客户"}
-              </Button>
-            </div>
-          ) : null}
-        </ComboboxContent>
-      </Combobox>
+      ) : (
+        <Combobox
+          items={result?.customers ?? []}
+          filter={null}
+          open={open}
+          disabled={disabled}
+          inputValue={open ? search : value ? customerLabel(value) : ""}
+          value={value}
+          itemToStringLabel={customerLabel}
+          isItemEqualToValue={(item, selected) => item.id === selected.id}
+          onOpenChange={changeOpen}
+          onInputValueChange={(next, details) => {
+            if (details.reason === "input-change") changeSearch(next);
+          }}
+          onValueChange={onChange}
+        >
+          <ComboboxInput
+            id="communication-form-customer"
+            className="h-10 w-full shadow-xs"
+            placeholder="搜索并选择客户"
+            maxLength={256}
+            aria-required="true"
+            onCompositionStart={() => {
+              composing.current = true;
+            }}
+            onCompositionEnd={() => {
+              composing.current = false;
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || !open) return;
+              if (
+                composing.current ||
+                event.nativeEvent.isComposing ||
+                event.nativeEvent.keyCode === 229
+              ) {
+                event.preventBaseUIHandler();
+              } else if (
+                !event.currentTarget.getAttribute("aria-activedescendant")
+              ) {
+                event.preventDefault();
+              }
+            }}
+          />
+          <ComboboxContent container={portalContainer}>
+            <ComboboxEmpty>{emptyMessage}</ComboboxEmpty>
+            <ComboboxList>
+              {(customer: CustomerChoice) => (
+                <ComboboxItem key={customer.id} value={customer}>
+                  {renderCustomerOption(customer)}
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+            {footer}
+          </ComboboxContent>
+        </Combobox>
+      )}
     </Field>
   );
 }
