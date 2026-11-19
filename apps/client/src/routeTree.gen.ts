@@ -26,6 +26,7 @@ import { Route as ProtectedDepartmentManagementIndexRouteImport } from './routes
 import { Route as ProtectedOrdersIndexRouteImport } from './routes/_protected/orders/index'
 import { Route as ProtectedPayoutsIndexRouteImport } from './routes/_protected/payouts/index'
 import { Route as ProtectedProductsIndexRouteImport } from './routes/_protected/products/index'
+import { Route as ProtectedAddressesAddressIdIndexRouteImport } from './routes/_protected/addresses/$addressId/index'
 import { Route as ProtectedCommunicationCommunicationIdIndexRouteImport } from './routes/_protected/communication/$communicationId/index'
 import { Route as ProtectedCommunicationCommunicationIdEditRouteImport } from './routes/_protected/communication/$communicationId/edit'
 import { Route as ProtectedCustomersCustomerIdIndexRouteImport } from './routes/_protected/customers/$customerId/index'
@@ -118,6 +119,12 @@ const ProtectedProductsIndexRoute = ProtectedProductsIndexRouteImport.update({
   path: '/products/',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedAddressesAddressIdIndexRoute =
+  ProtectedAddressesAddressIdIndexRouteImport.update({
+    id: '/addresses/$addressId/',
+    path: '/addresses/$addressId/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedCommunicationCommunicationIdIndexRoute =
   ProtectedCommunicationCommunicationIdIndexRouteImport.update({
     id: '/communication/$communicationId/',
@@ -161,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/products/': typeof ProtectedProductsIndexRoute
   '/communication/$communicationId/edit': typeof ProtectedCommunicationCommunicationIdEditRoute
   '/customers/$customerId/edit': typeof ProtectedCustomersCustomerIdEditRoute
+  '/addresses/$addressId/': typeof ProtectedAddressesAddressIdIndexRoute
   '/communication/$communicationId/': typeof ProtectedCommunicationCommunicationIdIndexRoute
   '/customers/$customerId/': typeof ProtectedCustomersCustomerIdIndexRoute
 }
@@ -182,6 +190,7 @@ export interface FileRoutesByTo {
   '/products': typeof ProtectedProductsIndexRoute
   '/communication/$communicationId/edit': typeof ProtectedCommunicationCommunicationIdEditRoute
   '/customers/$customerId/edit': typeof ProtectedCustomersCustomerIdEditRoute
+  '/addresses/$addressId': typeof ProtectedAddressesAddressIdIndexRoute
   '/communication/$communicationId': typeof ProtectedCommunicationCommunicationIdIndexRoute
   '/customers/$customerId': typeof ProtectedCustomersCustomerIdIndexRoute
 }
@@ -206,6 +215,7 @@ export interface FileRoutesById {
   '/_protected/products/': typeof ProtectedProductsIndexRoute
   '/_protected/communication/$communicationId/edit': typeof ProtectedCommunicationCommunicationIdEditRoute
   '/_protected/customers/$customerId/edit': typeof ProtectedCustomersCustomerIdEditRoute
+  '/_protected/addresses/$addressId/': typeof ProtectedAddressesAddressIdIndexRoute
   '/_protected/communication/$communicationId/': typeof ProtectedCommunicationCommunicationIdIndexRoute
   '/_protected/customers/$customerId/': typeof ProtectedCustomersCustomerIdIndexRoute
 }
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/products/'
     | '/communication/$communicationId/edit'
     | '/customers/$customerId/edit'
+    | '/addresses/$addressId/'
     | '/communication/$communicationId/'
     | '/customers/$customerId/'
   fileRoutesByTo: FileRoutesByTo
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/communication/$communicationId/edit'
     | '/customers/$customerId/edit'
+    | '/addresses/$addressId'
     | '/communication/$communicationId'
     | '/customers/$customerId'
   id:
@@ -273,6 +285,7 @@ export interface FileRouteTypes {
     | '/_protected/products/'
     | '/_protected/communication/$communicationId/edit'
     | '/_protected/customers/$customerId/edit'
+    | '/_protected/addresses/$addressId/'
     | '/_protected/communication/$communicationId/'
     | '/_protected/customers/$customerId/'
   fileRoutesById: FileRoutesById
@@ -404,6 +417,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProductsIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/addresses/$addressId/': {
+      id: '/_protected/addresses/$addressId/'
+      path: '/addresses/$addressId'
+      fullPath: '/addresses/$addressId/'
+      preLoaderRoute: typeof ProtectedAddressesAddressIdIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/communication/$communicationId/': {
       id: '/_protected/communication/$communicationId/'
       path: '/communication/$communicationId'
@@ -463,6 +483,7 @@ interface ProtectedRouteChildren {
   ProtectedProductsIndexRoute: typeof ProtectedProductsIndexRoute
   ProtectedCommunicationCommunicationIdEditRoute: typeof ProtectedCommunicationCommunicationIdEditRoute
   ProtectedCustomersCustomerIdEditRoute: typeof ProtectedCustomersCustomerIdEditRoute
+  ProtectedAddressesAddressIdIndexRoute: typeof ProtectedAddressesAddressIdIndexRoute
   ProtectedCommunicationCommunicationIdIndexRoute: typeof ProtectedCommunicationCommunicationIdIndexRoute
   ProtectedCustomersCustomerIdIndexRoute: typeof ProtectedCustomersCustomerIdIndexRoute
 }
@@ -484,6 +505,7 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedCommunicationCommunicationIdEditRoute:
     ProtectedCommunicationCommunicationIdEditRoute,
   ProtectedCustomersCustomerIdEditRoute: ProtectedCustomersCustomerIdEditRoute,
+  ProtectedAddressesAddressIdIndexRoute: ProtectedAddressesAddressIdIndexRoute,
   ProtectedCommunicationCommunicationIdIndexRoute:
     ProtectedCommunicationCommunicationIdIndexRoute,
   ProtectedCustomersCustomerIdIndexRoute:
