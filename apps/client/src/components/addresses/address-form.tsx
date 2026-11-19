@@ -185,6 +185,7 @@ export function AddressFormDialog({
   );
   const [base, setBase] = useState(address);
   const [draft, setDraft] = useState(() => readDraft(address));
+  const [countryQuery, setCountryQuery] = useState<string>();
   const [phoneCountry, setPhoneCountry] = useState<CountryCode>(() =>
     phoneCountryFrom(address?.phone ?? "")
   );
@@ -422,6 +423,16 @@ export function AddressFormDialog({
               )
             ) {
               event.preventDefault();
+              return;
+            }
+            // 删空时下拉可能仍是关闭的，先恢复已选国家并保留表单。
+            if (
+              countryQuery !== undefined &&
+              event.target instanceof HTMLInputElement &&
+              event.target.id === `${id}-country`
+            ) {
+              event.preventDefault();
+              setCountryQuery(undefined);
             }
           }}
         >
@@ -486,18 +497,45 @@ export function AddressFormDialog({
                   <Combobox
                     items={addressCountries}
                     value={country ?? null}
+                    inputValue={countryQuery ?? country?.name ?? ""}
                     disabled={disabled}
                     autoHighlight
                     filter={matchesLocation}
                     itemToStringLabel={(option) => option.name}
-                    onValueChange={(option) => {
-                      if (option) setField("countryCode", option.code);
+                    onInputValueChange={(value, details) => {
+                      if (details.reason === "input-change")
+                        setCountryQuery(value);
+                    }}
+                    onOpenChange={(open) => {
+                      if (!open) setCountryQuery(undefined);
+                    }}
+                    onValueChange={(option, details) => {
+                      if (!option) {
+                        details.cancel();
+                        return;
+                      }
+                      if (option.code === draft.countryCode) return;
+                      setDraft((previous) => ({
+                        ...previous,
+                        countryCode: option.code,
+                        province: "",
+                        city: "",
+                        district: null,
+                      }));
+                      setError("");
                     }}
                   >
                     <ComboboxInput
                       id={`${id}-country`}
                       className="w-full"
                       disabled={disabled}
+                      onBlur={(event) => {
+                        if (
+                          event.currentTarget.getAttribute("aria-expanded") !==
+                          "true"
+                        )
+                          setCountryQuery(undefined);
+                      }}
                       onKeyDown={(event) => {
                         const input = event.currentTarget;
                         if (
