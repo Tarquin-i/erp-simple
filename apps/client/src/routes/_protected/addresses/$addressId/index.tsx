@@ -1,6 +1,7 @@
 import {
   createFileRoute,
   Link,
+  redirect,
   useLocation,
   useRouter,
 } from "@tanstack/react-router";
@@ -17,7 +18,9 @@ import {
   readAddressDetailSearch,
 } from "@/components/addresses/navigation";
 import { Button } from "@/components/ui/button";
+import { toastManager } from "@/components/ui/toast";
 import {
+  AddressApiError,
   type AddressDetail,
   getAddress,
   listCustomerAddresses,
@@ -28,9 +31,27 @@ export const Route = createFileRoute("/_protected/addresses/$addressId/")({
   loaderDeps: ({ search: { page } }) => ({ page }),
   loader: {
     staleReloadMode: "blocking",
-    handler: async ({ params, deps, abortController }) => {
+    handler: async ({ params, deps, abortController, location, preload }) => {
       const signal = abortController.signal;
-      const { address } = await getAddress(params.addressId, signal);
+      const { address } = await getAddress(params.addressId, signal).catch(
+        (error: unknown) => {
+          if (
+            signal.aborted ||
+            !(error instanceof AddressApiError) ||
+            error.status !== 404
+          ) {
+            throw error;
+          }
+          if (!preload) {
+            toastManager.add({ title: "该地址已不可查看", type: "error" });
+          }
+          throw redirect({
+            to: "/addresses",
+            search: location.state.addressListQuery ?? {},
+            replace: true,
+          });
+        }
+      );
       let collection = await listCustomerAddresses(
         address.customerId,
         deps,
