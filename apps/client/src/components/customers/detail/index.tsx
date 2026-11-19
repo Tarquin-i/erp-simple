@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 
-import { AddressCollectionPending } from "@/components/addresses/address-collection";
+import { AddressCollectionPending } from "@/components/addresses/load-state";
 import { CustomerCommunicationTab } from "@/components/communication/list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

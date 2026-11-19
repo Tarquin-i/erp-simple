@@ -17,6 +17,7 @@ import { Route as AuthFotgotPasswordIndexRouteImport } from './routes/_auth/fotg
 import { Route as AuthLoginIndexRouteImport } from './routes/_auth/login/index'
 import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/index'
 import { Route as ProtectedAddressesIndexRouteImport } from './routes/_protected/addresses/index'
+import { Route as ProtectedAddressesNewRouteImport } from './routes/_protected/addresses/new'
 import { Route as ProtectedCommunicationIndexRouteImport } from './routes/_protected/communication/index'
 import { Route as ProtectedCommunicationNewRouteImport } from './routes/_protected/communication/new'
 import { Route as ProtectedCustomersIndexRouteImport } from './routes/_protected/customers/index'
@@ -68,6 +69,11 @@ const AuthRegisterIndexRoute = AuthRegisterIndexRouteImport.update({
 const ProtectedAddressesIndexRoute = ProtectedAddressesIndexRouteImport.update({
   id: '/addresses/',
   path: '/addresses/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedAddressesNewRoute = ProtectedAddressesNewRouteImport.update({
+  id: '/addresses/new',
+  path: '/addresses/new',
   getParentRoute: () => ProtectedRoute,
 } as any)
 const ProtectedCommunicationIndexRoute =
@@ -153,6 +159,7 @@ const ProtectedCustomersCustomerIdEditRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedIndexRoute
   '/department-access/': typeof DepartmentAccessIndexRoute
+  '/addresses/new': typeof ProtectedAddressesNewRoute
   '/communication/new': typeof ProtectedCommunicationNewRoute
   '/customers/new': typeof ProtectedCustomersNewRoute
   '/fotgot-password/': typeof AuthFotgotPasswordIndexRoute
@@ -175,6 +182,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof ProtectedIndexRoute
   '/department-access': typeof DepartmentAccessIndexRoute
+  '/addresses/new': typeof ProtectedAddressesNewRoute
   '/communication/new': typeof ProtectedCommunicationNewRoute
   '/customers/new': typeof ProtectedCustomersNewRoute
   '/fotgot-password': typeof AuthFotgotPasswordIndexRoute
@@ -200,6 +208,7 @@ export interface FileRoutesById {
   '/_protected': typeof ProtectedRouteWithChildren
   '/_protected/': typeof ProtectedIndexRoute
   '/department-access/': typeof DepartmentAccessIndexRoute
+  '/_protected/addresses/new': typeof ProtectedAddressesNewRoute
   '/_protected/communication/new': typeof ProtectedCommunicationNewRoute
   '/_protected/customers/new': typeof ProtectedCustomersNewRoute
   '/_auth/fotgot-password/': typeof AuthFotgotPasswordIndexRoute
@@ -224,6 +233,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/department-access/'
+    | '/addresses/new'
     | '/communication/new'
     | '/customers/new'
     | '/fotgot-password/'
@@ -246,6 +256,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/department-access'
+    | '/addresses/new'
     | '/communication/new'
     | '/customers/new'
     | '/fotgot-password'
@@ -270,6 +281,7 @@ export interface FileRouteTypes {
     | '/_protected'
     | '/_protected/'
     | '/department-access/'
+    | '/_protected/addresses/new'
     | '/_protected/communication/new'
     | '/_protected/customers/new'
     | '/_auth/fotgot-password/'
@@ -352,6 +364,13 @@ declare module '@tanstack/react-router' {
       path: '/addresses'
       fullPath: '/addresses/'
       preLoaderRoute: typeof ProtectedAddressesIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/addresses/new': {
+      id: '/_protected/addresses/new'
+      path: '/addresses/new'
+      fullPath: '/addresses/new'
+      preLoaderRoute: typeof ProtectedAddressesNewRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/_protected/communication/': {
@@ -471,6 +490,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface ProtectedRouteChildren {
   ProtectedIndexRoute: typeof ProtectedIndexRoute
+  ProtectedAddressesNewRoute: typeof ProtectedAddressesNewRoute
   ProtectedCommunicationNewRoute: typeof ProtectedCommunicationNewRoute
   ProtectedCustomersNewRoute: typeof ProtectedCustomersNewRoute
   ProtectedAddressesIndexRoute: typeof ProtectedAddressesIndexRoute
@@ -490,6 +510,7 @@ interface ProtectedRouteChildren {
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedIndexRoute: ProtectedIndexRoute,
+  ProtectedAddressesNewRoute: ProtectedAddressesNewRoute,
   ProtectedCommunicationNewRoute: ProtectedCommunicationNewRoute,
   ProtectedCustomersNewRoute: ProtectedCustomersNewRoute,
   ProtectedAddressesIndexRoute: ProtectedAddressesIndexRoute,

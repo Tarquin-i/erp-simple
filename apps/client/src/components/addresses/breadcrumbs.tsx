@@ -15,6 +15,7 @@ export function AddressBreadcrumbs() {
   const { pathname, state } = useLocation();
   const [, module, addressId] = pathname.split("/");
   if (module !== "addresses") return null;
+  const title = addressId === "new" ? "新建地址" : "地址详情";
   return (
     <>
       <Separator
@@ -38,7 +39,7 @@ export function AddressBreadcrumbs() {
             <>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
-                <BreadcrumbPage>地址详情</BreadcrumbPage>
+                <BreadcrumbPage>{title}</BreadcrumbPage>
               </BreadcrumbItem>
             </>
           )}

@@ -29,18 +29,32 @@ export function readAddressPage({ page }: Record<string, unknown>): {
 
 const uuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
+function readAddressRouteId(value: unknown) {
+  return typeof value === "string" && uuidPattern.test(value)
+    ? value.toLowerCase()
+    : undefined;
+}
+
 /** 解析地址详情的页码和来源客户，来源仅用于返回导航。 */
 export function readAddressDetailSearch(raw: Record<string, unknown>): {
   page?: number;
   customerId?: string;
 } {
-  const { customerId } = raw;
   return {
     ...readAddressPage(raw),
-    customerId:
-      typeof customerId === "string" && uuidPattern.test(customerId)
-        ? customerId.toLowerCase()
-        : undefined,
+    customerId: readAddressRouteId(raw.customerId),
+  };
+}
+
+/** 解析新建地址的来源、客户和页码，供加载与返回使用。 */
+export function readNewAddressSearch(raw: Record<string, unknown>): {
+  page?: number;
+  customerId?: string;
+  sourceAddressId?: string;
+} {
+  return {
+    ...readAddressDetailSearch(raw),
+    sourceAddressId: readAddressRouteId(raw.sourceAddressId),
   };
 }
 

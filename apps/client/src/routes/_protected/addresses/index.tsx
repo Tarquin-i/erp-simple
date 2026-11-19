@@ -1,9 +1,7 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { MapPin, Plus, Search } from "lucide-react";
-import { useState } from "react";
 import type { FormEvent } from "react";
 
-import { AddressFormDialog } from "@/components/addresses/address-form";
 import {
   AddressPageError,
   AddressPagePending,
@@ -52,7 +50,6 @@ function AddressDirectory() {
   const navigate = Route.useNavigate();
   const query = Route.useSearch();
   const { addresses, page, pageSize, total } = Route.useLoaderData();
-  const [creating, setCreating] = useState(false);
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -95,9 +92,16 @@ function AddressDirectory() {
               </Button>
             )}
           </form>
-          <Button type="button" onClick={() => setCreating(true)}>
-            <Plus aria-hidden="true" />
-            新建地址
+          <Button asChild>
+            <Link
+              to="/addresses/new"
+              search={{}}
+              state={{ addressListQuery: query }}
+              preload={false}
+            >
+              <Plus aria-hidden="true" />
+              新建地址
+            </Link>
           </Button>
         </div>
       </header>
@@ -175,21 +179,6 @@ function AddressDirectory() {
             }
           />
         </>
-      )}
-
-      {creating && (
-        <AddressFormDialog
-          onClose={() => setCreating(false)}
-          onSaved={async (address) => {
-            await navigate({
-              to: "/addresses/$addressId",
-              params: { addressId: address.id },
-              search: {},
-              state: { addressListQuery: query },
-            });
-            setCreating(false);
-          }}
-        />
       )}
     </main>
   );

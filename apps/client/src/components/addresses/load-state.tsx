@@ -5,6 +5,22 @@ import { FieldError } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AddressApiError } from "@/request/addresses";
 
+export const addressCollectionClass =
+  "mx-auto w-full max-w-4xl space-y-4 px-1 sm:px-3";
+
+export function AddressCollectionPending() {
+  return (
+    <div
+      className={addressCollectionClass}
+      aria-label="正在加载客户地址"
+      aria-busy="true"
+    >
+      <Skeleton className="h-28 w-full" />
+      <Skeleton className="h-28 w-full" />
+    </div>
+  );
+}
+
 export function AddressPagePending() {
   return (
     <main

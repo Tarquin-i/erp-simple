@@ -1,18 +1,15 @@
 import {
+  Link,
   useLocation,
   useNavigate,
-  useRouter,
   useSearch,
 } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import {
-  AddressCollection,
-  AddressCollectionPending,
-} from "@/components/addresses/address-collection";
-import { AddressFormDialog } from "@/components/addresses/address-form";
+import { AddressCollection } from "@/components/addresses/address-collection";
+import { AddressCollectionPending } from "@/components/addresses/load-state";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
 import {
@@ -40,13 +37,15 @@ export default function CustomerAddressesTab({
     from: "/_protected/customers/$customerId/",
   });
   const navigate = useNavigate({ from: "/customers/$customerId/" });
-  const router = useRouter();
-  const { state, pathname } = useLocation();
+  const { state } = useLocation();
   const [load, setLoad] = useState<LoadResult>();
   const [attempt, setAttempt] = useState(0);
-  const [creating, setCreating] = useState(false);
+  // 同一页写入后的刷新保留已展开的卡片，等最新列表返回再更新。
   const current =
-    load?.page === addressPage && load.attempt === attempt ? load : undefined;
+    load?.page === addressPage &&
+    (load.attempt === attempt || "collection" in load)
+      ? load
+      : undefined;
   const addressSearch = {
     customerId: customer.id,
     page: addressPage > 1 ? addressPage : undefined,
@@ -96,9 +95,16 @@ export default function CustomerAddressesTab({
     <>
       {createActionSlot &&
         createPortal(
-          <Button type="button" onClick={() => setCreating(true)}>
-            <Plus aria-hidden="true" />
-            新建地址
+          <Button asChild>
+            <Link
+              to="/addresses/new"
+              search={addressSearch}
+              state={navigationState}
+              preload={false}
+            >
+              <Plus aria-hidden="true" />
+              新建地址
+            </Link>
           </Button>,
           createActionSlot
         )}
@@ -120,6 +126,7 @@ export default function CustomerAddressesTab({
           addresses={current.collection.addresses}
           detailSearch={addressSearch}
           detailState={navigationState}
+          onChanged={() => setAttempt((previous) => previous + 1)}
           pagination={{
             page: current.collection.page,
             pageSize: current.collection.pageSize,
@@ -133,27 +140,6 @@ export default function CustomerAddressesTab({
                 state: (previous) => previous,
                 resetScroll: false,
               }),
-          }}
-        />
-      )}
-      {creating && (
-        <AddressFormDialog
-          customer={customer}
-          onClose={() => setCreating(false)}
-          onSaved={async (address) => {
-            const currentLocation = router.state.location;
-            if (
-              currentLocation.pathname === pathname &&
-              currentLocation.search.tab === "addresses"
-            ) {
-              await navigate({
-                to: "/addresses/$addressId",
-                params: { addressId: address.id },
-                search: addressSearch,
-                state: navigationState,
-              });
-            }
-            setCreating(false);
           }}
         />
       )}
