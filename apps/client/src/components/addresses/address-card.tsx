@@ -1,5 +1,4 @@
-import { Link, type HistoryState } from "@tanstack/react-router";
-import { Check, ChevronRight, Copy, Phone, UserRound } from "lucide-react";
+import { ChevronRight, Copy, Phone, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,8 @@ import {
 } from "@/request/addresses";
 
 import { AddressCardMenu } from "./address-card-menu";
-import type { readAddressDetailSearch } from "./navigation";
+import { copyAddressValue } from "./copy-address-value";
+import { AddressPhoneValue } from "./phone-value";
 
 type AddressCardActionsProps = {
   address: AddressListItem;
@@ -31,8 +31,6 @@ type AddressCardProps = Pick<
   "address" | "onChanged"
 > & {
   currentAddress?: AddressDetail;
-  detailSearch: ReturnType<typeof readAddressDetailSearch>;
-  detailState: Pick<HistoryState, "addressListQuery" | "customerListQuery">;
 };
 
 const dateTime = new Intl.DateTimeFormat("zh-CN", {
@@ -52,60 +50,40 @@ export function AddressCardActions({
   detail,
   onChanged,
 }: AddressCardActionsProps) {
-  const [copyStatus, setCopyStatus] = useState<
-    "copying" | "copied" | "failed" | null
-  >(null);
+  const [copying, setCopying] = useState(false);
 
   async function copyAddress() {
-    setCopyStatus("copying");
+    setCopying(true);
     const text = [
       `地址: ${address.formattedAddress}`,
       `联系人： ${address.recipientName}`,
       `联系方式： 电话-${address.phone}`,
     ].join("\n");
     try {
-      await navigator.clipboard.writeText(text);
-      setCopyStatus("copied");
-    } catch {
-      setCopyStatus("failed");
+      await copyAddressValue(text, "已复制收货信息", "复制失败，请重试。");
+    } finally {
+      setCopying(false);
     }
   }
 
   return (
-    <div className="ml-auto shrink-0 space-y-1">
-      <div className="flex items-center justify-end gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="复制收货信息"
-          title="复制收货信息"
-          disabled={copyStatus === "copying"}
-          onClick={() => void copyAddress()}
-        >
-          {copyStatus === "copied" ? (
-            <Check aria-hidden="true" />
-          ) : (
-            <Copy aria-hidden="true" />
-          )}
-        </Button>
-        <AddressCardMenu
-          address={address}
-          detail={detail}
-          onChanged={onChanged}
-        />
-      </div>
-      <p
-        role="status"
-        className={
-          copyStatus === "failed"
-            ? "text-right text-destructive text-xs"
-            : "text-right text-muted-foreground text-xs"
-        }
+    <div className="ml-auto flex shrink-0 items-start gap-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label="复制收货信息"
+        title="复制收货信息"
+        disabled={copying}
+        onClick={() => void copyAddress()}
       >
-        {copyStatus === "copied" && "已复制收货信息"}
-        {copyStatus === "failed" && "复制失败，请重试。"}
-      </p>
+        <Copy aria-hidden="true" />
+      </Button>
+      <AddressCardMenu
+        address={address}
+        detail={detail}
+        onChanged={onChanged}
+      />
     </div>
   );
 }
@@ -173,14 +151,12 @@ function AddressCardDetailStatus({
 
 /**
  * 展示收货地址、收货人和联系电话，展开后显示补充资料。
- * @param props 地址摘要、可复用的当前详情以及详情链接导航参数。
+ * @param props 地址摘要、可复用的当前详情以及更新回调。
  * @returns 独立展开的地址列表项。
  */
 export function AddressCard({
   address,
   currentAddress,
-  detailSearch,
-  detailState,
   onChanged,
 }: AddressCardProps) {
   const [open, setOpen] = useState(currentAddress !== undefined);
@@ -267,15 +243,13 @@ export function AddressCard({
               <span className="inline-flex min-w-0 items-center gap-1.5">
                 <Phone aria-hidden="true" className="size-4 shrink-0" />
                 <span className="sr-only">联系电话</span>
-                <span className="wrap-anywhere tabular-nums">
-                  {address.phone}
-                </span>
+                <AddressPhoneValue phone={address.phone} />
               </span>
             </div>
           </CardContent>
           <CollapsibleContent>
             {open && (
-              <CardContent className="space-y-3 px-4 pb-4">
+              <CardContent className="px-4 pb-4">
                 {detail ? (
                   <AddressCardDetails address={detail} />
                 ) : (
@@ -283,19 +257,6 @@ export function AddressCard({
                     error={loadError}
                     onRetry={() => setLoaded(undefined)}
                   />
-                )}
-                {!currentAddress && (
-                  <Button asChild variant="outline" size="sm">
-                    <Link
-                      to="/addresses/$addressId"
-                      params={{ addressId: id }}
-                      search={detailSearch}
-                      state={detailState}
-                      preload={false}
-                    >
-                      查看详情
-                    </Link>
-                  </Button>
                 )}
               </CardContent>
             )}

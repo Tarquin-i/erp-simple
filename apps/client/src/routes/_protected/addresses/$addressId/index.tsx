@@ -143,8 +143,6 @@ function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
         <AddressCollection
           addresses={collection.addresses}
           currentAddress={address}
-          detailSearch={addressSearch}
-          detailState={navigationState}
           onChanged={refreshAfterChange}
           pagination={{
             page,

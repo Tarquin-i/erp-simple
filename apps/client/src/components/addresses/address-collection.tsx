@@ -1,17 +1,12 @@
-import type { HistoryState } from "@tanstack/react-router";
-
 import { CustomerPagination } from "@/components/customers/pagination";
 import type { AddressDetail, AddressListItem } from "@/request/addresses";
 
 import { AddressCard } from "./address-card";
 import { addressCollectionClass } from "./load-state";
-import type { readAddressDetailSearch } from "./navigation";
 
 type AddressCollectionProps = {
   addresses: readonly AddressListItem[];
   currentAddress?: AddressDetail;
-  detailSearch: ReturnType<typeof readAddressDetailSearch>;
-  detailState: Pick<HistoryState, "addressListQuery" | "customerListQuery">;
   onChanged: (address: AddressDetail) => void | Promise<void>;
   pagination: {
     page: number;
@@ -23,14 +18,12 @@ type AddressCollectionProps = {
 
 /**
  * 展示同一客户的地址列表，并标识当前地址及默认地址。
- * @param props 地址摘要、当前详情、详情导航状态、更新回调及分页参数。
+ * @param props 地址摘要、当前详情、更新回调及分页参数。
  * @returns 供客户详情和地址详情使用的可展开地址卡片及分页控件。
  */
 export function AddressCollection({
   addresses,
   currentAddress,
-  detailSearch,
-  detailState,
   onChanged,
   pagination,
 }: AddressCollectionProps) {
@@ -45,8 +38,6 @@ export function AddressCollection({
               currentAddress={
                 currentAddress?.id === address.id ? currentAddress : undefined
               }
-              detailSearch={detailSearch}
-              detailState={detailState}
               onChanged={onChanged}
             />
           ))}

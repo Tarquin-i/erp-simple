@@ -124,8 +124,6 @@ export default function CustomerAddressesTab({
       ) : (
         <AddressCollection
           addresses={current.collection.addresses}
-          detailSearch={addressSearch}
-          detailState={navigationState}
           onChanged={() => setAttempt((previous) => previous + 1)}
           pagination={{
             page: current.collection.page,

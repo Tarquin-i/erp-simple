@@ -7,6 +7,7 @@ import {
   AddressPagePending,
 } from "@/components/addresses/load-state";
 import { readAddressListQuery } from "@/components/addresses/navigation";
+import { AddressPhoneValue } from "@/components/addresses/phone-value";
 import { CustomerPagination } from "@/components/customers/pagination";
 import { Button } from "@/components/ui/button";
 import {
@@ -161,7 +162,7 @@ function AddressDirectory() {
                     {address.recipientName}
                   </TableCell>
                   <TableCell className="tabular-nums">
-                    {address.phone}
+                    <AddressPhoneValue phone={address.phone} />
                   </TableCell>
                 </TableRow>
               ))}
