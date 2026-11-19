@@ -6,6 +6,7 @@ import {
   communicationTag,
   communicationTagAssignment,
   customer,
+  customerAddress,
   customerChannel,
   customerChannelAssignment,
   customerContact,
@@ -17,8 +18,9 @@ import {
   organization,
   user,
 } from "@repo/db/schema";
-import { eq, getTableName, inArray, or, sql } from "drizzle-orm";
+import { and, eq, getTableName, inArray, or, sql } from "drizzle-orm";
 
+import { readAddressCreateInput } from "../modules/address/input";
 import type { DatabaseTransaction } from "../modules/identity/auth/better-auth";
 
 const seedCustomerChannels = [
@@ -83,6 +85,7 @@ const seedIdPrefixes = {
   communication: "d0000004",
   customerTag: "d0000005",
   communicationTag: "d0000006",
+  address: "d0000007",
 } as const;
 
 function seedId(kind: keyof typeof seedIdPrefixes, index: number) {
@@ -177,6 +180,181 @@ const seedCustomers = [
     remark: "教学用品包装，采购数量和交付批次待确认。",
   },
 ] as const;
+
+const seedAddresses = [
+  {
+    index: 1,
+    customerIndex: 1,
+    input: {
+      recipientName: "林经理",
+      phone: "13800001001",
+      province: "广东省",
+      city: "深圳市",
+      district: "宝安区",
+      addressLine1: "演示产业园 A 座 2 楼",
+      postalCode: "518101",
+      remark: "办公室收样，工作日请联系收货人。",
+    },
+  },
+  {
+    index: 2,
+    customerIndex: 1,
+    input: {
+      recipientName: "陈仓管",
+      phone: "13800001002",
+      province: "广东省",
+      city: "东莞市",
+      district: "长安镇",
+      addressLine1: "演示物流园 2 号仓库",
+      addressLine2: "北门卸货区",
+      postalCode: "523850",
+      remark: "批量彩盒从北门入库。",
+    },
+  },
+  {
+    index: 3,
+    customerIndex: 1,
+    input: {
+      recipientName: "许师傅",
+      phone: "13800001003",
+      province: "广东省",
+      city: "惠州市",
+      district: "惠阳区",
+      addressLine1: "演示包装基地 3 号收货口",
+      remark: "供退换货和补件使用。",
+    },
+  },
+  {
+    index: 4,
+    customerIndex: 3,
+    input: {
+      recipientName: "周经理",
+      phone: "+8613800001004",
+      province: "浙江省",
+      city: "杭州市",
+      district: "西湖区",
+      addressLine1: "演示文创园 5 幢 301 室",
+      postalCode: "310000",
+      remark: "礼品包装样品送到前台。",
+    },
+  },
+  {
+    index: 5,
+    customerIndex: 6,
+    input: {
+      recipientName: "Alex Morgan",
+      phone: "+1 651 555 0101",
+      countryCode: "US",
+      province: "Minnesota",
+      city: "Saint Paul",
+      addressLine1: "42 Sample Wharf",
+      addressLine2: "Receiving Dock 2",
+      postalCode: "55101",
+      remark: "外箱注明演示采购单号，预约工作日收货。",
+    },
+  },
+  {
+    index: 6,
+    customerIndex: 6,
+    input: {
+      recipientName: "Taylor Lee",
+      phone: "+61 491 570 156",
+      countryCode: "AU",
+      province: "New South Wales",
+      city: "Sydney",
+      addressLine1: "18 Example Quay",
+      postalCode: "2000",
+      remark: "仅收跨境包装样品。",
+    },
+  },
+  {
+    index: 7,
+    customerIndex: 7,
+    input: {
+      recipientName: "唐经理",
+      phone: "13800001007",
+      province: "江苏省",
+      city: "苏州市",
+      district: "吴中区",
+      addressLine1: "演示印刷园 7 号厂房",
+      postalCode: "215100",
+    },
+  },
+  {
+    index: 8,
+    customerIndex: 9,
+    input: {
+      recipientName: "赵经理",
+      phone: "13800001008",
+      province: "福建省",
+      city: "厦门市",
+      district: "集美区",
+      addressLine1: "演示创意产业园 1 幢 4 楼",
+      postalCode: "361021",
+      remark: "到货后送样品室。",
+    },
+  },
+  {
+    index: 9,
+    customerIndex: 9,
+    input: {
+      recipientName: "Robin Chen",
+      phone: "+1 416 555 0101",
+      countryCode: "CA",
+      province: "Ontario",
+      city: "Toronto",
+      addressLine1: "96 Example Lane",
+      addressLine2: "Unit 3",
+      postalCode: "M5V 2T6",
+      remark: "海外样品收货点。",
+    },
+  },
+] as const;
+
+async function seedCustomerAddresses(
+  tx: DatabaseTransaction,
+  customerId: string,
+  customerIndex: number,
+  customerCreatedAt: Date
+) {
+  const addresses = seedAddresses.filter(
+    (address) => address.customerIndex === customerIndex
+  );
+  if (!addresses.length) return 0;
+
+  const [currentDefault] = await tx
+    .select({ id: customerAddress.id })
+    .from(customerAddress)
+    .where(
+      and(
+        eq(customerAddress.customerId, customerId),
+        eq(customerAddress.isDefault, true)
+      )
+    )
+    .limit(1);
+  let hasDefault = Boolean(currentDefault);
+  let count = 0;
+  for (const { index, input } of addresses) {
+    const createdAt = new Date(customerCreatedAt.getTime() + index * 3600000);
+    const [created] = await tx
+      .insert(customerAddress)
+      .values({
+        ...readAddressCreateInput(input),
+        id: seedId("address", index),
+        customerId,
+        isDefault: !hasDefault,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .onConflictDoNothing({ target: customerAddress.id })
+      .returning({ id: customerAddress.id });
+    if (created) {
+      hasDefault = true;
+      count++;
+    }
+  }
+  return count;
+}
 
 function resolveSeedTags(
   names: readonly string[],
@@ -275,6 +453,7 @@ async function seedBusinessData(
   const now = Date.now();
   let createdCustomers = 0;
   let createdCommunications = 0;
+  let createdAddresses = 0;
   for (const [offset, definition] of seedCustomers.entries()) {
     const index = offset + 1;
     const departmentId = departmentIds.get(definition.department);
@@ -313,13 +492,20 @@ async function seedBusinessData(
       : await tx
           .select({ id: customer.id, departmentId: customer.departmentId })
           .from(customer)
-          .where(eq(customer.id, customerId));
+          .where(eq(customer.id, customerId))
+          .for("update");
     if (
       !record ||
       ("departmentId" in record && record.departmentId !== departmentId)
     ) {
       throw new Error(`客户种子标识 ${customerId} 的部门不匹配。`);
     }
+    createdAddresses += await seedCustomerAddresses(
+      tx,
+      customerId,
+      index,
+      createdAt
+    );
     if (created) {
       createdCustomers++;
       await tx
@@ -414,7 +600,7 @@ async function seedBusinessData(
       }
     }
   }
-  return { createdCustomers, createdCommunications };
+  return { createdCustomers, createdCommunications, createdAddresses };
 }
 
 async function seedLocalData() {
@@ -449,6 +635,7 @@ async function seedLocalData() {
       departmentApplication,
       customerChannel,
       customer,
+      customerAddress,
       customerTag,
       customerTagAssignment,
       customerChannelAssignment,
@@ -569,9 +756,10 @@ try {
     createdChannels,
     createdCustomers,
     createdCommunications,
+    createdAddresses,
   } = await seedLocalData();
   console.log(
-    `本地种子已就绪。新增账号 ${createdAccounts} 个，保留已有账号 ${seedAccounts.length - createdAccounts} 个，新增客户渠道 ${createdChannels} 项，客户 ${createdCustomers} 个，沟通 ${createdCommunications} 条。`
+    `本地种子已就绪。新增账号 ${createdAccounts} 个，保留已有账号 ${seedAccounts.length - createdAccounts} 个，新增客户渠道 ${createdChannels} 项，客户 ${createdCustomers} 个，沟通 ${createdCommunications} 条，地址 ${createdAddresses} 条。`
   );
 } catch (error) {
   console.error(formatDatabaseError(error));
