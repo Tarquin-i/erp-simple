@@ -35,7 +35,10 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import {
+  keepDialogOpenOnComboboxEscape,
+  SearchableSelect,
+} from "@/components/ui/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
@@ -454,7 +457,6 @@ function AddressForm({
         value={selectedCustomer}
         locked={Boolean(address || customer)}
         disabled={disabled}
-        searchInDropdown
         portalContainer={portalContainer}
         onChange={(choice) => {
           setSelectedCustomer(choice);
@@ -471,6 +473,7 @@ function AddressForm({
               value={draft.phone}
               country={phone.number?.country ?? phoneCountry}
               callingCode={phone.callingCode}
+              portalContainer={portalContainer}
               required
               disabled={disabled}
               type="tel"
@@ -541,6 +544,7 @@ function AddressForm({
             placeholder="请选择国家或地区"
             searchPlaceholder="搜索国家或地区名称或代码"
             emptyMessage="没有匹配的国家或地区"
+            prioritizeCodeMatch
             disabled={disabled}
             container={portalContainer}
             onValueChange={(option) => {
@@ -551,6 +555,7 @@ function AddressForm({
                 province: "",
                 city: "",
                 district: null,
+                postalCode: null,
               }));
               setError("");
             }}
@@ -567,6 +572,7 @@ function AddressForm({
             placeholder="请选择省/州"
             searchPlaceholder="搜索省/州名称或代码"
             emptyMessage="没有匹配的省或州"
+            prioritizeCodeMatch
             disabled={disabled}
             container={portalContainer}
             onValueChange={(option) => confirmProvince(option.name)}
@@ -639,16 +645,9 @@ function AddressForm({
             className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)] sm:max-w-2xl"
             ref={dialogContent}
             showCloseButton={!pending}
-            onEscapeKeyDown={(event) => {
-              // 已展开的下拉应先消费 Esc，避免关闭地址弹窗并丢弃草稿。
-              if (
-                dialogContent.current?.querySelector(
-                  '[role="combobox"][aria-expanded="true"]'
-                )
-              ) {
-                event.preventDefault();
-              }
-            }}
+            onEscapeKeyDown={(event) =>
+              keepDialogOpenOnComboboxEscape(event, dialogContent.current)
+            }
           >
             <DialogHeader>
               <DialogTitle>{address ? "编辑地址" : "新建地址"}</DialogTitle>

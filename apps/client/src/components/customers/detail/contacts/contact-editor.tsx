@@ -8,6 +8,7 @@ import {
   type ChangeEvent,
   type FormEvent,
   type Ref,
+  type RefObject,
   useId,
   useRef,
   useState,
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { keepDialogOpenOnComboboxEscape } from "@/components/ui/searchable-select";
 import {
   Select,
   SelectContent,
@@ -64,6 +66,7 @@ export function CustomerContactEditor({
   embedded = false,
   mode,
   restored,
+  contentRef,
   inputRef,
   pending,
   locked,
@@ -76,6 +79,7 @@ export function CustomerContactEditor({
   embedded?: boolean;
   mode: ContactEditorMode;
   restored: boolean;
+  contentRef: RefObject<HTMLDivElement | null>;
   inputRef: Ref<HTMLInputElement>;
   pending: boolean;
   locked: boolean;
@@ -328,6 +332,7 @@ export function CustomerContactEditor({
                   {...valueInputProps}
                   country={phoneCountry}
                   callingCode={phoneDraft?.callingCode}
+                  portalContainer={contentRef}
                   onCountryChange={(next) => {
                     if (
                       next === phoneCountry &&
@@ -406,7 +411,13 @@ export function CustomerContactEditor({
         if (!open && !locked) onClose();
       }}
     >
-      <SheetContent className="w-full gap-0 sm:max-w-md">
+      <SheetContent
+        className="w-full gap-0 sm:max-w-md"
+        ref={contentRef}
+        onEscapeKeyDown={(event) =>
+          keepDialogOpenOnComboboxEscape(event, contentRef.current)
+        }
+      >
         <SheetHeader className="border-b px-6 py-5">
           <SheetTitle className="text-lg font-semibold">
             {editorTitles[mode.kind]}

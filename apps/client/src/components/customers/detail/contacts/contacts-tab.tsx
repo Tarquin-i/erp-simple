@@ -84,6 +84,7 @@ export function CustomerContacts({
   const managerTrigger = useRef<HTMLButtonElement>(null);
   const managerAddButton = useRef<HTMLButtonElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
+  const editorContent = useRef<HTMLDivElement>(null);
   const editorInput = useRef<HTMLInputElement>(null);
   const pending = operation !== null;
   const managedContact = contacts?.find(
@@ -426,6 +427,7 @@ export function CustomerContacts({
       embedded={Boolean(managedContact)}
       mode={editor}
       restored={restoredContact.current !== null}
+      contentRef={editorContent}
       inputRef={editorInput}
       pending={pending}
       locked={pending || conflict !== null}
@@ -510,6 +512,7 @@ export function CustomerContacts({
           form={editorForm}
           locked={pending || conflict !== null || deletion !== null}
           error={deletion ? "" : error}
+          contentRef={editorContent}
           addButtonRef={managerAddButton}
           onClose={editor ? closeEditor : closeManager}
           onRename={(trigger) =>

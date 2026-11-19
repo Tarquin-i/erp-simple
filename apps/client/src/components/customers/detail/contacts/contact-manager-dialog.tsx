@@ -1,5 +1,5 @@
 import { Ellipsis, Pencil, Plus, Trash2 } from "lucide-react";
-import { type ReactNode, type Ref, useRef } from "react";
+import { type ReactNode, type Ref, type RefObject, useRef } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FieldError } from "@/components/ui/field";
+import { keepDialogOpenOnComboboxEscape } from "@/components/ui/searchable-select";
 import type {
   CustomerContact,
   CustomerContactMethod,
@@ -96,6 +97,7 @@ export function ContactManagerDialog({
   form,
   locked,
   error,
+  contentRef,
   addButtonRef,
   onClose,
   onRename,
@@ -108,6 +110,7 @@ export function ContactManagerDialog({
   form: ReactNode;
   locked: boolean;
   error: string;
+  contentRef: RefObject<HTMLDivElement | null>;
   addButtonRef: Ref<HTMLButtonElement>;
   onClose: () => void;
   onRename: (trigger: HTMLButtonElement) => void;
@@ -123,8 +126,12 @@ export function ContactManagerDialog({
       }}
     >
       <DialogContent
+        ref={contentRef}
         className="flex max-h-[85dvh] min-h-0 flex-col gap-4 sm:max-w-xl sm:p-6"
         showCloseButton={!locked}
+        onEscapeKeyDown={(event) =>
+          keepDialogOpenOnComboboxEscape(event, contentRef.current)
+        }
       >
         <DialogHeader className="pr-8">
           <DialogTitle className="wrap-anywhere">{title}</DialogTitle>
