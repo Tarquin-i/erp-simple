@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ComponentProps, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,7 @@ type Lookup = {
   total: number;
   customers: CustomerChoice[];
 };
+type PortalContainer = ComponentProps<typeof ComboboxContent>["container"];
 
 const pageSize = 20;
 const customerLabel = ({ companyName, customerNo }: CustomerChoice) =>
@@ -32,11 +33,13 @@ export function CommunicationCustomerField({
   locked,
   disabled,
   onChange,
+  portalContainer,
 }: {
   value: CustomerChoice | null;
   locked: boolean;
   disabled: boolean;
   onChange: (customer: CustomerChoice | null) => void;
+  portalContainer?: PortalContainer;
 }) {
   if (locked) {
     return (
@@ -53,7 +56,12 @@ export function CommunicationCustomerField({
   }
 
   return (
-    <CustomerPicker value={value} disabled={disabled} onChange={onChange} />
+    <CustomerPicker
+      value={value}
+      disabled={disabled}
+      onChange={onChange}
+      portalContainer={portalContainer}
+    />
   );
 }
 
@@ -62,10 +70,12 @@ function CustomerPicker({
   value,
   disabled,
   onChange,
+  portalContainer,
 }: {
   value: CustomerChoice | null;
   disabled: boolean;
   onChange: (customer: CustomerChoice | null) => void;
+  portalContainer?: PortalContainer;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -185,7 +195,7 @@ function CustomerPicker({
             }
           }}
         />
-        <ComboboxContent>
+        <ComboboxContent container={portalContainer}>
           <ComboboxEmpty>
             {error || (loading ? "正在加载客户…" : "没有匹配的客户")}
           </ComboboxEmpty>
