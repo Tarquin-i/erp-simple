@@ -1,7 +1,6 @@
 import { createFileRoute, useLocation } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import { SavedAttachmentUploads } from "@/components/communication/attachments/saved-uploads";
 import { useAttachmentUploadQueue } from "@/components/communication/attachments/use-upload-queue";
 import type { AttachmentUploadQueue } from "@/components/communication/attachments/use-upload-queue";
 import {
@@ -130,10 +129,12 @@ function NewCommunicationSession({
 
   if (recovered) {
     return (
-      <SavedAttachmentUploads
-        communicationId={recovered.id}
-        queue={attachments}
-        onView={() => void showRecovered(recovered)}
+      <CommunicationForm
+        recoveredCreation={recovered}
+        viewer={viewer}
+        attachments={attachments}
+        onCancel={cancelCreation}
+        onSaved={() => showRecovered(recovered)}
       />
     );
   }

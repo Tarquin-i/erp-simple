@@ -5,7 +5,10 @@ import type { FormEvent } from "react";
 
 import { AttachmentDropZone } from "@/components/communication/attachments/drop-zone";
 import { AttachmentQueue } from "@/components/communication/attachments/queue";
-import { SavedAttachmentUploads } from "@/components/communication/attachments/saved-uploads";
+import {
+  SavedAttachmentUploads,
+  SavedAttachmentUploadStatus,
+} from "@/components/communication/attachments/saved-uploads";
 import type { AttachmentUploadQueue } from "@/components/communication/attachments/use-upload-queue";
 import { CustomerTagPicker } from "@/components/customers/form/channel-tag-selectors";
 import { VersionConflictDialog } from "@/components/customers/version-conflict-dialog";
@@ -90,6 +93,7 @@ export function CommunicationFormLoadError({
 /** 提供沟通记录的新建、编辑表单及并发保存处理。 */
 export function CommunicationForm({
   record,
+  recoveredCreation,
   initialCustomer,
   viewer,
   attachments,
@@ -99,6 +103,7 @@ export function CommunicationForm({
   onSaved,
 }: {
   record?: Communication;
+  recoveredCreation?: Communication;
   initialCustomer?: CustomerChoice;
   viewer: Viewer;
   attachments: AttachmentUploadQueue;
@@ -113,8 +118,11 @@ export function CommunicationForm({
   const defaultOwner = isAdmin
     ? undefined
     : { id: viewer.account.id, name: viewer.account.name };
-  const [baseline, setBaseline] = useState(record);
-  const [draft, setDraft] = useState(() => toDraft(record, defaultOwner));
+  const initialRecord = record ?? recoveredCreation;
+  const [baseline, setBaseline] = useState(initialRecord);
+  const [draft, setDraft] = useState(() =>
+    toDraft(initialRecord, defaultOwner)
+  );
   const [customer, setCustomer] = useState<CustomerChoice | null>(
     initialCustomer ?? null
   );
@@ -124,11 +132,14 @@ export function CommunicationForm({
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
   const [assignmentDenied, setAssignmentDenied] = useState(false);
-  const [savedId, setSavedId] = useState<string>();
+  const [savedId, setSavedId] = useState(recoveredCreation?.id);
   const saving = useRef(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
   const isEdit = Boolean(record);
+  const savedCreationId = isEdit ? undefined : savedId;
+  const fieldsLocked = pending || Boolean(savedCreationId);
+  const attachmentBusy = pending || attachments.busy;
   const customerChoice = baseline ? baseline.customer : customer;
   const customerId = baseline?.customerId ?? customer?.id;
   const canChangeOwner =
@@ -137,7 +148,7 @@ export function CommunicationForm({
     Object.keys(getChanges(toDraft(baseline), draft)).length > 0;
   const hasFiles = attachments.items.some((item) => item.status === "queued");
   const cannotSave =
-    pending ||
+    fieldsLocked ||
     tagPending ||
     (isEdit
       ? !hasChanges && !hasFiles
@@ -145,7 +156,7 @@ export function CommunicationForm({
   const SubmitIcon = isEdit ? Check : Save;
 
   async function save(proposed: CommunicationDraft, current = baseline) {
-    if (saving.current || tagPending || !customerId) return;
+    if (saving.current || savedId || tagPending || !customerId) return;
     saving.current = true;
     setPending(true);
     setError("");
@@ -291,7 +302,7 @@ export function CommunicationForm({
     );
   }
 
-  if (savedId) {
+  if (isEdit && savedId) {
     return (
       <SavedAttachmentUploads
         communicationId={savedId}
@@ -309,26 +320,37 @@ export function CommunicationForm({
           <h1 className="text-2xl font-semibold tracking-tight">
             {isEdit ? "编辑沟通记录" : "新建沟通记录"}
           </h1>
-          <div className="flex items-center gap-2">
+          {savedCreationId ? (
             <Button
               type="button"
-              variant="outline"
               className="h-10 px-4"
-              disabled={pending}
-              onClick={onCancel}
+              disabled={attachmentBusy}
+              onClick={() => void onSaved(savedCreationId)}
             >
-              取消
+              查看沟通详情
             </Button>
-            <Button
-              type="submit"
-              className="h-10 gap-2 px-4"
-              aria-busy={pending}
-              disabled={cannotSave}
-            >
-              <SubmitIcon aria-hidden="true" />
-              {pending ? "正在保存…" : isEdit ? "完成" : "保存"}
-            </Button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 px-4"
+                disabled={pending}
+                onClick={onCancel}
+              >
+                取消
+              </Button>
+              <Button
+                type="submit"
+                className="h-10 gap-2 px-4"
+                aria-busy={pending}
+                disabled={cannotSave}
+              >
+                <SubmitIcon aria-hidden="true" />
+                {pending ? "正在保存…" : isEdit ? "完成" : "保存"}
+              </Button>
+            </div>
+          )}
         </div>
 
         {error ? (
@@ -346,7 +368,7 @@ export function CommunicationForm({
               className="h-10 shadow-xs"
               required
               maxLength={128}
-              disabled={pending}
+              disabled={fieldsLocked}
               value={draft.title}
               onChange={(event) =>
                 setDraft((previous) => ({
@@ -359,7 +381,7 @@ export function CommunicationForm({
           <CommunicationCustomerField
             value={customerChoice}
             locked={isEdit || Boolean(initialCustomer)}
-            disabled={pending}
+            disabled={fieldsLocked}
             onChange={(selection) => {
               if (selection?.id === customer?.id) return;
               setCustomer(selection);
@@ -372,7 +394,7 @@ export function CommunicationForm({
             label="标签"
             value={draft.tags}
             onChange={(tags) => setDraft((previous) => ({ ...previous, tags }))}
-            disabled={pending}
+            disabled={fieldsLocked}
             allowCreate
             onCreatingChange={setTagPending}
             loadTags={listCommunicationTags}
@@ -381,9 +403,9 @@ export function CommunicationForm({
           />
           <CommunicationOwnerField
             customerId={customerId}
-            editable={canChangeOwner}
+            editable={canChangeOwner && !savedCreationId}
             value={draft.owner}
-            disabled={pending}
+            disabled={fieldsLocked}
             onChange={(owner) =>
               setDraft((previous) => ({ ...previous, owner }))
             }
@@ -397,7 +419,7 @@ export function CommunicationForm({
               className="min-h-36 shadow-xs"
               required
               maxLength={20_000}
-              disabled={pending}
+              disabled={fieldsLocked}
               value={draft.summary}
               onChange={(event) =>
                 setDraft((previous) => ({
@@ -410,15 +432,27 @@ export function CommunicationForm({
         </div>
         <Field>
           <FieldTitle>附件</FieldTitle>
-          <AttachmentDropZone
-            accept={attachmentAccept}
-            disabled={pending}
-            onFilesSelected={attachments.add}
-          />
+          {savedCreationId ? (
+            <>
+              <p className="text-sm">沟通记录已保存。</p>
+              <SavedAttachmentUploadStatus queue={attachments} />
+            </>
+          ) : (
+            <AttachmentDropZone
+              accept={attachmentAccept}
+              disabled={attachmentBusy}
+              onFilesSelected={attachments.add}
+            />
+          )}
           <AttachmentQueue
             items={attachments.items}
-            disabled={pending}
-            onRemove={attachments.remove}
+            disabled={attachmentBusy}
+            onRetry={
+              savedCreationId
+                ? (id) => void attachments.upload(savedCreationId, id)
+                : undefined
+            }
+            onRemove={(id) => void attachments.remove(id, savedCreationId)}
           />
         </Field>
       </form>
