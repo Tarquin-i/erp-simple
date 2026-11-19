@@ -129,6 +129,7 @@ function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
             await navigate({
               to: "/addresses",
               search: state.addressListQuery ?? {},
+              replace: true,
             });
           }
         }
