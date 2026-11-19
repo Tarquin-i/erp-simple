@@ -1,3 +1,6 @@
+import type { HistoryState } from "@tanstack/react-router";
+
+import { readListQueryFromState } from "@/components/customers/list-query";
 import type { AddressListQuery } from "@/request/addresses";
 
 declare module "@tanstack/react-router" {
@@ -22,6 +25,38 @@ export function readAddressPage({ page }: Record<string, unknown>): {
         ? number
         : undefined,
   };
+}
+
+const uuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+
+/** 解析地址详情的页码和来源客户，来源仅用于返回导航。 */
+export function readAddressDetailSearch(raw: Record<string, unknown>): {
+  page?: number;
+  customerId?: string;
+} {
+  const { customerId } = raw;
+  return {
+    ...readAddressPage(raw),
+    customerId:
+      typeof customerId === "string" && uuidPattern.test(customerId)
+        ? customerId.toLowerCase()
+        : undefined,
+  };
+}
+
+/** 返回客户的地址 Tab，并保留客户列表条件和该 Tab 的页码。 */
+export function customerAddressTabLink(
+  customerId: string,
+  page: number | undefined,
+  state: HistoryState
+) {
+  return {
+    to: "/customers/$customerId",
+    params: { customerId },
+    search: { tab: "addresses", addressPage: readAddressPage({ page }).page },
+    state: { customerListQuery: readListQueryFromState(state) },
+    preload: false,
+  } as const;
 }
 
 /** 规范化地址目录的 URL 搜索条件。 */

@@ -7,13 +7,16 @@ import {
 import { Archive, Pencil, Plus, Star } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { AddressCollection } from "@/components/addresses/address-collection";
 import { AddressFormDialog } from "@/components/addresses/address-form";
 import {
   AddressPageError,
   AddressPagePending,
 } from "@/components/addresses/load-state";
-import { readAddressPage } from "@/components/addresses/navigation";
-import { CustomerPagination } from "@/components/customers/pagination";
+import {
+  customerAddressTabLink,
+  readAddressDetailSearch,
+} from "@/components/addresses/navigation";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -28,14 +31,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   AddressApiError,
   type AddressDetail,
   archiveAddress,
@@ -45,8 +40,8 @@ import {
 } from "@/request/addresses";
 
 export const Route = createFileRoute("/_protected/addresses/$addressId/")({
-  validateSearch: readAddressPage,
-  loaderDeps: ({ search }) => search,
+  validateSearch: readAddressDetailSearch,
+  loaderDeps: ({ search: { page } }) => ({ page }),
   loader: {
     staleReloadMode: "blocking",
     handler: async ({ params, deps, abortController }) => {
@@ -72,6 +67,8 @@ export const Route = createFileRoute("/_protected/addresses/$addressId/")({
     },
   },
   pendingComponent: AddressPagePending,
+  pendingMs: 0,
+  pendingMinMs: 0,
   errorComponent: ({ error }) => <AddressPageError error={error} detail />,
   component: AddressDetailRoute,
 });
@@ -91,12 +88,24 @@ function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
   const router = useRouter();
   const navigate = Route.useNavigate();
   const { state } = useLocation();
+  const { customerId } = Route.useSearch();
   const [form, setForm] = useState<"create" | "edit" | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [saving, setSaving] = useState<"default" | "archive" | null>(null);
   const mutationPending = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const { page, pageSize, total } = collection;
+  const returnCustomer = customerId === address.customerId;
+  const returnLink = returnCustomer
+    ? customerAddressTabLink(customerId, page, state)
+    : undefined;
+  const navigationState = returnCustomer
+    ? { customerListQuery: state.customerListQuery }
+    : { addressListQuery: state.addressListQuery };
+  const addressSearch = {
+    customerId: returnCustomer ? customerId : undefined,
+    page: page > 1 ? page : undefined,
+  };
 
   function openForm(mode: "create" | "edit") {
     setError(null);
@@ -114,10 +123,14 @@ function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
       if (action === "archive") {
         await archiveAddress(address.id, address.version);
         if (router.state.location.pathname === pathname) {
-          await navigate({
-            to: "/addresses",
-            search: state.addressListQuery ?? {},
-          });
+          if (returnLink) {
+            await navigate({ ...returnLink, replace: true });
+          } else {
+            await navigate({
+              to: "/addresses",
+              search: state.addressListQuery ?? {},
+            });
+          }
         }
       } else {
         await updateAddress(address.id, address.version, { isDefault: true });
@@ -148,6 +161,11 @@ function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {returnLink && (
+            <Button asChild variant="outline">
+              <Link {...returnLink}>返回客户地址</Link>
+            </Button>
+          )}
           {!address.isDefault && (
             <Button
               type="button"
@@ -260,66 +278,22 @@ function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
             新建地址
           </Button>
         </header>
-        <Table aria-label="客户地址列表" className="min-w-[530px] table-fixed">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-1/2">收货地址</TableHead>
-              <TableHead className="w-1/4">收货人</TableHead>
-              <TableHead className="w-1/4">联系电话</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {collection.addresses.map((item) => (
-              <TableRow
-                key={item.id}
-                data-state={item.id === address.id ? "selected" : undefined}
-              >
-                <TableCell className="py-3">
-                  <div className="flex items-center gap-2">
-                    {item.id === address.id ? (
-                      <span
-                        aria-current="page"
-                        title={item.formattedAddress}
-                        className="truncate"
-                      >
-                        {item.formattedAddress}
-                      </span>
-                    ) : (
-                      <Link
-                        to="/addresses/$addressId"
-                        params={{ addressId: item.id }}
-                        search={{ page: page > 1 ? page : undefined }}
-                        state={{ addressListQuery: state.addressListQuery }}
-                        preload={false}
-                        title={item.formattedAddress}
-                        className="truncate rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        {item.formattedAddress}
-                      </Link>
-                    )}
-                    {item.isDefault && <Badge variant="secondary">默认</Badge>}
-                  </div>
-                </TableCell>
-                <TableCell className="truncate" title={item.recipientName}>
-                  {item.recipientName}
-                </TableCell>
-                <TableCell className="tabular-nums">{item.phone}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <CustomerPagination
-          label="客户地址分页"
-          page={page}
-          pageCount={Math.max(1, Math.ceil(total / pageSize))}
-          total={total}
-          onPageChange={(next) =>
-            void navigate({
-              search: { page: next > 1 ? next : undefined },
-              state: { addressListQuery: state.addressListQuery },
-              resetScroll: false,
-            })
-          }
+        <AddressCollection
+          addresses={collection.addresses}
+          currentAddressId={address.id}
+          detailSearch={addressSearch}
+          detailState={navigationState}
+          pagination={{
+            page,
+            pageSize,
+            total,
+            onPageChange: (next) =>
+              void navigate({
+                search: { ...addressSearch, page: next > 1 ? next : undefined },
+                state: navigationState,
+                resetScroll: false,
+              }),
+          }}
         />
       </section>
 
@@ -335,8 +309,8 @@ function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
               await navigate({
                 to: "/addresses/$addressId",
                 params: { addressId: saved.id },
-                search: {},
-                state: { addressListQuery: state.addressListQuery },
+                search: { customerId: addressSearch.customerId },
+                state: navigationState,
               });
             }
             setForm(null);
