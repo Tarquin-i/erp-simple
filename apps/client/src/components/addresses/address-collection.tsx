@@ -9,7 +9,12 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
-import { VirtualList } from "@/components/ui/virtual-list";
+import { toastManager } from "@/components/ui/toast";
+import {
+  VirtualList,
+  type VirtualListHandle,
+  type VirtualScrollAnchor,
+} from "@/components/ui/virtual-list";
 import {
   AddressApiError,
   type AddressDetail,
@@ -28,9 +33,51 @@ type AddressCollectionProps = {
   onChanged?: (address: AddressDetail) => Promise<boolean | undefined>;
 };
 
-type PageRequest = { page: number; error?: string };
+type AddressRead = { page: number } & (
+  | { kind: "page" }
+  | { kind: "refresh"; pageSize: number; changedId: string }
+);
+type PendingRead = { read: AddressRead; error?: string };
 
+const firstPage = { kind: "page", page: 1 } as const;
+const addressPageSizeLimit = 100;
 const estimateCardSize = () => 112;
+
+/** 以接口支持的最大批次重读前缀，继续加载时仍沿用原来的分页大小。 */
+async function readLoadedAddresses(
+  customerId: string,
+  { page, pageSize }: Pick<AddressPage, "page" | "pageSize">,
+  signal: AbortSignal
+): Promise<AddressPage> {
+  const size = page * pageSize;
+  const batchSize = Math.min(size, addressPageSizeLimit);
+  let result = await listCustomerAddresses(
+    customerId,
+    { page: 1, pageSize: batchSize },
+    signal
+  );
+  const addresses = new Map(
+    result.addresses.map((address) => [address.id, address])
+  );
+  for (
+    let batch = 2;
+    (batch - 1) * batchSize < Math.min(size, result.total);
+    batch++
+  ) {
+    result = await listCustomerAddresses(
+      customerId,
+      { page: batch, pageSize: batchSize },
+      signal
+    );
+    for (const address of result.addresses) addresses.set(address.id, address);
+  }
+  return {
+    ...result,
+    page,
+    pageSize,
+    addresses: [...addresses.values()].slice(0, size),
+  };
+}
 
 /**
  * 逐批读取一个客户的有效地址，滚动时只渲染附近卡片并保留已展开的状态。
@@ -45,8 +92,13 @@ export function AddressCollection({
 }: AddressCollectionProps) {
   const active = useRef<AbortController | null>(null);
   const mounted = useRef(false);
+  const latestCollection = useRef<AddressPage | undefined>(undefined);
+  const list = useRef<VirtualListHandle>(null);
   const [collection, setCollection] = useState<AddressPage>();
-  const [request, setRequest] = useState<PageRequest | undefined>({ page: 1 });
+  const [request, setRequest] = useState<PendingRead | undefined>({
+    read: firstPage,
+  });
+  const [scrollAnchor, setScrollAnchor] = useState<VirtualScrollAnchor>();
   const [expanded, setExpanded] = useState<ReadonlyMap<string, boolean>>(
     () => new Map()
   );
@@ -57,46 +109,69 @@ export function AddressCollection({
     () => new Set()
   );
 
-  const loadPage = useCallback(
-    async (page: number) => {
+  const loadAddresses = useCallback(
+    async (read: AddressRead) => {
       active.current?.abort();
       const controller = new AbortController();
       const { signal } = controller;
       active.current = controller;
-      setRequest({ page });
+      setRequest({ read });
       try {
-        const result = await listCustomerAddresses(
-          customerId,
-          { page },
-          signal
-        );
-        if (signal.aborted) return;
-        setCollection((previous) => {
-          if (!previous || page === 1) return result;
+        const result =
+          read.kind === "refresh"
+            ? await readLoadedAddresses(customerId, read, signal)
+            : await listCustomerAddresses(
+                customerId,
+                { page: read.page },
+                signal
+              );
+        if (signal.aborted) return false;
+        const previous = latestCollection.current;
+        let next = result;
+        if (read.kind === "refresh") {
+          const ids = new Set(result.addresses.map(({ id }) => id));
+          setScrollAnchor(
+            list.current?.getScrollAnchor(
+              (id) => id !== read.changedId && ids.has(id)
+            )
+          );
+        } else if (previous && read.page > 1) {
           const items = new Map(
             previous.addresses.map((item) => [item.id, item])
           );
           for (const item of result.addresses) items.set(item.id, item);
-          return { ...result, addresses: [...items.values()] };
-        });
+          next = { ...result, addresses: [...items.values()] };
+        }
+        latestCollection.current = next;
+        setCollection(next);
         setRequest(undefined);
+        return true;
       } catch (failure) {
-        if (signal.aborted) return;
+        if (signal.aborted) return false;
         if (
           failure instanceof AddressApiError &&
           [401, 403, 404].includes(failure.status)
         ) {
+          latestCollection.current = undefined;
           setCollection(undefined);
+          setScrollAnchor(undefined);
           setDetails(new Map());
-          setRequest({ page: 1, error: failure.message });
-          return;
+          setRequest({ read: firstPage, error: failure.message });
+          return false;
         }
         setRequest({
-          page,
+          read,
           error:
             (failure instanceof Error && failure.message) ||
             "暂时无法加载地址。",
         });
+        if (read.kind === "refresh") {
+          toastManager.add({
+            title: "操作已完成，列表刷新失败。请手动刷新页面。",
+            type: "error",
+          });
+        }
+        return false;
       } finally {
         if (active.current === controller) active.current = null;
       }
@@ -106,12 +181,12 @@ export function AddressCollection({
 
   useEffect(() => {
     mounted.current = true;
-    void loadPage(1);
+    void loadAddresses(firstPage);
     return () => {
       mounted.current = false;
       active.current?.abort();
     };
-  }, [loadPage]);
+  }, [loadAddresses]);
 
   const onOpenChange = useCallback((id: string, open: boolean) => {
     setExpanded((previous) => new Map(previous).set(id, open));
@@ -140,9 +215,21 @@ export function AddressCollection({
   }, []);
 
   async function refreshAfterChange(address: AddressDetail) {
-    if (!mounted.current || (await onChanged?.(address)) === false) return;
-    // 默认标记和修改时间会改变排序，废弃旧批次，重新开始追加。
-    if (mounted.current) await loadPage(1);
+    if (!mounted.current || (await onChanged?.(address)) === false)
+      return false;
+    if (!mounted.current) return false;
+    const loaded = latestCollection.current;
+    // 默认标记和修改时间会改变排序，等已读范围全部刷新后再替换。
+    return loadAddresses(
+      loaded
+        ? {
+            kind: "refresh",
+            page: loaded.page,
+            pageSize: loaded.pageSize,
+            changedId: address.id,
+          }
+        : firstPage
+    );
   }
 
   const hasMore = Boolean(
@@ -150,8 +237,14 @@ export function AddressCollection({
   );
   const loadNext = useCallback(() => {
     if (collection && hasMore && !active.current && !request)
-      void loadPage(collection.page + 1);
-  }, [collection, hasMore, loadPage, request]);
+      void loadAddresses({ kind: "page", page: collection.page + 1 });
+  }, [collection, hasMore, loadAddresses, request]);
+  const pageError = request?.read.kind === "page" ? request.error : undefined;
+
+  function retryAddresses() {
+    if (!request?.error || active.current) return;
+    void loadAddresses(request.read);
+  }
 
   const items = useMemo(() => {
     if (!collection) return [];
@@ -188,11 +281,13 @@ export function AddressCollection({
       {header}
       {items.length > 0 && (
         <VirtualList
+          ref={list}
           label="客户地址列表"
           items={items}
           estimateSize={estimateCardSize}
           renderItem={renderCard}
           retainedIds={retainedIds}
+          scrollAnchor={scrollAnchor}
           onReachEnd={hasMore && !request ? loadNext : undefined}
         />
       )}
@@ -202,23 +297,24 @@ export function AddressCollection({
         </p>
       )}
       {!collection && !request?.error && <AddressCollectionPending />}
-      {request?.error ? (
+      {pageError && (
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <FieldError>{request.error}</FieldError>
+          <FieldError>{pageError}</FieldError>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => void loadPage(request.page)}
+            onClick={retryAddresses}
           >
             重试加载地址
           </Button>
         </div>
-      ) : collection && request ? (
+      )}
+      {collection && request && !request.error && (
         <output className="block py-2 text-center text-muted-foreground text-sm">
           正在加载地址…
         </output>
-      ) : null}
+      )}
     </div>
   );
 }

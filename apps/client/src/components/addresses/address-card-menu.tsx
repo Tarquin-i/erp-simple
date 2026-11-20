@@ -34,7 +34,7 @@ import { AddressFormDialog } from "./address-form";
 type AddressCardMenuProps = {
   address: AddressListItem;
   detail?: AddressDetail;
-  onChanged: (address: AddressDetail) => void | Promise<void>;
+  onChanged: (address: AddressDetail) => Promise<boolean>;
   onRetainChange?: (id: string, retained: boolean) => void;
 };
 
@@ -53,6 +53,7 @@ export function AddressCardMenu({
 }: AddressCardMenuProps) {
   const trigger = useRef<HTMLButtonElement>(null);
   const openingDialog = useRef(false);
+  const settingDefault = useRef(false);
   const inFlight = useRef(false);
   const mounted = useRef(false);
   const pendingRead = useRef<AbortController>(null);
@@ -199,18 +200,21 @@ export function AddressCardMenu({
       if (mounted.current) {
         setLatest(record);
         setArchiveTarget(undefined);
-        if (action === "default") {
-          toastManager.add({ title: "已设为默认地址", type: "success" });
-        }
       }
       try {
-        await onChanged(record);
+        const refreshed = await onChanged(record);
+        if (refreshed && action === "default" && mounted.current) {
+          toastManager.add({ title: "已设为默认地址", type: "success" });
+        }
       } catch {
         if (mounted.current) setError("地址已更新，请刷新列表查看。");
       }
     } finally {
       inFlight.current = false;
-      if (mounted.current) setBusy(null);
+      if (mounted.current) {
+        setBusy(null);
+        if (action === "default") restoreFocus();
+      }
     }
   }
 
@@ -237,8 +241,9 @@ export function AddressCardMenu({
         <DropdownMenuContent
           align="end"
           onCloseAutoFocus={(event) => {
-            if (!openingDialog.current) return;
+            if (!openingDialog.current && !settingDefault.current) return;
             openingDialog.current = false;
+            settingDefault.current = false;
             event.preventDefault();
           }}
         >
@@ -248,7 +253,10 @@ export function AddressCardMenu({
           </DropdownMenuItem>
           {!current.isDefault && (
             <DropdownMenuItem
-              onSelect={() => void changeAddress("default", current)}
+              onSelect={() => {
+                settingDefault.current = true;
+                void changeAddress("default", current);
+              }}
             >
               <Star aria-hidden="true" />
               设为默认地址

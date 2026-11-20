@@ -23,7 +23,7 @@ import { AddressPhoneValue } from "./phone-value";
 type AddressCardActionsProps = {
   address: AddressListItem;
   detail?: AddressDetail;
-  onChanged: (address: AddressDetail) => void | Promise<void>;
+  onChanged: (address: AddressDetail) => Promise<boolean>;
   onRetainChange?: (id: string, retained: boolean) => void;
 };
 
