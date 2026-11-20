@@ -205,26 +205,44 @@ export function useAttachmentUploadQueue() {
     }
   }
 
-  const clearCompleted = useCallback(
-    (listedIds?: ReadonlySet<string>) => {
+  /** 列表读到了对应的正式附件时，将等待核对的失败任务标记为成功。 */
+  const reconcileCompleted = useCallback(
+    (listedIds: ReadonlySet<string>) => {
       const previous = itemsRef.current;
-      const remaining = previous.filter((item) => {
-        if (item.status === "succeeded") return false;
-        // 完成还在收尾或状态核对暂不可用时，列表里的正式附件也是已保存的证据。
-        return !(
+      const next = previous.map(
+        (item): UploadItem =>
           (item.status === "failed" || item.status === "remove-failed") &&
           item.attachmentId &&
-          listedIds?.has(item.attachmentId)
-        );
-      });
-      if (remaining.length === previous.length) return false;
-      setQueue(remaining);
+          listedIds.has(item.attachmentId)
+            ? {
+                ...item,
+                status: "succeeded",
+                error: undefined,
+                retryable: false,
+              }
+            : item
+      );
+      if (next.every((item, index) => item === previous[index])) return false;
+      setQueue(next);
       return true;
     },
     [setQueue]
   );
 
-  return { items, busy, add, remove, upload, clearCompleted };
+  function clearCompleted() {
+    if (active.current) return;
+    setQueue(itemsRef.current.filter((item) => item.status !== "succeeded"));
+  }
+
+  return {
+    items,
+    busy,
+    add,
+    remove,
+    upload,
+    clearCompleted,
+    reconcileCompleted,
+  };
 }
 
 export type AttachmentUploadQueue = ReturnType<typeof useAttachmentUploadQueue>;

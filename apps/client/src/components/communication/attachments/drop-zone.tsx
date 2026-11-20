@@ -1,6 +1,6 @@
 import { Upload } from "lucide-react";
-import { useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { DragEvent, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -14,6 +14,12 @@ type AttachmentDropZoneProps = {
   }) => ReactNode;
 };
 
+function isInsideDropZone(event: DragEvent<HTMLDivElement>) {
+  return (
+    event.target instanceof Node && event.currentTarget.contains(event.target)
+  );
+}
+
 /** 提供可用鼠标、键盘或拖放操作的多文件选择入口。 */
 export function AttachmentDropZone({
   accept,
@@ -24,6 +30,12 @@ export function AttachmentDropZone({
   const input = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const [dragActive, setDragActive] = useState(false);
+  useEffect(() => {
+    if (disabled) {
+      dragDepth.current = 0;
+      setDragActive(false);
+    }
+  }, [disabled]);
   const selectFiles = () => input.current?.click();
   const dropButton = (
     <Button
@@ -42,29 +54,39 @@ export function AttachmentDropZone({
 
   return (
     <div
-      className={
-        children
-          ? "min-w-0 space-y-4 rounded-lg data-[drag-active=true]:ring-2 data-[drag-active=true]:ring-ring/60"
-          : undefined
-      }
+      className={children ? "relative min-w-0 rounded-lg" : undefined}
       data-drag-active={dragActive && !disabled}
       onDragEnter={(event) => {
-        if (!event.dataTransfer.types.includes("Files")) return;
+        if (
+          !isInsideDropZone(event) ||
+          !event.dataTransfer.types.includes("Files")
+        )
+          return;
         event.preventDefault();
+        if (disabled) return;
         dragDepth.current += 1;
-        if (!disabled) setDragActive(true);
+        setDragActive(true);
       }}
       onDragOver={(event) => {
-        if (!event.dataTransfer.types.includes("Files")) return;
+        if (
+          !isInsideDropZone(event) ||
+          !event.dataTransfer.types.includes("Files")
+        )
+          return;
         event.preventDefault();
         event.dataTransfer.dropEffect = disabled ? "none" : "copy";
       }}
-      onDragLeave={() => {
+      onDragLeave={(event) => {
+        if (!isInsideDropZone(event)) return;
         dragDepth.current = Math.max(0, dragDepth.current - 1);
         if (dragDepth.current === 0) setDragActive(false);
       }}
       onDrop={(event) => {
-        if (!event.dataTransfer.types.includes("Files")) return;
+        if (
+          !isInsideDropZone(event) ||
+          !event.dataTransfer.types.includes("Files")
+        )
+          return;
         event.preventDefault();
         dragDepth.current = 0;
         setDragActive(false);
@@ -85,7 +107,21 @@ export function AttachmentDropZone({
           if (!disabled && files.length) onFilesSelected(files);
         }}
       />
-      {children ? children({ selectFiles, dropButton }) : dropButton}
+      {children ? (
+        <>
+          <div className="space-y-4">
+            {children({ selectFiles, dropButton })}
+          </div>
+          {dragActive && !disabled && (
+            <output className="pointer-events-none absolute inset-0 z-10 grid content-center justify-items-center gap-2 rounded-lg border-2 border-primary/50 border-dashed bg-background text-sm font-medium">
+              <Upload aria-hidden="true" className="size-5" />
+              松开鼠标上传附件
+            </output>
+          )}
+        </>
+      ) : (
+        dropButton
+      )}
     </div>
   );
 }

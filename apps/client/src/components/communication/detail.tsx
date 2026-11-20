@@ -272,10 +272,16 @@ export function CommunicationDetail({
         <div className="flex min-w-0 items-center gap-2">
           <div className="min-w-0 overflow-x-auto overflow-y-hidden py-1">
             <TabsList aria-label="沟通关联信息">
-              <TabsTrigger className="min-w-[88px]" value="attachments">
+              <TabsTrigger
+                className="min-w-[72px] sm:min-w-[88px]"
+                value="attachments"
+              >
                 附件
               </TabsTrigger>
-              <TabsTrigger className="min-w-[88px]" value="relations">
+              <TabsTrigger
+                className="min-w-[72px] sm:min-w-[88px]"
+                value="relations"
+              >
                 关联项
               </TabsTrigger>
             </TabsList>

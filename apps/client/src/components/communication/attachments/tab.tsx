@@ -1,4 +1,4 @@
-import { LoaderCircle, Upload } from "lucide-react";
+import { ListChecks, LoaderCircle, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -11,6 +11,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { FieldError } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -128,7 +137,7 @@ export function CommunicationAttachmentsTab({
   actionsSlot: HTMLDivElement | null;
 }) {
   const uploads = useAttachmentUploadQueue();
-  const { clearCompleted } = uploads;
+  const { reconcileCompleted } = uploads;
   const [listRequest, setListRequest] = useState<AttachmentListRequest>({
     page: 1,
   });
@@ -147,6 +156,7 @@ export function CommunicationAttachmentsTab({
     useState<AttachmentDeleteRequest["phase"]>();
   const deletePending = deleteProgress !== undefined;
   const [deleteError, setDeleteError] = useState("");
+  const [uploadStatusOpen, setUploadStatusOpen] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
   const downloadRequests = useRef(new Map<string, AbortController>());
   const deleteRequest = useRef<AttachmentDeleteRequest | null>(null);
@@ -175,7 +185,7 @@ export function CommunicationAttachmentsTab({
             .filter((item) => !item.deletionPending)
             .map(({ id }) => id)
         );
-        if (clearCompleted(readyIds)) setUploadMessage("附件上传成功。");
+        if (reconcileCompleted(readyIds)) setUploadMessage("附件上传成功。");
         setResult((previous) => {
           if (listRequest.replacePages || next.page === 1 || !previous) {
             return next;
@@ -199,7 +209,7 @@ export function CommunicationAttachmentsTab({
       }
     );
     return () => controller.abort();
-  }, [communicationId, listRequest, clearCompleted]);
+  }, [communicationId, listRequest, reconcileCompleted]);
 
   const loadedPage = result?.page;
   useEffect(() => {
@@ -242,7 +252,6 @@ export function CommunicationAttachmentsTab({
     setUploadMessage("");
     const succeeded = await uploads.upload(communicationId, retryId);
     if (!mounted.current) return;
-    clearCompleted();
     if (succeeded) setUploadMessage("附件上传成功。");
     reload();
   }
@@ -252,7 +261,6 @@ export function CommunicationAttachmentsTab({
     const result = await uploads.remove(id, communicationId);
     if (!mounted.current || !result) return;
     if (result === "ready") {
-      clearCompleted();
       setUploadMessage("附件已上传成功，已保留。");
     }
     reload();
@@ -417,30 +425,23 @@ export function CommunicationAttachmentsTab({
   const nextCursor = result?.nextCursor;
   const uploadDisabled =
     uploads.busy || deletePending || inaccessible || !result;
+  const hasCompletedUploads = uploads.items.some(
+    (item) => item.status === "succeeded"
+  );
 
   return (
-    <>
+    <Dialog open={uploadStatusOpen} onOpenChange={setUploadStatusOpen}>
       <AttachmentDropZone
         accept={attachmentAccept}
-        disabled={uploadDisabled}
+        disabled={uploadDisabled || uploadStatusOpen || Boolean(deleteTarget)}
         onFilesSelected={(files) => {
           uploads.add(files);
+          setUploadStatusOpen(true);
           void upload();
         }}
       >
         {({ selectFiles, dropButton }) => (
           <>
-            <AttachmentQueue
-              items={uploads.items}
-              disabled={uploads.busy || inaccessible}
-              onRetry={(id) => void upload(id)}
-              onRemove={(id) => void removeUpload(id)}
-            />
-            {uploadMessage && (
-              <p className="text-sm text-muted-foreground" role="status">
-                {uploadMessage}
-              </p>
-            )}
             {downloadError && (
               <div className="flex flex-wrap items-center gap-2">
                 <FieldError>{downloadError.message}</FieldError>
@@ -491,22 +492,39 @@ export function CommunicationAttachmentsTab({
                     setDeleteError("");
                     setDeleteTarget(attachment);
                   }}
-                  uploadAction={
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label="上传附件"
-                          disabled={uploadDisabled}
-                          onClick={selectFiles}
-                        >
-                          <Upload aria-hidden="true" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>上传附件</TooltipContent>
-                    </Tooltip>
+                  fileActions={
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label="上传附件"
+                            disabled={uploadDisabled}
+                            onClick={selectFiles}
+                          >
+                            <Upload aria-hidden="true" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>上传附件</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DialogTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label="查看上传状态"
+                            >
+                              <ListChecks aria-hidden="true" />
+                            </Button>
+                          </DialogTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>查看上传状态</TooltipContent>
+                      </Tooltip>
+                    </>
                   }
                   empty={
                     <div className="space-y-2">
@@ -553,6 +571,50 @@ export function CommunicationAttachmentsTab({
           </>
         )}
       </AttachmentDropZone>
+      <DialogContent className="flex max-h-[85dvh] flex-col sm:max-w-xl">
+        <DialogHeader className="pr-7">
+          <DialogTitle>附件上传状态</DialogTitle>
+          <DialogDescription className="sr-only">
+            查看本页附件上传的进度和结果。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 space-y-3 overflow-y-auto">
+          {uploadMessage && (
+            <p className="text-sm text-muted-foreground" role="status">
+              {uploadMessage}
+            </p>
+          )}
+          {uploads.items.length > 0 ? (
+            <AttachmentQueue
+              items={uploads.items}
+              disabled={uploads.busy || inaccessible || deletePending}
+              onRetry={(id) => void upload(id)}
+              onRemove={(id) => void removeUpload(id)}
+              label="附件上传任务"
+            />
+          ) : (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              暂无上传任务
+            </p>
+          )}
+        </div>
+        {hasCompletedUploads && (
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={uploads.busy}
+              onClick={() => {
+                uploads.clearCompleted();
+                setUploadMessage("");
+              }}
+            >
+              清除已完成
+            </Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
       <AlertDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(next) => {
@@ -593,6 +655,6 @@ export function CommunicationAttachmentsTab({
           </AlertDialogContent>
         )}
       </AlertDialog>
-    </>
+    </Dialog>
   );
 }

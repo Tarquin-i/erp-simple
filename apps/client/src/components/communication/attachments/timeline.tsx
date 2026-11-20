@@ -50,7 +50,7 @@ type AttachmentTimelineProps = {
   deletingId?: string;
   onDownload: (attachment: Attachment) => void;
   onDelete?: (attachment: Attachment) => void;
-  uploadAction?: ReactNode;
+  fileActions?: ReactNode;
   empty?: ReactNode;
 };
 
@@ -267,7 +267,7 @@ export function AttachmentTimeline({
   deletingId,
   onDownload,
   onDelete,
-  uploadAction,
+  fileActions,
   empty,
 }: AttachmentTimelineProps) {
   const idPrefix = useId();
@@ -359,7 +359,7 @@ export function AttachmentTimeline({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            {uploadAction}
+            {fileActions}
           </>,
           actionsSlot
         )}

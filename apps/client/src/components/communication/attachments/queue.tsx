@@ -27,6 +27,7 @@ export type AttachmentQueueItem = {
 
 type AttachmentQueueProps = {
   items: readonly AttachmentQueueItem[];
+  label?: string;
   disabled?: boolean;
   onRetry?: (id: string) => void;
   onRemove?: (id: string) => void;
@@ -46,6 +47,7 @@ const statusLabels: Record<AttachmentQueueStatus, string> = {
 /** 显示队列状态、上传进度和可用的操作。 */
 export function AttachmentQueue({
   items,
+  label = "待上传附件",
   disabled = false,
   onRetry,
   onRemove,
@@ -53,7 +55,7 @@ export function AttachmentQueue({
   if (!items.length) return null;
 
   return (
-    <ul aria-label="待上传附件" className="divide-y rounded-lg border">
+    <ul aria-label={label} className="divide-y rounded-lg border">
       {items.map(({ id, file, status, progress, error, retryable }) => {
         const uploadProgress =
           progress === undefined
@@ -67,13 +69,13 @@ export function AttachmentQueue({
             status === "remove-failed");
         const removeLabel = status === "remove-failed" ? "重试移除" : "移除";
         return (
-          <li key={id} className="flex gap-3 px-3 py-2.5">
-            <Paperclip
-              aria-hidden="true"
-              className="mt-1 size-4 shrink-0 text-muted-foreground"
-            />
-            <div className="min-w-0 flex-1 space-y-1">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <li key={id} className="space-y-1 px-3 py-2.5">
+            <div className="flex items-center gap-3">
+              <Paperclip
+                aria-hidden="true"
+                className="size-4 shrink-0 text-muted-foreground"
+              />
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="min-w-0 text-sm font-medium wrap-anywhere">
                   {file.name}
                 </span>
@@ -91,50 +93,52 @@ export function AttachmentQueue({
                   {statusLabels[status]}
                 </Badge>
               </div>
-              {status === "uploading" && (
-                <div className="flex items-center gap-2">
-                  <progress
-                    aria-label={`${file.name} 的上传进度`}
-                    className="h-1.5 w-full accent-primary"
-                    max={100}
-                    value={uploadProgress}
-                  />
-                  {uploadProgress !== undefined && (
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {uploadProgress}%
-                    </span>
+              {(canRetry || canRemove) && (
+                <div className="flex shrink-0 items-center gap-1">
+                  {canRetry && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      aria-label={`重试上传 ${file.name}`}
+                      disabled={disabled}
+                      onClick={() => onRetry(id)}
+                    >
+                      重试
+                    </Button>
+                  )}
+                  {canRemove && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`${removeLabel} ${file.name}`}
+                      disabled={disabled}
+                      onClick={() => onRemove(id)}
+                    >
+                      {removeLabel}
+                    </Button>
                   )}
                 </div>
               )}
-              {error && <FieldError>{error}</FieldError>}
             </div>
-            {(canRetry || canRemove) && (
-              <div className="flex shrink-0 items-start gap-1">
-                {canRetry && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    aria-label={`重试上传 ${file.name}`}
-                    disabled={disabled}
-                    onClick={() => onRetry(id)}
-                  >
-                    重试
-                  </Button>
-                )}
-                {canRemove && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    aria-label={`${removeLabel} ${file.name}`}
-                    disabled={disabled}
-                    onClick={() => onRemove(id)}
-                  >
-                    {removeLabel}
-                  </Button>
+            {status === "uploading" && (
+              <div className="ml-7 flex items-center gap-2">
+                <progress
+                  aria-label={`${file.name} 的上传进度`}
+                  className="h-1.5 w-full accent-primary"
+                  max={100}
+                  value={uploadProgress}
+                />
+                {uploadProgress !== undefined && (
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {uploadProgress}%
+                  </span>
                 )}
               </div>
+            )}
+            {error && (
+              <FieldError className="ml-7 wrap-anywhere">{error}</FieldError>
             )}
           </li>
         );
