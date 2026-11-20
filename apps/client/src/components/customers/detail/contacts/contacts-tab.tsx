@@ -1,6 +1,6 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { ContactRound, Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -21,13 +21,13 @@ import {
 } from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
+import { VirtualList } from "@/components/ui/virtual-list";
 import { CustomerApiError, listCustomerContacts } from "@/request/customers";
 import type {
   CustomerContact,
   CustomerContactMethod,
 } from "@/request/customers";
 
-import { CustomerPagination } from "../../pagination";
 import { VersionConflictDialog } from "../../version-conflict-dialog";
 import { CustomerContactEditor } from "./contact-editor";
 import type { ContactEditorMode } from "./contact-editor";
@@ -49,13 +49,12 @@ import {
 } from "./version-conflict";
 import type { ContactConflict } from "./version-conflict";
 
-const contactsPerPage = 10;
 const workspaceRoute = getRouteApi("/_protected");
 
 /**
  * 展示并管理指定客户的联系人和联系方式。
  * @param props 客户 ID 和页签栏右侧的新建按钮插槽。插槽未就绪时暂不显示按钮。
- * @returns 分页列表、编辑弹层和删除或版本冲突确认弹窗。
+ * @returns 联系人滚动列表、编辑弹层和删除或版本冲突确认弹窗。
  */
 export function CustomerContacts({
   customerId,
@@ -68,8 +67,12 @@ export function CustomerContacts({
   const [contacts, setContacts] = useState<CustomerContact[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [page, setPage] = useState(1);
+  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
+  const [scrollToId, setScrollToId] = useState<string>();
   const [managedContactId, setManagedContactId] = useState<string | null>(null);
+  const [focusReturnId, setFocusReturnId] = useState<string>();
   const [editor, setEditor] = useState<ContactEditorMode | null>(null);
   const [deletion, setDeletion] = useState<DeleteChange | null>(null);
   const [conflict, setConflict] = useState<ContactConflict | null>(null);
@@ -78,7 +81,7 @@ export function CustomerContacts({
   const [retryingCreation, setRetryingCreation] = useState(false);
   const [notice, setNotice] = useState<{ text: string; visible?: boolean }>();
   const writing = useRef(false);
-  const contactCountBeforeRefresh = useRef<number | null>(null);
+  const contactIdsBeforeRefresh = useRef<ReadonlySet<string> | null>(null);
   const restoredContact = useRef<CustomerContact | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const managerTrigger = useRef<HTMLButtonElement>(null);
@@ -90,17 +93,15 @@ export function CustomerContacts({
   const managedContact = contacts?.find(
     (contact) => contact.id === managedContactId
   );
-  const overwriteError = conflict ? contactOverwriteError(conflict) : undefined;
-  const contactsLoaded = contacts !== null;
-  const pageCount = Math.max(
-    1,
-    Math.ceil((contacts?.length ?? 0) / contactsPerPage)
+  const activeContactId =
+    managedContactId ??
+    (editor && editor.kind !== "create" ? editor.contact.id : undefined);
+  const retainedContactId = activeContactId ?? focusReturnId;
+  const retainedIds = useMemo(
+    () => (retainedContactId ? new Set([retainedContactId]) : undefined),
+    [retainedContactId]
   );
-  const currentPage = Math.min(page, pageCount);
-
-  useEffect(() => {
-    if (contactsLoaded) setPage((previous) => Math.min(previous, pageCount));
-  }, [contactsLoaded, pageCount]);
+  const overwriteError = conflict ? contactOverwriteError(conflict) : undefined;
 
   useEffect(() => {
     // 切换客户或重新加载时取消上一笔请求，防止旧结果覆盖当前列表。
@@ -108,11 +109,17 @@ export function CustomerContacts({
     void listCustomerContacts(customerId, abort.signal).then(
       ({ contacts: records }) => {
         if (abort.signal.aborted) return;
-        const previousCount = contactCountBeforeRefresh.current;
-        contactCountBeforeRefresh.current = null;
-        // 后端按创建时间升序返回，刷新确认已有新联系人时定位到末页。
-        if (previousCount !== null && records.length > previousCount) {
-          setPage(Math.ceil(records.length / contactsPerPage));
+        const previousIds = contactIdsBeforeRefresh.current;
+        contactIdsBeforeRefresh.current = null;
+        if (previousIds) {
+          // 列表按创建时间升序返回，优先定位刷新后发现的最新联系人。
+          for (let index = records.length - 1; index >= 0; index--) {
+            const { id } = records[index];
+            if (!previousIds.has(id)) {
+              setScrollToId(id);
+              break;
+            }
+          }
         }
         setContacts(records);
       },
@@ -148,12 +155,16 @@ export function CustomerContacts({
     );
   }
 
-  function restoreFocus() {
+  function restoreFocus(preventScroll = false) {
+    // 弹窗关闭后仍需保留原行，直到它重新获得焦点。
+    setFocusReturnId(activeContactId);
     requestAnimationFrame(() => {
-      if (triggerRef.current?.isConnected) triggerRef.current.focus();
-      // 删除后原行菜单可能已离开页面，焦点回到弹窗的添加按钮。
+      if (triggerRef.current?.isConnected)
+        triggerRef.current.focus({ preventScroll });
+      // 原按钮可能已离开渲染范围，焦点回到弹窗的添加按钮。
       else if (managerAddButton.current) managerAddButton.current.focus();
-      else addButton.current?.focus();
+      else addButton.current?.focus({ preventScroll });
+      setFocusReturnId(undefined);
     });
   }
 
@@ -173,6 +184,7 @@ export function CustomerContacts({
   function reloadContacts() {
     setContacts(null);
     setLoadError("");
+    setScrollToId(undefined);
     setLoadAttempt((attempt) => attempt + 1);
   }
 
@@ -183,7 +195,9 @@ export function CustomerContacts({
     setRetryingCreation(false);
     if (retryingCreation) {
       // 上一次新建可能已经保存，刷新完成后再显示新建入口。
-      contactCountBeforeRefresh.current = contacts?.length ?? null;
+      contactIdsBeforeRefresh.current = contacts
+        ? new Set(contacts.map(({ id }) => id))
+        : null;
       reloadContacts();
     } else {
       restoreFocus();
@@ -244,7 +258,7 @@ export function CustomerContacts({
       }
       restoredContact.current = null;
       if (change.kind === "create") {
-        setPage(Math.ceil(((contacts?.length ?? 0) + 1) / contactsPerPage));
+        setScrollToId(contact.id);
       }
       setConflict(null);
       setEditor(null);
@@ -254,7 +268,7 @@ export function CustomerContacts({
         text:
           change.kind === "delete" ? "已删除联系方式。" : "已保存联系方式。",
       });
-      restoreFocus();
+      restoreFocus(change.kind === "create");
     } catch (error) {
       if (change.kind === "create") {
         const uncertain =
@@ -416,11 +430,6 @@ export function CustomerContacts({
     );
   }
 
-  const pageStart = (currentPage - 1) * contactsPerPage;
-  const visibleContacts = contacts.slice(
-    pageStart,
-    pageStart + contactsPerPage
-  );
   const editorForm = editor && (
     <CustomerContactEditor
       accountId={viewer.account.id}
@@ -477,26 +486,34 @@ export function CustomerContacts({
           </EmptyHeader>
         </Empty>
       ) : (
-        <>
-          <ul aria-label="客户联系方式" className="space-y-3">
-            {visibleContacts.map((contact) => (
-              <ContactGroup
-                key={contact.id}
-                contact={contact}
-                onManage={(trigger) => openManager(contact.id, trigger)}
-                onAdd={(trigger) =>
-                  openEditor({ kind: "add", contact }, trigger)
-                }
-              />
-            ))}
-          </ul>
-          <CustomerPagination
-            label="联系方式分页"
-            page={currentPage}
-            pageCount={pageCount}
-            onPageChange={setPage}
-          />
-        </>
+        <VirtualList
+          label="客户联系方式"
+          items={contacts}
+          estimateSize={(contact) =>
+            36 +
+            (collapsedIds.has(contact.id)
+              ? 0
+              : Math.max(1, contact.methods.length) * 40)
+          }
+          retainedIds={retainedIds}
+          scrollToId={scrollToId}
+          renderItem={(contact) => (
+            <ContactGroup
+              contact={contact}
+              expanded={!collapsedIds.has(contact.id)}
+              onExpandedChange={(expanded) =>
+                setCollapsedIds((previous) => {
+                  const next = new Set(previous);
+                  if (expanded) next.delete(contact.id);
+                  else next.add(contact.id);
+                  return next;
+                })
+              }
+              onManage={(trigger) => openManager(contact.id, trigger)}
+              onAdd={(trigger) => openEditor({ kind: "add", contact }, trigger)}
+            />
+          )}
+        />
       )}
 
       {managedContact ? (
