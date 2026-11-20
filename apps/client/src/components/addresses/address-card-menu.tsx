@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FieldError } from "@/components/ui/field";
+import { toastManager } from "@/components/ui/toast";
 import {
   AddressApiError,
   type AddressDetail,
@@ -34,6 +35,7 @@ type AddressCardMenuProps = {
   address: AddressListItem;
   detail?: AddressDetail;
   onChanged: (address: AddressDetail) => void | Promise<void>;
+  onRetainChange?: (id: string, retained: boolean) => void;
 };
 
 type AddressAction = "edit" | "default" | "archive";
@@ -47,6 +49,7 @@ export function AddressCardMenu({
   address,
   detail,
   onChanged,
+  onRetainChange,
 }: AddressCardMenuProps) {
   const trigger = useRef<HTMLButtonElement>(null);
   const openingDialog = useRef(false);
@@ -54,6 +57,7 @@ export function AddressCardMenu({
   const mounted = useRef(false);
   const pendingRead = useRef<AbortController>(null);
   const [busy, setBusy] = useState<AddressAction | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<AddressDetail>();
   const [archiveTarget, setArchiveTarget] = useState<AddressListItem>();
@@ -69,6 +73,7 @@ export function AddressCardMenu({
       ? newestDetail
       : undefined;
   const current = currentDetail ?? address;
+  const retained = Boolean(menuOpen || busy || editing || archiveTarget);
 
   useEffect(() => {
     mounted.current = true;
@@ -77,6 +82,12 @@ export function AddressCardMenu({
       pendingRead.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (!retained || !onRetainChange) return;
+    onRetainChange(address.id, true);
+    return () => onRetainChange(address.id, false);
+  }, [address.id, onRetainChange, retained]);
 
   function restoreFocus() {
     window.requestAnimationFrame(() =>
@@ -136,6 +147,10 @@ export function AddressCardMenu({
     inFlight.current = true;
     setBusy(action);
     setError("");
+    const showFailure = (title: string) => {
+      if (action === "default") toastManager.add({ title, type: "error" });
+      else setError(title);
+    };
     try {
       let record: AddressDetail;
       try {
@@ -149,7 +164,7 @@ export function AddressCardMenu({
       } catch (failure) {
         if (!mounted.current) return;
         if (!(failure instanceof AddressApiError && failure.status === 409)) {
-          setError(
+          showFailure(
             failure instanceof Error
               ? failure.message
               : "地址操作失败，请重试。"
@@ -163,7 +178,7 @@ export function AddressCardMenu({
             : await readAddress(target.id);
         } catch (refreshFailure) {
           if (mounted.current) {
-            setError(
+            showFailure(
               refreshFailure instanceof Error
                 ? refreshFailure.message
                 : "地址已更新，暂时无法读取最新资料，请重试。"
@@ -176,14 +191,18 @@ export function AddressCardMenu({
         if (action === "archive") setArchiveTarget(record);
         // 默认已由其他用户变更成功时，只更新列表，无须再次提交。
         if (action !== "default" || !record.isDefault) {
-          setError("地址已更新，请核对最新资料后再操作。");
+          showFailure("地址已更新，请核对最新资料后再操作。");
           return;
         }
       }
 
-      if (!mounted.current) return;
-      setLatest(record);
-      setArchiveTarget(undefined);
+      if (mounted.current) {
+        setLatest(record);
+        setArchiveTarget(undefined);
+        if (action === "default") {
+          toastManager.add({ title: "已设为默认地址", type: "success" });
+        }
+      }
       try {
         await onChanged(record);
       } catch {
@@ -197,7 +216,7 @@ export function AddressCardMenu({
 
   return (
     <div className="flex shrink-0 flex-col items-end gap-1">
-      <DropdownMenu modal={false}>
+      <DropdownMenu modal={false} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             ref={trigger}
@@ -263,11 +282,12 @@ export function AddressCardMenu({
             restoreFocus();
           }}
           onSaved={async (record) => {
-            if (!mounted.current) return;
-            setLatest(record);
+            if (mounted.current) setLatest(record);
             await onChanged(record);
-            setEditing(undefined);
-            restoreFocus();
+            if (mounted.current) {
+              setEditing(undefined);
+              restoreFocus();
+            }
           }}
         />
       )}

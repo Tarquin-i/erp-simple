@@ -7,7 +7,6 @@ import {
 } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 
-import { AddressCardActions } from "@/components/addresses/address-card";
 import { AddressCollection } from "@/components/addresses/address-collection";
 import {
   AddressPageError,
@@ -23,52 +22,31 @@ import {
   AddressApiError,
   type AddressDetail,
   getAddress,
-  listCustomerAddresses,
 } from "@/request/addresses";
 
 export const Route = createFileRoute("/_protected/addresses/$addressId/")({
   validateSearch: readAddressDetailSearch,
-  loaderDeps: ({ search: { page } }) => ({ page }),
   loader: {
     staleReloadMode: "blocking",
-    handler: async ({ params, deps, abortController, location, preload }) => {
+    handler: ({ params, abortController, location, preload }) => {
       const signal = abortController.signal;
-      const { address } = await getAddress(params.addressId, signal).catch(
-        (error: unknown) => {
-          if (
-            signal.aborted ||
-            !(error instanceof AddressApiError) ||
-            error.status !== 404
-          ) {
-            throw error;
-          }
-          if (!preload) {
-            toastManager.add({ title: "该地址已不可查看", type: "error" });
-          }
-          throw redirect({
-            to: "/addresses",
-            search: location.state.addressListQuery ?? {},
-            replace: true,
-          });
+      return getAddress(params.addressId, signal).catch((error: unknown) => {
+        if (
+          signal.aborted ||
+          !(error instanceof AddressApiError) ||
+          error.status !== 404
+        ) {
+          throw error;
         }
-      );
-      let collection = await listCustomerAddresses(
-        address.customerId,
-        deps,
-        signal
-      );
-      const last = Math.max(
-        1,
-        Math.ceil(collection.total / collection.pageSize)
-      );
-      if (collection.page > last) {
-        collection = await listCustomerAddresses(
-          address.customerId,
-          { page: last },
-          signal
-        );
-      }
-      return { address, collection };
+        if (!preload) {
+          toastManager.add({ title: "该地址已不可查看", type: "error" });
+        }
+        throw redirect({
+          to: "/addresses",
+          search: location.state.addressListQuery ?? {},
+          replace: true,
+        });
+      });
     },
   },
   pendingComponent: AddressPagePending,
@@ -83,36 +61,22 @@ function AddressDetailRoute() {
   return <AddressWorkspace key={data.address.id} {...data} />;
 }
 
-type AddressWorkspaceProps = {
-  address: AddressDetail;
-  collection: Awaited<ReturnType<typeof listCustomerAddresses>>;
-};
-
 /** 在地址模块内管理一条地址和同一客户的全部有效地址。 */
-function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
+function AddressWorkspace({ address }: { address: AddressDetail }) {
   const router = useRouter();
   const navigate = Route.useNavigate();
   const { pathname, state } = useLocation();
   const { customerId } = Route.useSearch();
-  const { page, pageSize, total } = collection;
   const returnCustomer = customerId === address.customerId;
   const returnLink = returnCustomer
-    ? customerAddressTabLink(customerId, page, state)
+    ? customerAddressTabLink(customerId, state)
     : undefined;
   const navigationState = returnCustomer
     ? { customerListQuery: state.customerListQuery }
     : { addressListQuery: state.addressListQuery };
-  const addressSearch = {
-    customerId: returnCustomer ? customerId : undefined,
-    page: page > 1 ? page : undefined,
-  };
-  const currentAddressListed = collection.addresses.some(
-    (item) => item.id === address.id
-  );
-
-  /** 当前地址归档后返回来源，其他卡片变更后刷新当前详情。 */
-  async function refreshAfterChange(changed: AddressDetail) {
-    if (router.state.location.pathname !== pathname) return;
+  /** 变更后刷新当前地址快照，归档当前地址则结束加载并返回来源。 */
+  async function syncAddressAfterChange(changed: AddressDetail) {
+    if (router.state.location.pathname !== pathname) return false;
     if (changed.id !== address.id || changed.status !== "archived") {
       await router.invalidate();
       return;
@@ -126,13 +90,14 @@ function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
         replace: true,
       });
     }
+    return false;
   }
 
   return (
     <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
       <section aria-labelledby="customer-addresses">
         <AddressCollection
-          addresses={collection.addresses}
+          customerId={address.customerId}
           header={
             <header className="flex flex-wrap items-start justify-between gap-2 pb-1.5">
               <div className="min-w-0 space-y-1">
@@ -152,17 +117,13 @@ function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
                     <Link {...returnLink}>返回客户地址</Link>
                   </Button>
                 )}
-                {!currentAddressListed && (
-                  <AddressCardActions
-                    address={address}
-                    detail={address}
-                    onChanged={refreshAfterChange}
-                  />
-                )}
                 <Button asChild variant="outline">
                   <Link
                     to="/addresses/new"
-                    search={{ ...addressSearch, sourceAddressId: address.id }}
+                    search={{
+                      customerId: returnCustomer ? customerId : undefined,
+                      sourceAddressId: address.id,
+                    }}
                     state={navigationState}
                     preload={false}
                   >
@@ -174,18 +135,7 @@ function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
             </header>
           }
           currentAddress={address}
-          onChanged={refreshAfterChange}
-          pagination={{
-            page,
-            pageSize,
-            total,
-            onPageChange: (next) =>
-              void navigate({
-                search: { ...addressSearch, page: next > 1 ? next : undefined },
-                state: navigationState,
-                resetScroll: false,
-              }),
-          }}
+          onChanged={syncAddressAfterChange}
         />
       </section>
     </main>

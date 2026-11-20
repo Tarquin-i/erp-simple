@@ -9,8 +9,8 @@ declare module "@tanstack/react-router" {
   }
 }
 
-/** 解析地址分页的 URL 参数，第一页使用默认值。 */
-export function readAddressPage({ page }: Record<string, unknown>): {
+/** 解析侧栏地址目录的 URL 页码，第一页使用默认值。 */
+function readAddressPage({ page }: Record<string, unknown>): {
   page?: number;
 } {
   const number =
@@ -35,20 +35,17 @@ function readAddressRouteId(value: unknown) {
     : undefined;
 }
 
-/** 解析地址详情的页码和来源客户，来源仅用于返回导航。 */
+/** 解析地址详情的来源客户，用于返回导航。 */
 export function readAddressDetailSearch(raw: Record<string, unknown>): {
-  page?: number;
   customerId?: string;
 } {
   return {
-    ...readAddressPage(raw),
     customerId: readAddressRouteId(raw.customerId),
   };
 }
 
-/** 解析新建地址的来源、客户和页码，供加载与返回使用。 */
+/** 解析新建地址的来源与客户，供加载与返回使用。 */
 export function readNewAddressSearch(raw: Record<string, unknown>): {
-  page?: number;
   customerId?: string;
   sourceAddressId?: string;
 } {
@@ -58,16 +55,15 @@ export function readNewAddressSearch(raw: Record<string, unknown>): {
   };
 }
 
-/** 返回客户的地址 Tab，并保留客户列表条件和该 Tab 的页码。 */
+/** 返回客户的地址 Tab，并保留客户列表条件。 */
 export function customerAddressTabLink(
   customerId: string,
-  page: number | undefined,
   state: HistoryState
 ) {
   return {
     to: "/customers/$customerId",
     params: { customerId },
-    search: { tab: "addresses", addressPage: readAddressPage({ page }).page },
+    search: { tab: "addresses" },
     state: { customerListQuery: readListQueryFromState(state) },
     preload: false,
   } as const;

@@ -45,13 +45,13 @@ export const Route = createFileRoute("/_protected/addresses/new")({
 /** 按入口锁定已有客户，取消和保存时保留来源页面的导航条件。 */
 function NewAddressPage() {
   const { customer } = Route.useLoaderData();
-  const { customerId, sourceAddressId, page } = Route.useSearch();
+  const { customerId, sourceAddressId } = Route.useSearch();
   const location = useLocation();
   const { state } = location;
   const router = useRouter();
   const navigate = Route.useNavigate();
   const returnCustomerId = customer?.id === customerId ? customerId : undefined;
-  const addressSearch = { customerId: returnCustomerId, page };
+  const addressSearch = { customerId: returnCustomerId };
   const navigationState = returnCustomerId
     ? { customerListQuery: state.customerListQuery }
     : { addressListQuery: state.addressListQuery };
@@ -68,7 +68,7 @@ function NewAddressPage() {
     }
     if (returnCustomerId) {
       return navigate({
-        ...customerAddressTabLink(returnCustomerId, page, state),
+        ...customerAddressTabLink(returnCustomerId, state),
         replace: true,
       });
     }

@@ -24,13 +24,21 @@ type AddressCardActionsProps = {
   address: AddressListItem;
   detail?: AddressDetail;
   onChanged: (address: AddressDetail) => void | Promise<void>;
+  onRetainChange?: (id: string, retained: boolean) => void;
 };
 
 type AddressCardProps = Pick<
   AddressCardActionsProps,
-  "address" | "onChanged"
+  "address" | "onChanged" | "onRetainChange"
 > & {
   currentAddress?: AddressDetail;
+  open: boolean;
+  loaded?: AddressCardDetailResult;
+  onOpenChange: (id: string, open: boolean) => void;
+  onDetailChange: (
+    id: string,
+    result: AddressCardDetailResult | undefined
+  ) => void;
 };
 
 const dateTime = new Intl.DateTimeFormat("zh-CN", {
@@ -45,10 +53,11 @@ const detailRowClass =
   "grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-3 sm:grid-cols-[5rem_minmax(0,1fr)]";
 
 /** 将当前可见的收货信息复制到剪贴板并提供地址操作菜单。 */
-export function AddressCardActions({
+function AddressCardActions({
   address,
   detail,
   onChanged,
+  onRetainChange,
 }: AddressCardActionsProps) {
   const [copying, setCopying] = useState(false);
 
@@ -83,6 +92,7 @@ export function AddressCardActions({
         address={address}
         detail={detail}
         onChanged={onChanged}
+        onRetainChange={onRetainChange}
       />
     </div>
   );
@@ -119,7 +129,7 @@ function AddressCardDetails({ address }: { address: AddressDetail }) {
   );
 }
 
-type DetailResult = { listVersion: number } & (
+export type AddressCardDetailResult = { listVersion: number } & (
   | { address: AddressDetail }
   | { error: string }
 );
@@ -157,30 +167,36 @@ function AddressCardDetailStatus({
 export function AddressCard({
   address,
   currentAddress,
+  open,
+  loaded,
+  onOpenChange,
+  onDetailChange,
+  onRetainChange,
   onChanged,
 }: AddressCardProps) {
-  const [open, setOpen] = useState(currentAddress !== undefined);
-  const [loaded, setLoaded] = useState<DetailResult>();
   const { id, version } = address;
   const result = loaded?.listVersion === version ? loaded : undefined;
+  const current =
+    currentAddress && currentAddress.version >= version
+      ? currentAddress
+      : undefined;
   const detail =
-    currentAddress ??
-    (result && "address" in result ? result.address : undefined);
+    current ?? (result && "address" in result ? result.address : undefined);
   const loadError = result && "error" in result ? result.error : undefined;
 
   useEffect(() => {
-    if (!open || currentAddress || result) return;
+    if (!open || current || result) return;
 
     const controller = new AbortController();
     const { signal } = controller;
     void getAddress(id, signal).then(
       ({ address: snapshot }) => {
         if (!signal.aborted)
-          setLoaded({ listVersion: version, address: snapshot });
+          onDetailChange(id, { listVersion: version, address: snapshot });
       },
       (error: unknown) => {
         if (!signal.aborted) {
-          setLoaded({
+          onDetailChange(id, {
             listVersion: version,
             error:
               (error instanceof Error && error.message) ||
@@ -190,82 +206,81 @@ export function AddressCard({
       }
     );
     return () => controller.abort();
-  }, [id, version, open, currentAddress, result]);
+  }, [id, version, open, current, result, onDetailChange]);
 
   return (
-    <li>
-      <Collapsible
-        asChild
-        open={open}
-        onOpenChange={(expanded) => {
-          setOpen(expanded);
-          if (!expanded && loadError) setLoaded(undefined);
-        }}
-      >
-        <Card className="gap-0 py-0 has-aria-[current=page]:ring-ring/40">
-          <CardHeader className="flex flex-wrap items-start justify-between gap-2 px-4 pt-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-2">
-              <CollapsibleTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-current={currentAddress ? "page" : undefined}
-                  className="group/address -ml-2 gap-1 pr-0.5 aria-expanded:bg-transparent aria-expanded:hover:bg-muted"
-                >
-                  收货地址
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="text-muted-foreground transition-transform motion-reduce:transition-none group-data-[state=open]/address:rotate-90"
-                  />
-                </Button>
-              </CollapsibleTrigger>
-              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                {address.isDefault && (
-                  <Star aria-hidden="true" className="size-3 shrink-0" />
-                )}
-                {address.isDefault ? "默认地址" : "普通地址"}
-              </span>
-            </div>
-            <AddressCardActions
-              address={address}
-              detail={detail}
-              onChanged={onChanged}
-            />
-          </CardHeader>
-          <CardContent className="space-y-2 px-4 pt-2 pb-4">
-            <p className="min-w-0 wrap-anywhere font-medium">
-              {address.formattedAddress}
-            </p>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-muted-foreground">
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <UserRound aria-hidden="true" className="size-4 shrink-0" />
-                <span className="sr-only">收货人</span>
-                <span className="wrap-anywhere">{address.recipientName}</span>
-              </span>
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <Phone aria-hidden="true" className="size-4 shrink-0" />
-                <span className="sr-only">联系电话</span>
-                <AddressPhoneValue phone={address.phone} />
-              </span>
-            </div>
-          </CardContent>
-          <CollapsibleContent>
-            {open && (
-              <CardContent className="px-4 pb-4">
-                {detail ? (
-                  <AddressCardDetails address={detail} />
-                ) : (
-                  <AddressCardDetailStatus
-                    error={loadError}
-                    onRetry={() => setLoaded(undefined)}
-                  />
-                )}
-              </CardContent>
-            )}
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-    </li>
+    <Collapsible
+      asChild
+      open={open}
+      onOpenChange={(expanded) => {
+        onOpenChange(id, expanded);
+        if (!expanded && loadError) onDetailChange(id, undefined);
+      }}
+    >
+      <Card className="gap-0 py-0 has-aria-[current=page]:ring-ring/40">
+        <CardHeader className="flex flex-wrap items-start justify-between gap-2 px-4 pt-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-2">
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-current={currentAddress ? "page" : undefined}
+                className="group/address -ml-2 gap-1 pr-0.5 aria-expanded:bg-transparent aria-expanded:hover:bg-muted"
+              >
+                收货地址
+                <ChevronRight
+                  aria-hidden="true"
+                  className="text-muted-foreground transition-transform motion-reduce:transition-none group-data-[state=open]/address:rotate-90"
+                />
+              </Button>
+            </CollapsibleTrigger>
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              {address.isDefault && (
+                <Star aria-hidden="true" className="size-3 shrink-0" />
+              )}
+              {address.isDefault ? "默认地址" : "普通地址"}
+            </span>
+          </div>
+          <AddressCardActions
+            address={address}
+            detail={detail}
+            onChanged={onChanged}
+            onRetainChange={onRetainChange}
+          />
+        </CardHeader>
+        <CardContent className="space-y-2 px-4 pt-2 pb-4">
+          <p className="min-w-0 wrap-anywhere font-medium">
+            {address.formattedAddress}
+          </p>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-muted-foreground">
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <UserRound aria-hidden="true" className="size-4 shrink-0" />
+              <span className="sr-only">收货人</span>
+              <span className="wrap-anywhere">{address.recipientName}</span>
+            </span>
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <Phone aria-hidden="true" className="size-4 shrink-0" />
+              <span className="sr-only">联系电话</span>
+              <AddressPhoneValue phone={address.phone} />
+            </span>
+          </div>
+        </CardContent>
+        <CollapsibleContent>
+          {open && (
+            <CardContent className="px-4 pb-4">
+              {detail ? (
+                <AddressCardDetails address={detail} />
+              ) : (
+                <AddressCardDetailStatus
+                  error={loadError}
+                  onRetry={() => onDetailChange(id, undefined)}
+                />
+              )}
+            </CardContent>
+          )}
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
