@@ -130,39 +130,49 @@ function AddressWorkspace({ address, collection }: AddressWorkspaceProps) {
 
   return (
     <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
-      <section className="space-y-3" aria-labelledby="customer-addresses">
-        <header className="flex flex-wrap items-center justify-between gap-2">
-          <h1 id="customer-addresses" className="text-base font-semibold">
-            客户地址
-          </h1>
-          <div className="flex flex-wrap items-center gap-2">
-            {returnLink && (
-              <Button asChild variant="outline">
-                <Link {...returnLink}>返回客户地址</Link>
-              </Button>
-            )}
-            {!currentAddressListed && (
-              <AddressCardActions
-                address={address}
-                detail={address}
-                onChanged={refreshAfterChange}
-              />
-            )}
-            <Button asChild variant="outline">
-              <Link
-                to="/addresses/new"
-                search={{ ...addressSearch, sourceAddressId: address.id }}
-                state={navigationState}
-                preload={false}
-              >
-                <Plus aria-hidden="true" />
-                新建地址
-              </Link>
-            </Button>
-          </div>
-        </header>
+      <section aria-labelledby="customer-addresses">
         <AddressCollection
           addresses={collection.addresses}
+          header={
+            <header className="flex flex-wrap items-start justify-between gap-2 pb-1.5">
+              <div className="min-w-0 space-y-1">
+                <h1
+                  id="customer-addresses"
+                  className="text-xl font-semibold tracking-tight wrap-anywhere"
+                >
+                  {address.customer.companyName}
+                </h1>
+                <p className="text-sm text-muted-foreground tabular-nums">
+                  {address.customer.customerNo}
+                </p>
+              </div>
+              <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+                {returnLink && (
+                  <Button asChild variant="outline">
+                    <Link {...returnLink}>返回客户地址</Link>
+                  </Button>
+                )}
+                {!currentAddressListed && (
+                  <AddressCardActions
+                    address={address}
+                    detail={address}
+                    onChanged={refreshAfterChange}
+                  />
+                )}
+                <Button asChild variant="outline">
+                  <Link
+                    to="/addresses/new"
+                    search={{ ...addressSearch, sourceAddressId: address.id }}
+                    state={navigationState}
+                    preload={false}
+                  >
+                    <Plus aria-hidden="true" />
+                    新建地址
+                  </Link>
+                </Button>
+              </div>
+            </header>
+          }
           currentAddress={address}
           onChanged={refreshAfterChange}
           pagination={{

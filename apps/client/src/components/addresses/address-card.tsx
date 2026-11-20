@@ -1,4 +1,4 @@
-import { ChevronRight, Copy, Phone, UserRound } from "lucide-react";
+import { ChevronRight, Copy, Phone, Star, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -204,14 +204,14 @@ export function AddressCard({
       >
         <Card className="gap-0 py-0 has-aria-[current=page]:ring-ring/40">
           <CardHeader className="flex flex-wrap items-start justify-between gap-2 px-4 pt-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-2">
               <CollapsibleTrigger asChild>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   aria-current={currentAddress ? "page" : undefined}
-                  className="group/address -ml-2 gap-1 aria-expanded:bg-transparent aria-expanded:hover:bg-muted"
+                  className="group/address -ml-2 gap-1 pr-0.5 aria-expanded:bg-transparent aria-expanded:hover:bg-muted"
                 >
                   收货地址
                   <ChevronRight
@@ -220,7 +220,10 @@ export function AddressCard({
                   />
                 </Button>
               </CollapsibleTrigger>
-              <span className="text-muted-foreground text-xs">
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                {address.isDefault && (
+                  <Star aria-hidden="true" className="size-3 shrink-0" />
+                )}
                 {address.isDefault ? "默认地址" : "普通地址"}
               </span>
             </div>

@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { CustomerPagination } from "@/components/customers/pagination";
 import type { AddressDetail, AddressListItem } from "@/request/addresses";
 
@@ -6,6 +8,7 @@ import { addressCollectionClass } from "./load-state";
 
 type AddressCollectionProps = {
   addresses: readonly AddressListItem[];
+  header?: ReactNode;
   currentAddress?: AddressDetail;
   onChanged: (address: AddressDetail) => void | Promise<void>;
   pagination: {
@@ -18,17 +21,19 @@ type AddressCollectionProps = {
 
 /**
  * 展示同一客户的地址列表，并标识当前地址及默认地址。
- * @param props 地址摘要、当前详情、更新回调及分页参数。
+ * @param props 地址摘要、可选顶部内容、当前详情、更新回调及分页参数。
  * @returns 供客户详情和地址详情使用的可展开地址卡片及分页控件。
  */
 export function AddressCollection({
   addresses,
+  header,
   currentAddress,
   onChanged,
   pagination,
 }: AddressCollectionProps) {
   return (
     <div className={addressCollectionClass}>
+      {header}
       {addresses.length ? (
         <ul aria-label="客户地址列表" className="space-y-3">
           {addresses.map((address) => (

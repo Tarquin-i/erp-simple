@@ -134,38 +134,65 @@ function AddressDirectory() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {addresses.map((address) => (
-                <TableRow key={address.id}>
-                  <TableCell
-                    className="truncate py-3"
-                    title={address.customer.companyName}
+              {addresses.map((address) => {
+                const destination = {
+                  to: "/addresses/$addressId" as const,
+                  params: { addressId: address.id },
+                  search: {},
+                  state: { addressListQuery: query },
+                };
+
+                return (
+                  <TableRow
+                    key={address.id}
+                    className="cursor-pointer"
+                    onClick={(event) => {
+                      if (
+                        event.defaultPrevented ||
+                        event.ctrlKey ||
+                        event.metaKey ||
+                        event.shiftKey ||
+                        event.altKey ||
+                        window.getSelection()?.toString() ||
+                        !(event.target instanceof Element) ||
+                        !event.currentTarget.contains(event.target) ||
+                        event.target.closest("a,button,[role='button']")
+                      )
+                        return;
+                      void navigate(destination);
+                    }}
                   >
-                    {address.customer.companyName}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {address.customer.customerNo}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      to="/addresses/$addressId"
-                      params={{ addressId: address.id }}
-                      search={{}}
-                      state={{ addressListQuery: query }}
-                      preload={false}
-                      title={address.formattedAddress}
-                      className="block w-fit max-w-full truncate rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    <TableCell
+                      className="truncate py-3"
+                      title={address.customer.companyName}
                     >
-                      {address.formattedAddress}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="truncate" title={address.recipientName}>
-                    {address.recipientName}
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    <AddressPhoneValue phone={address.phone} />
-                  </TableCell>
-                </TableRow>
-              ))}
+                      {address.customer.companyName}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {address.customer.customerNo}
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        {...destination}
+                        preload={false}
+                        title={address.formattedAddress}
+                        className="block w-fit max-w-full truncate rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {address.formattedAddress}
+                      </Link>
+                    </TableCell>
+                    <TableCell
+                      className="truncate"
+                      title={address.recipientName}
+                    >
+                      {address.recipientName}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      <AddressPhoneValue phone={address.phone} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
           <CustomerPagination
