@@ -34,11 +34,14 @@ import { AddressFormDialog } from "./address-form";
 type AddressCardMenuProps = {
   address: AddressListItem;
   detail?: AddressDetail;
-  onChanged: (address: AddressDetail) => Promise<boolean>;
+  onChanged: (
+    address: AddressDetail,
+    action: AddressAction
+  ) => Promise<boolean>;
   onRetainChange?: (id: string, retained: boolean) => void;
 };
 
-type AddressAction = "edit" | "default" | "archive";
+export type AddressAction = "edit" | "default" | "archive";
 
 /**
  * 为单条地址提供编辑、设默认和归档操作，分别处理加载与版本冲突。
@@ -202,7 +205,7 @@ export function AddressCardMenu({
         setArchiveTarget(undefined);
       }
       try {
-        const refreshed = await onChanged(record);
+        const refreshed = await onChanged(record, action);
         if (refreshed && action === "default" && mounted.current) {
           toastManager.add({ title: "已设为默认地址", type: "success" });
         }
@@ -291,7 +294,7 @@ export function AddressCardMenu({
           }}
           onSaved={async (record) => {
             if (mounted.current) setLatest(record);
-            await onChanged(record);
+            await onChanged(record, "edit");
             if (mounted.current) {
               setEditing(undefined);
               restoreFocus();

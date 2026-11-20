@@ -23,13 +23,16 @@ import {
 } from "@/request/addresses";
 
 import { AddressCard, type AddressCardDetailResult } from "./address-card";
+import type { AddressAction } from "./address-card-menu";
 import { AddressCollectionPending, addressCollectionClass } from "./load-state";
 
 type AddressPage = Awaited<ReturnType<typeof listCustomerAddresses>>;
+type RefreshDetail = (signal: AbortSignal) => Promise<boolean | undefined>;
 type AddressCollectionProps = {
   customerId: string;
   header?: ReactNode;
   currentAddress?: AddressDetail;
+  refreshDetailAfterDefault?: RefreshDetail;
   onChanged?: (address: AddressDetail) => Promise<boolean | undefined>;
 };
 
@@ -88,6 +91,7 @@ export function AddressCollection({
   customerId,
   header,
   currentAddress,
+  refreshDetailAfterDefault,
   onChanged,
 }: AddressCollectionProps) {
   const active = useRef<AbortController | null>(null);
@@ -110,13 +114,21 @@ export function AddressCollection({
   );
 
   const loadAddresses = useCallback(
-    async (read: AddressRead) => {
+    async (read: AddressRead, refreshDetail?: RefreshDetail) => {
       active.current?.abort();
       const controller = new AbortController();
       const { signal } = controller;
       active.current = controller;
       setRequest({ read });
       try {
+        if (refreshDetail) {
+          const ready = await refreshDetail(signal);
+          if (signal.aborted) return false;
+          if (ready === false) {
+            setRequest(undefined);
+            return false;
+          }
+        }
         const result =
           read.kind === "refresh"
             ? await readLoadedAddresses(customerId, read, signal)
@@ -214,9 +226,14 @@ export function AddressCollection({
     });
   }, []);
 
-  async function refreshAfterChange(address: AddressDetail) {
-    if (!mounted.current || (await onChanged?.(address)) === false)
-      return false;
+  async function refreshAfterChange(
+    address: AddressDetail,
+    action: AddressAction
+  ) {
+    if (!mounted.current) return false;
+    const refreshDetail =
+      action === "default" ? refreshDetailAfterDefault : undefined;
+    if (!refreshDetail && (await onChanged?.(address)) === false) return false;
     if (!mounted.current) return false;
     const loaded = latestCollection.current;
     // 默认标记和修改时间会改变排序，等已读范围全部刷新后再替换。
@@ -228,7 +245,8 @@ export function AddressCollection({
             pageSize: loaded.pageSize,
             changedId: address.id,
           }
-        : firstPage
+        : firstPage,
+      refreshDetail
     );
   }
 

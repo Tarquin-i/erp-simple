@@ -1,11 +1,13 @@
 import {
   createFileRoute,
+  type HistoryState,
   Link,
   redirect,
   useLocation,
   useRouter,
 } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
+import { useState } from "react";
 
 import { AddressCollection } from "@/components/addresses/address-collection";
 import {
@@ -24,6 +26,16 @@ import {
   getAddress,
 } from "@/request/addresses";
 
+const unavailableAddressTitle = "该地址已不可查看";
+
+function unavailableAddressDestination(state: HistoryState) {
+  return {
+    to: "/addresses",
+    search: state.addressListQuery ?? {},
+    replace: true,
+  } as const;
+}
+
 export const Route = createFileRoute("/_protected/addresses/$addressId/")({
   validateSearch: readAddressDetailSearch,
   loader: {
@@ -39,13 +51,9 @@ export const Route = createFileRoute("/_protected/addresses/$addressId/")({
           throw error;
         }
         if (!preload) {
-          toastManager.add({ title: "该地址已不可查看", type: "error" });
+          toastManager.add({ title: unavailableAddressTitle, type: "error" });
         }
-        throw redirect({
-          to: "/addresses",
-          search: location.state.addressListQuery ?? {},
-          replace: true,
-        });
+        throw redirect(unavailableAddressDestination(location.state));
       });
     },
   },
@@ -66,6 +74,11 @@ function AddressWorkspace({ address }: { address: AddressDetail }) {
   const router = useRouter();
   const navigate = Route.useNavigate();
   const { pathname, state } = useLocation();
+  const [refreshedAddress, setRefreshedAddress] = useState<AddressDetail>();
+  const currentAddress =
+    refreshedAddress && refreshedAddress.version > address.version
+      ? refreshedAddress
+      : address;
   const { customerId } = Route.useSearch();
   const returnCustomer = customerId === address.customerId;
   const returnLink = returnCustomer
@@ -74,6 +87,34 @@ function AddressWorkspace({ address }: { address: AddressDetail }) {
   const navigationState = returnCustomer
     ? { customerListQuery: state.customerListQuery }
     : { addressListQuery: state.addressListQuery };
+
+  async function refreshDetailAfterDefault(signal: AbortSignal) {
+    try {
+      // 切换默认地址可能更新当前打开的地址，即使用户点的是另一张卡片。
+      const { address: latest } = await getAddress(address.id, signal);
+      if (signal.aborted || router.state.location.pathname !== pathname)
+        return false;
+      setRefreshedAddress(latest);
+    } catch (error) {
+      if (signal.aborted || router.state.location.pathname !== pathname)
+        return false;
+      if (error instanceof AddressApiError && error.status === 404) {
+        toastManager.add({ title: unavailableAddressTitle, type: "error" });
+        await navigate(unavailableAddressDestination(state));
+        return false;
+      }
+      if (
+        error instanceof AddressApiError &&
+        [401, 403].includes(error.status)
+      ) {
+        // 继续由路由处理权限错误。
+        await router.invalidate();
+        return false;
+      }
+      throw error;
+    }
+  }
+
   /** 变更后刷新当前地址快照，归档当前地址则结束加载并返回来源。 */
   async function syncAddressAfterChange(changed: AddressDetail) {
     if (router.state.location.pathname !== pathname) return false;
@@ -134,7 +175,8 @@ function AddressWorkspace({ address }: { address: AddressDetail }) {
               </div>
             </header>
           }
-          currentAddress={address}
+          currentAddress={currentAddress}
+          refreshDetailAfterDefault={refreshDetailAfterDefault}
           onChanged={syncAddressAfterChange}
         />
       </section>

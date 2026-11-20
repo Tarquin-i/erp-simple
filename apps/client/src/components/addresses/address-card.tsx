@@ -16,14 +16,17 @@ import {
   type AddressListItem,
 } from "@/request/addresses";
 
-import { AddressCardMenu } from "./address-card-menu";
+import { type AddressAction, AddressCardMenu } from "./address-card-menu";
 import { copyAddressValue } from "./copy-address-value";
 import { AddressPhoneValue } from "./phone-value";
 
 type AddressCardActionsProps = {
   address: AddressListItem;
   detail?: AddressDetail;
-  onChanged: (address: AddressDetail) => Promise<boolean>;
+  onChanged: (
+    address: AddressDetail,
+    action: AddressAction
+  ) => Promise<boolean>;
   onRetainChange?: (id: string, retained: boolean) => void;
 };
 
