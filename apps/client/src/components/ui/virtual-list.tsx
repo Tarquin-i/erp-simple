@@ -5,15 +5,25 @@ import {
 } from "@tanstack/react-virtual";
 import {
   type ReactNode,
+  type Ref,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 
+export type VirtualScrollAnchor = { id: string; top: number };
+export type VirtualListHandle = {
+  getScrollAnchor: (
+    matches: (id: string) => boolean
+  ) => VirtualScrollAnchor | undefined;
+};
+
 type VirtualListProps<T extends { id: string }> = {
+  ref?: Ref<VirtualListHandle>;
   label: string;
   items: readonly T[];
   estimateSize: (item: T) => number;
@@ -21,10 +31,12 @@ type VirtualListProps<T extends { id: string }> = {
   onReachEnd?: () => void;
   retainedIds?: ReadonlySet<string>;
   scrollToId?: string;
+  scrollAnchor?: VirtualScrollAnchor;
 };
 
 /** 随页面滚动，按记录 ID 保留正在交互的行，并实测展开后的高度。 */
 export function VirtualList<T extends { id: string }>({
+  ref,
   label,
   items,
   estimateSize,
@@ -32,9 +44,11 @@ export function VirtualList<T extends { id: string }>({
   onReachEnd,
   retainedIds,
   scrollToId,
+  scrollAnchor,
 }: VirtualListProps<T>) {
   const listRef = useRef<HTMLUListElement>(null);
   const lastScrollId = useRef<string | undefined>(undefined);
+  const restoredAnchor = useRef<VirtualScrollAnchor>(undefined);
   const [scrollMargin, setScrollMargin] = useState(0);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const itemIndices = useMemo(
@@ -56,6 +70,24 @@ export function VirtualList<T extends { id: string }>({
     if (main) observer.observe(main);
     return () => observer.disconnect();
   }, []);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getScrollAnchor(matches) {
+        const list = listRef.current;
+        if (!list || list.getBoundingClientRect().top >= 0) return;
+        for (const row of list.children) {
+          const item = items[Number(row.getAttribute("data-index"))];
+          if (!item || !matches(item.id)) continue;
+          const { top, bottom } = row.getBoundingClientRect();
+          if (bottom > 0 && top < window.innerHeight)
+            return { id: item.id, top };
+        }
+      },
+    }),
+    [items]
+  );
 
   const getItemKey = useCallback(
     (index: number) => items[index]?.id ?? index,
@@ -84,6 +116,18 @@ export function VirtualList<T extends { id: string }>({
     rangeExtractor,
   });
   const visibleEnd = virtualizer.range?.endIndex;
+  const rows = virtualizer.getVirtualItems();
+
+  useLayoutEffect(() => {
+    if (!scrollAnchor || restoredAnchor.current === scrollAnchor) return;
+    const index = itemIndices.get(scrollAnchor.id);
+    if (index === undefined) return;
+    // Virtual positions include the list's offset within the page.
+    const position = virtualizer.measurementsCache[index]?.start;
+    if (position === undefined) return;
+    restoredAnchor.current = scrollAnchor;
+    window.scrollTo({ top: position - scrollAnchor.top, behavior: "instant" });
+  }, [itemIndices, scrollAnchor, virtualizer]);
 
   useEffect(() => {
     if (visibleEnd !== undefined && visibleEnd >= items.length - 3) {
@@ -109,7 +153,7 @@ export function VirtualList<T extends { id: string }>({
       className="relative [overflow-anchor:none]"
       style={{ height: virtualizer.getTotalSize() }}
     >
-      {virtualizer.getVirtualItems().map((row) => {
+      {rows.map((row) => {
         const item = items[row.index];
         return (
           <li
