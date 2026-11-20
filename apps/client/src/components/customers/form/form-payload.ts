@@ -1,17 +1,16 @@
+import type { PickerOption } from "@/components/shared/option-pickers";
 import type {
   Customer,
   CustomerOwner,
   CustomerWriteInput,
 } from "@/request/customers";
 
-import type { CustomerFormOption } from "./channel-tag-selectors";
-
 export type Draft = {
   companyName: string;
   remark: string;
   owner: CustomerOwner | undefined;
-  channels: CustomerFormOption[];
-  tags: CustomerFormOption[];
+  channels: PickerOption[];
+  tags: PickerOption[];
 };
 
 /**
@@ -36,7 +35,7 @@ export function customerDraft(
   };
 }
 
-function optionIds(options: CustomerFormOption[]) {
+function optionIds(options: PickerOption[]) {
   return options.map(({ id }) => id);
 }
 
@@ -46,10 +45,7 @@ function optionIds(options: CustomerFormOption[]) {
  * @param after 当前选项。
  * @returns 两组包含相同 ID 时为 `true`。
  */
-export function sameOptions(
-  before: CustomerFormOption[],
-  after: CustomerFormOption[]
-) {
+export function sameOptions(before: PickerOption[], after: PickerOption[]) {
   if (before.length !== after.length) return false;
   const previous = new Set(optionIds(before));
   return after.every(({ id }) => previous.has(id));

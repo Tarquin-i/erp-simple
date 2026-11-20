@@ -10,8 +10,8 @@ import {
   SavedAttachmentUploadStatus,
 } from "@/components/communication/attachments/saved-uploads";
 import type { AttachmentUploadQueue } from "@/components/communication/attachments/use-upload-queue";
-import { CustomerTagPicker } from "@/components/customers/form/channel-tag-selectors";
 import { VersionConflictDialog } from "@/components/customers/version-conflict-dialog";
+import { TagPicker } from "@/components/shared/option-pickers";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -390,13 +390,12 @@ export function CommunicationForm({
               setDraft((previous) => ({ ...previous, owner: defaultOwner }));
             }}
           />
-          <CustomerTagPicker
+          <TagPicker
             id="communication-form-tags"
             label="标签"
             value={draft.tags}
             onChange={(tags) => setDraft((previous) => ({ ...previous, tags }))}
             disabled={fieldsLocked}
-            allowCreate
             onCreatingChange={setTagPending}
             loadTags={listCommunicationTags}
             createTag={createCommunicationTag}

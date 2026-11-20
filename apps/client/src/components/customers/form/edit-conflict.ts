@@ -1,6 +1,6 @@
+import type { PickerOption } from "@/components/shared/option-pickers";
 import type { Customer, CustomerWriteInput } from "@/request/customers";
 
-import type { CustomerFormOption } from "./channel-tag-selectors";
 import { customerDraft, sameOptions } from "./form-payload";
 import type { Draft } from "./form-payload";
 
@@ -44,7 +44,7 @@ export function conflictDifferences(
   const latest = customerDraft(current);
   const differences = [];
   const preserve = "保留当前资料";
-  const names = (options: CustomerFormOption[]) =>
+  const names = (options: PickerOption[]) =>
     options.map(({ name }) => name).join("、") || "无";
 
   if (

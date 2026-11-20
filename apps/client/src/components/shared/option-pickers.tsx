@@ -36,23 +36,22 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { createCustomerTag, listCustomerTags } from "@/request/customers";
 
-export type CustomerFormOption = { id: string; name: string };
+export type PickerOption = { id: string; name: string };
 
 type PickerProps = {
   id: string;
   label: string;
-  value: CustomerFormOption[];
-  onChange: (value: CustomerFormOption[]) => void;
+  value: PickerOption[];
+  onChange: (value: PickerOption[]) => void;
   disabled: boolean;
 };
 
-function optionLabel(option: CustomerFormOption) {
+function optionLabel(option: PickerOption) {
   return option.name;
 }
 
-function isSameOption(item: CustomerFormOption, selected: CustomerFormOption) {
+function isSameOption(item: PickerOption, selected: PickerOption) {
   return item.id === selected.id;
 }
 
@@ -62,6 +61,7 @@ function SelectionControl({
   value,
   anchor,
   inputProps,
+  triggerRef,
 }: Pick<PickerProps, "id" | "label" | "value"> & {
   anchor: ReturnType<typeof useComboboxAnchor>;
   inputProps?: Pick<
@@ -72,6 +72,7 @@ function SelectionControl({
     | "onCompositionEnd"
     | "onKeyDown"
   >;
+  triggerRef?: ComponentPropsWithRef<typeof ComboboxTrigger>["ref"];
 }) {
   return (
     <ComboboxChips ref={anchor} className="min-h-10 gap-y-1 pr-2 shadow-xs">
@@ -93,6 +94,7 @@ function SelectionControl({
         {...inputProps}
       />
       <ComboboxTrigger
+        ref={triggerRef}
         className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={`打开${label}选项`}
       />
@@ -100,10 +102,11 @@ function SelectionControl({
   );
 }
 
-export function CustomerChannelPicker({
+export function OptionPicker({
   items,
+  emptyMessage,
   ...props
-}: PickerProps & { items: CustomerFormOption[] }) {
+}: PickerProps & { items: PickerOption[]; emptyMessage: string }) {
   const anchor = useComboboxAnchor();
   return (
     <Field className="min-w-0">
@@ -122,9 +125,9 @@ export function CustomerChannelPicker({
       >
         <SelectionControl {...props} anchor={anchor} />
         <ComboboxContent anchor={anchor}>
-          <ComboboxEmpty>没有匹配的渠道</ComboboxEmpty>
+          <ComboboxEmpty>{emptyMessage}</ComboboxEmpty>
           <ComboboxList>
-            {(option: CustomerFormOption) => (
+            {(option: PickerOption) => (
               <ComboboxItem key={option.id} value={option}>
                 {option.name}
               </ComboboxItem>
@@ -137,13 +140,12 @@ export function CustomerChannelPicker({
 }
 
 const tagPageSize = 25;
-const createTagOptionId = "new-tag";
-// 与客户保存接口的标签数量上限一致。
-const maxCustomerTags = 100;
+// 与客户和沟通保存接口的标签数量上限一致。
+const maxTags = 100;
 
 type TagPage = {
   keyword: string;
-  items: CustomerFormOption[];
+  items: PickerOption[];
   page: number;
   total: number;
 };
@@ -151,26 +153,31 @@ type TagPage = {
 /**
  * 渲染可搜索、可分页的标签多选框，并按配置提供新建弹窗。
  * @param props `id` 和 `label` 用于关联标签字段。`value` 是已选标签，`onChange` 接收更新后的选项。
- * `allowCreate` 控制新建入口，`disabled` 控制选择操作。
+ * `loadTags` 加载标签目录，提供 `createTag` 时显示新建入口。
  * `onCreatingChange` 通知父表单创建开始和结束，供父表单在创建期间暂停保存。
  * @returns 标签选择器和新建弹窗。创建成功后自动选中新标签，失败时保留输入并显示错误。
  */
-export function CustomerTagPicker({
-  allowCreate,
+export function TagPicker({
   onCreatingChange,
-  loadTags = listCustomerTags,
-  createTag = createCustomerTag,
-  tagLimitLabel = "每个客户",
+  loadTags,
+  createTag,
+  tagLimitLabel,
   ...props
 }: PickerProps & {
-  allowCreate: boolean;
-  onCreatingChange: (creating: boolean) => void;
-  loadTags?: typeof listCustomerTags;
-  createTag?: typeof createCustomerTag;
+  onCreatingChange?: (creating: boolean) => void;
+  loadTags: (
+    query: { search: string; page: number; pageSize: number },
+    signal: AbortSignal
+  ) => Promise<{ tags: PickerOption[]; page: number; total: number }>;
+  createTag?: (input: { name: string }) => Promise<{ tag: PickerOption }>;
   tagLimitLabel?: string;
 }) {
   const anchor = useComboboxAnchor();
+  // 将浮层挂在标签字段内，让 Tab 能按文档顺序进入底栏。
+  const popupContainer = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const returnToOptions = useRef(false);
   const composing = useRef(false);
   const [open, setOpen] = useState(false);
   const [tagName, setTagName] = useState<string | null>(null);
@@ -184,28 +191,17 @@ export function CustomerTagPicker({
   const [creating, setCreating] = useState(false);
   const tagNameId = `${props.id}-new-name`;
   const tagLimitId = `${props.id}-limit`;
-  const atTagLimit = props.value.length >= maxCustomerTags;
-  const showCreate = allowCreate && !atTagLimit;
+  const atTagLimit = props.value.length >= maxTags;
   const keyword = search.trim();
   const currentResult = results?.keyword === keyword ? results : null;
   const matchingTags = currentResult?.items ?? [];
   const exactMatch = [...matchingTags, ...props.value].some(
     (option) => option.name.toLowerCase() === keyword.toLowerCase()
   );
-  const canCreate =
-    showCreate &&
-    keyword &&
-    currentResult &&
-    !loading &&
-    !exactMatch &&
-    !searchError;
-  // 「新建标签」是下拉操作项，选中时打开弹窗，不写入已选标签。
-  const items =
-    showCreate && !keyword
-      ? [{ id: createTagOptionId, name: "" }, ...matchingTags]
-      : canCreate
-        ? [...matchingTags, { id: createTagOptionId, name: keyword }]
-        : matchingTags;
+  const showCreate =
+    createTag &&
+    !atTagLimit &&
+    (!keyword || (currentResult && !loading && !exactMatch && !searchError));
 
   // 仅在下拉打开时查询。搜索首屏防抖，条件变化时取消上一笔请求。
   useEffect(() => {
@@ -263,25 +259,33 @@ export function CustomerTagPicker({
     setSearch(value);
   }
 
+  function openCreateDialog() {
+    setOpen(false);
+    changeSearch("");
+    setCreateError("");
+    setTagName(keyword);
+  }
+
   /**
-   * 提交标签弹窗，创建成功后自动选中新标签并关闭弹窗。
+   * 提交标签弹窗，创建成功后自动选中新标签并回到标签下拉。
    * @param event 标签弹窗表单的提交事件。
    * @returns 处理结束后完成，无业务数据。创建失败时在弹窗内显示错误并保留输入。
    */
   async function submitTag(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // React 会将 Portal 内的提交事件冒泡给客户表单，阻止它一并保存客户。
+    // Portal 内的提交事件会冒泡，阻止父表单同时保存。
     event.stopPropagation();
     const name = tagName?.trim();
-    if (!name || creating || atTagLimit) return;
+    if (!createTag || !name || creating || atTagLimit) return;
 
     setCreateError("");
     setCreating(true);
-    onCreatingChange(true);
+    onCreatingChange?.(true);
     try {
       const { tag } = await createTag({ name });
       props.onChange([...props.value, { id: tag.id, name: tag.name }]);
       setReload((attempt) => attempt + 1);
+      returnToOptions.current = true;
       setTagName(null);
     } catch (error) {
       setCreateError(
@@ -289,16 +293,29 @@ export function CustomerTagPicker({
       );
     } finally {
       setCreating(false);
-      onCreatingChange(false);
+      onCreatingChange?.(false);
     }
   }
 
   return (
-    <Field className="min-w-0">
+    <Field
+      ref={popupContainer}
+      className="min-w-0"
+      onBlur={(event) => {
+        if (
+          open &&
+          event.relatedTarget &&
+          !event.currentTarget.contains(event.relatedTarget)
+        ) {
+          setOpen(false);
+          changeSearch("");
+        }
+      }}
+    >
       <FieldLabel htmlFor={props.id}>{props.label}</FieldLabel>
       <Combobox
         multiple
-        items={items}
+        items={matchingTags}
         filter={null}
         inputValue={search}
         value={props.value}
@@ -309,30 +326,16 @@ export function CustomerTagPicker({
           else changeSearch(value);
         }}
         onValueChange={(selected, details) => {
-          if (creating) {
+          // 下拉关闭后，Base UI 会把 Esc 解释为清空已选项。
+          if (
+            creating ||
+            details.reason === "escape-key" ||
+            (selected.length > maxTags && selected.length >= props.value.length)
+          ) {
             details.cancel();
             return;
           }
-          const createTagOption = selected.find(
-            (option) => option.id === createTagOptionId
-          );
-          if (!createTagOption) {
-            if (
-              selected.length > maxCustomerTags &&
-              selected.length >= props.value.length
-            ) {
-              details.cancel();
-              return;
-            }
-            props.onChange(selected);
-            return;
-          }
-          details.cancel();
-          if (atTagLimit) return;
-          setOpen(false);
-          changeSearch("");
-          setCreateError("");
-          setTagName(createTagOption.name);
+          props.onChange(selected);
         }}
         itemToStringLabel={optionLabel}
         isItemEqualToValue={isSameOption}
@@ -342,12 +345,18 @@ export function CustomerTagPicker({
             return;
           }
           setOpen(next);
-          if (!next) changeSearch("");
+          if (!next) {
+            changeSearch("");
+            if (details.reason === "escape-key") {
+              trigger.current?.focus({ preventScroll: true });
+            }
+          }
         }}
       >
         <SelectionControl
           {...props}
           anchor={anchor}
+          triggerRef={trigger}
           inputProps={{
             ref: input,
             "aria-describedby": atTagLimit ? tagLimitId : undefined,
@@ -374,13 +383,17 @@ export function CustomerTagPicker({
             },
           }}
         />
-        <ComboboxContent anchor={anchor}>
-          <ComboboxEmpty>
+        <ComboboxContent
+          anchor={anchor}
+          container={popupContainer}
+          className="flex flex-col"
+        >
+          <ComboboxEmpty className="shrink-0">
             {searchError ||
               (loading || !currentResult ? "正在加载标签…" : "没有匹配的标签")}
           </ComboboxEmpty>
-          <ComboboxList>
-            {(option: CustomerFormOption) => (
+          <ComboboxList className="min-h-0">
+            {(option: PickerOption) => (
               <ComboboxItem
                 key={option.id}
                 value={option}
@@ -390,19 +403,12 @@ export function CustomerTagPicker({
                     !props.value.some(({ id }) => id === option.id))
                 }
               >
-                {option.id === createTagOptionId ? (
-                  <>
-                    <Plus aria-hidden="true" />
-                    {option.name ? `新建标签「${option.name}」` : "新建标签"}
-                  </>
-                ) : (
-                  option.name
-                )}
+                {option.name}
               </ComboboxItem>
             )}
           </ComboboxList>
           {searchError ? (
-            <div className="border-t p-1">
+            <div className="shrink-0 border-t p-1">
               <Button
                 type="button"
                 variant="ghost"
@@ -414,7 +420,7 @@ export function CustomerTagPicker({
             </div>
           ) : currentResult &&
             currentResult.page * tagPageSize < currentResult.total ? (
-            <div className="border-t p-1">
+            <div className="shrink-0 border-t p-1">
               <Button
                 type="button"
                 variant="ghost"
@@ -426,12 +432,27 @@ export function CustomerTagPicker({
               </Button>
             </div>
           ) : null}
+          {showCreate && (
+            <div className="shrink-0 border-t p-1">
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full min-w-0 justify-start font-normal"
+                disabled={creating || props.disabled}
+                onClick={openCreateDialog}
+              >
+                <Plus aria-hidden="true" />
+                <span className="truncate">
+                  {keyword ? `新建标签「${keyword}」` : "新建标签"}
+                </span>
+              </Button>
+            </div>
+          )}
         </ComboboxContent>
       </Combobox>
       {atTagLimit && (
         <FieldDescription id={tagLimitId} role="status">
-          {tagLimitLabel}最多可选 {maxCustomerTags}{" "}
-          个标签。移除已有标签后可继续选择。
+          {tagLimitLabel}最多可选 {maxTags} 个标签。移除已有标签后可继续选择。
         </FieldDescription>
       )}
       <Dialog
@@ -444,7 +465,13 @@ export function CustomerTagPicker({
           showCloseButton={false}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            input.current?.focus();
+            if (returnToOptions.current) {
+              returnToOptions.current = false;
+              setOpen(true);
+              input.current?.focus({ preventScroll: true });
+            } else {
+              trigger.current?.focus({ preventScroll: true });
+            }
           }}
         >
           <DialogHeader>

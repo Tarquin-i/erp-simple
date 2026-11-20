@@ -3,6 +3,7 @@ import { Check, Save } from "lucide-react";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import { OptionPicker, TagPicker } from "@/components/shared/option-pickers";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   createCustomer,
+  createCustomerTag,
   CustomerApiError,
+  listCustomerTags,
   updateCustomer,
 } from "@/request/customers";
 import type { Department } from "@/request/organization";
@@ -23,10 +26,6 @@ import type {
 
 import { readListQueryFromState } from "../list-query";
 import { VersionConflictDialog } from "../version-conflict-dialog";
-import {
-  CustomerChannelPicker,
-  CustomerTagPicker,
-} from "./channel-tag-selectors";
 import { conflictDifferences, isCustomerSnapshot } from "./edit-conflict";
 import { customerDraft, getChangedFields } from "./form-payload";
 import type { Draft } from "./form-payload";
@@ -315,9 +314,10 @@ export function CustomerForm({
             />
           </Field>
 
-          <CustomerChannelPicker
+          <OptionPicker
             id="customer-form-channels"
             label="渠道"
+            emptyMessage="没有匹配的渠道"
             value={draft.channels}
             items={channels.map(({ code, name }) => ({ id: code, name }))}
             onChange={(value) =>
@@ -325,15 +325,17 @@ export function CustomerForm({
             }
             disabled={pending}
           />
-          <CustomerTagPicker
+          <TagPicker
             id="customer-form-tags"
             label="标签"
             value={draft.tags}
             onChange={(value) =>
               setDraft((current) => ({ ...current, tags: value }))
             }
-            allowCreate
             onCreatingChange={setTagPending}
+            loadTags={listCustomerTags}
+            createTag={createCustomerTag}
+            tagLimitLabel="每个客户"
             disabled={pending}
           />
 

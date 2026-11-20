@@ -1,4 +1,4 @@
-import type { CustomerFormOption } from "@/components/customers/form/channel-tag-selectors";
+import type { PickerOption } from "@/components/shared/option-pickers";
 import { sameOptions } from "@/components/customers/form/form-payload";
 import type {
   Communication,
@@ -10,7 +10,7 @@ export type CommunicationDraft = {
   title: string;
   summary: string;
   owner?: CustomerOwner;
-  tags: CustomerFormOption[];
+  tags: PickerOption[];
 };
 
 type EditableFields = Omit<CommunicationWriteInput, "status">;
