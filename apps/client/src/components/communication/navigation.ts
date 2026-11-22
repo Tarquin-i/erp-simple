@@ -1,3 +1,9 @@
+declare module "@tanstack/react-router" {
+  interface HistoryState {
+    communicationEditFromDetail?: string;
+  }
+}
+
 function readUuidSearchParam(value: unknown) {
   if (
     typeof value === "string" &&

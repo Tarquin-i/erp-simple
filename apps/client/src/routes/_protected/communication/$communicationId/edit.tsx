@@ -1,4 +1,9 @@
-import { createFileRoute, useLocation } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  useLocation,
+  useRouter,
+} from "@tanstack/react-router";
+import { useRef } from "react";
 
 import { useAttachmentUploadQueue } from "@/components/communication/attachments/use-upload-queue";
 import {
@@ -46,12 +51,31 @@ function EditCommunicationSession({
   const attachments = useAttachmentUploadQueue();
   const origin = Route.useSearch();
   const navigate = Route.useNavigate();
+  const router = useRouter();
   const { state } = useLocation();
+  const returning = useRef<Promise<void> | undefined>(undefined);
   const customerListQuery = readListQueryFromState(state);
   const communicationListQuery = readCommunicationListQueryFromState(state);
 
-  function returnToDetail() {
-    return navigate({
+  async function returnToDetail() {
+    if (returning.current) return returning.current;
+
+    if (
+      state.communicationEditFromDetail === communication.id &&
+      router.history.canGoBack()
+    ) {
+      // 从详情进入编辑时回到原历史记录，避免留下两个相同的详情页。
+      returning.current = new Promise<void>((resolve) => {
+        const unsubscribe = router.subscribe("onResolved", () => {
+          unsubscribe();
+          resolve();
+        });
+        router.history.back();
+      });
+      return returning.current;
+    }
+
+    await navigate({
       to: "/communication/$communicationId",
       params: { communicationId: communication.id },
       search: origin,

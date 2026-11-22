@@ -202,6 +202,7 @@ export function CommunicationDetail({
               params={{ communicationId: record.id }}
               search={returnCustomerId ? origin : {}}
               state={{
+                communicationEditFromDetail: record.id,
                 communicationListQuery: state.communicationListQuery,
                 customerListQuery: state.customerListQuery,
               }}
