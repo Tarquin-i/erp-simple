@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useRouterState } from "@tanstack/react-router";
 import { MapPin, Plus, Search } from "lucide-react";
 import type { FormEvent } from "react";
 
@@ -42,6 +42,9 @@ export const Route = createFileRoute("/_protected/addresses/")({
     },
   },
   pendingComponent: AddressPagePending,
+  // 搜索和翻页时立即替换旧结果，避免从正在刷新的目录打开旧地址。
+  pendingMs: 0,
+  pendingMinMs: 0,
   errorComponent: ({ error }) => <AddressPageError error={error} />,
   component: AddressDirectory,
 });
@@ -51,6 +54,10 @@ function AddressDirectory() {
   const navigate = Route.useNavigate();
   const query = Route.useSearch();
   const { addresses, page, pageSize, total } = Route.useLoaderData();
+  const loadingDirectory = useRouterState({
+    select: ({ isLoading, location, resolvedLocation }) =>
+      isLoading && location.pathname === resolvedLocation?.pathname,
+  });
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,6 +67,9 @@ function AddressDirectory() {
       resetScroll: false,
     });
   }
+
+  // 再次提交相同搜索条件时，路由仍挂在当前匹配上。
+  if (loadingDirectory) return <AddressPagePending />;
 
   return (
     <main className="min-w-0 flex-1 space-y-5 bg-background px-4 py-5 sm:px-6 sm:py-6">
