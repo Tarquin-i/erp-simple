@@ -4,6 +4,8 @@ import type {
   CommunicationStatus,
 } from "@/request/communication";
 
+import { readCommunicationPage } from "../navigation";
+
 declare module "@tanstack/react-router" {
   interface HistoryState {
     communicationListQuery?: CommunicationListQuery;
@@ -24,11 +26,6 @@ export function parseCommunicationListQuery(
 ): CommunicationListQuery {
   const tagId = searchText(search.tagId, 36);
   const status = searchText(search.status, 16);
-  const page =
-    typeof search.page === "number" ||
-    (typeof search.page === "string" && /^\d+$/.test(search.page))
-      ? Number(search.page)
-      : 1;
 
   return {
     search: searchText(
@@ -41,10 +38,7 @@ export function parseCommunicationListQuery(
         : undefined,
     tagId: tagId && uuidPattern.test(tagId) ? tagId.toLowerCase() : undefined,
     ownerUserId: searchText(search.ownerUserId, 128),
-    page:
-      Number.isInteger(page) && page > 1 && page <= 1_000_000
-        ? page
-        : undefined,
+    page: readCommunicationPage(search.page),
   };
 }
 

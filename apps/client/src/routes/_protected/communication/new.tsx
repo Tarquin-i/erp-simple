@@ -76,6 +76,7 @@ function NewCommunicationSession({
 }) {
   const accountId = viewer.account.id;
   const navigate = Route.useNavigate();
+  const { communicationPage } = Route.useSearch();
   const { state } = useLocation();
   const attachments = useAttachmentUploadQueue();
   const [recovered, setRecovered] = useState<Communication>();
@@ -102,7 +103,7 @@ function NewCommunicationSession({
     void navigate({
       to: "/customers/$customerId",
       params: { customerId },
-      search: { tab: "communication" },
+      search: { tab: "communication", communicationPage },
       state: { customerListQuery },
       replace: true,
     });
@@ -112,7 +113,10 @@ function NewCommunicationSession({
     return navigate({
       to: "/communication/$communicationId",
       params: { communicationId: id },
-      search: { customerId: originCustomerId },
+      search:
+        originCustomerId && originCustomerId === customerId
+          ? { customerId: originCustomerId, communicationPage }
+          : {},
       state: { customerListQuery, communicationListQuery },
       replace: true,
     });

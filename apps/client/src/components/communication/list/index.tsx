@@ -1,4 +1,5 @@
 import {
+  getRouteApi,
   Link,
   useNavigate,
   useRouteContext,
@@ -17,6 +18,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -86,6 +88,7 @@ const listLinkClassName =
   "block w-fit max-w-full truncate bg-size-[100%_1px] bg-bottom bg-no-repeat outline-none hover:bg-[linear-gradient(currentColor,currentColor)] focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring";
 const pendingCreationLabel = "处理待确认提交";
 const noPendingCreation = () => false;
+const customerDetailRoute = getRouteApi("/_protected/customers/$customerId/");
 
 /** 在客户详情中展示当前客户的沟通和分页，并把新建入口放到页签栏。 */
 export function CustomerCommunicationTab({
@@ -95,14 +98,32 @@ export function CustomerCommunicationTab({
   customerId: string;
   createActionSlot: HTMLDivElement | null;
 }) {
-  const [query, setQuery] = useState<CommunicationListQuery>({});
+  const { communicationPage } = customerDetailRoute.useSearch();
+  const navigate = customerDetailRoute.useNavigate();
+  const query = useMemo(
+    () => ({ page: communicationPage }),
+    [communicationPage]
+  );
+  const updateQuery = useCallback(
+    (update: QueryUpdater, replace?: boolean) =>
+      void navigate({
+        search: (previous) => ({
+          ...previous,
+          communicationPage: update({ page: previous.communicationPage }).page,
+        }),
+        state: (previous) => previous,
+        replace,
+        resetScroll: false,
+      }),
+    [navigate]
+  );
   return (
     <CommunicationList
       canCreate
       customerId={customerId}
       createActionSlot={createActionSlot}
       query={query}
-      onQueryChange={setQuery}
+      onQueryChange={updateQuery}
     />
   );
 }
@@ -141,7 +162,9 @@ export function CommunicationList({
   const navigationState = customerId
     ? { customerListQuery: readListQueryFromState(previousState) }
     : { communicationListQuery: query };
-  const origin = customerId ? { customerId } : {};
+  const origin = customerId
+    ? { customerId, communicationPage: query.page }
+    : {};
   const columns = customerId ? customerColumns : defaultColumns;
   const [load, setLoad] = useState<ListState>();
   const [retry, setRetry] = useState(0);

@@ -38,7 +38,7 @@ export const Route = createFileRoute(
 
 function CommunicationDetailRoute() {
   const { communication } = Route.useLoaderData();
-  const { customerId } = Route.useSearch();
+  const origin = Route.useSearch();
   // 客户归属可以单独变化，沟通版本相同也要应用新的客户权限和显示资料。
   const detailKey = JSON.stringify([
     communication.id,
@@ -49,7 +49,7 @@ function CommunicationDetailRoute() {
     <CommunicationDetail
       key={detailKey}
       communication={communication}
-      originCustomerId={customerId}
+      origin={origin}
     />
   );
 }

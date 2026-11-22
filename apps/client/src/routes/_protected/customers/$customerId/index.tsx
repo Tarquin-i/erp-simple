@@ -5,6 +5,7 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 
+import { readCommunicationPage } from "@/components/communication/navigation";
 import { CustomerDetail } from "@/components/customers/detail";
 import { isCustomerDetailTab } from "@/components/customers/detail/tabs";
 import type { CustomerDetailTab } from "@/components/customers/detail/tabs";
@@ -16,12 +17,19 @@ import { CustomerApiError, getCustomer } from "@/request/customers";
 export const Route = createFileRoute("/_protected/customers/$customerId/")({
   validateSearch: (
     search: Record<string, unknown>
-  ): { tab?: CustomerDetailTab } => ({
-    tab:
+  ): { tab?: CustomerDetailTab; communicationPage?: number } => {
+    const tab =
       isCustomerDetailTab(search.tab) && search.tab !== "contacts"
         ? search.tab
-        : undefined,
-  }),
+        : undefined;
+    return {
+      tab,
+      communicationPage:
+        tab === "communication"
+          ? readCommunicationPage(search.communicationPage)
+          : undefined,
+    };
+  },
   loader: ({ params, abortController }) =>
     getCustomer(params.customerId, abortController.signal),
   component: CustomerDetailRoute,

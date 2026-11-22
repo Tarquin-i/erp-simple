@@ -44,7 +44,7 @@ function EditCommunicationSession({
 }) {
   const { viewer } = Route.useRouteContext();
   const attachments = useAttachmentUploadQueue();
-  const { customerId } = Route.useSearch();
+  const origin = Route.useSearch();
   const navigate = Route.useNavigate();
   const { state } = useLocation();
   const customerListQuery = readListQueryFromState(state);
@@ -54,7 +54,7 @@ function EditCommunicationSession({
     return navigate({
       to: "/communication/$communicationId",
       params: { communicationId: communication.id },
-      search: { customerId },
+      search: origin,
       state: { customerListQuery, communicationListQuery },
       replace: true,
     });

@@ -27,6 +27,7 @@ import type {
 
 import { CommunicationAttachmentsTab } from "./attachments/tab";
 import { CommunicationCustomerLink } from "./customer-link";
+import type { CommunicationOrigin } from "./navigation";
 
 function DetailField({
   label,
@@ -89,10 +90,10 @@ function CommunicationSummary({ summary }: { summary: string }) {
 
 export function CommunicationDetail({
   communication,
-  originCustomerId,
+  origin,
 }: {
   communication: Communication;
-  originCustomerId?: string;
+  origin: CommunicationOrigin;
 }) {
   const { state } = useLocation();
   const [record, setRecord] = useState(communication);
@@ -108,8 +109,8 @@ export function CommunicationDetail({
   } | null>(null);
   const saving = useRef(false);
   const returnCustomerId =
-    record.canViewCustomer && originCustomerId === record.customerId
-      ? originCustomerId
+    record.canViewCustomer && origin.customerId === record.customerId
+      ? origin.customerId
       : undefined;
 
   /** 保存状态时核对版本，冲突时只允许按弹窗展示的版本重试。 */
@@ -184,7 +185,10 @@ export function CommunicationDetail({
               <Link
                 to="/customers/$customerId"
                 params={{ customerId: returnCustomerId }}
-                search={{ tab: "communication" }}
+                search={{
+                  tab: "communication",
+                  communicationPage: origin.communicationPage,
+                }}
                 state={{ customerListQuery: state.customerListQuery }}
               >
                 返回客户沟通记录
@@ -196,7 +200,7 @@ export function CommunicationDetail({
               to="/communication/$communicationId/edit"
               preload={false}
               params={{ communicationId: record.id }}
-              search={{ customerId: returnCustomerId }}
+              search={returnCustomerId ? origin : {}}
               state={{
                 communicationListQuery: state.communicationListQuery,
                 customerListQuery: state.customerListQuery,
