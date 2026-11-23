@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type ComponentProps, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -35,14 +36,14 @@ export function CommunicationCustomerField({
   disabled,
   onChange,
   portalContainer,
-  triggerClassName,
+  controlClassName,
 }: {
   value: CustomerChoice | null;
   locked: boolean;
   disabled: boolean;
   onChange: (customer: CustomerChoice | null) => void;
   portalContainer?: PortalContainer;
-  triggerClassName?: string;
+  controlClassName?: string;
 }) {
   if (locked) {
     return (
@@ -50,7 +51,10 @@ export function CommunicationCustomerField({
         <FieldLabel htmlFor="communication-form-customer">客户</FieldLabel>
         <Input
           id="communication-form-customer"
-          className="h-10 bg-muted/25 text-muted-foreground shadow-xs"
+          className={cn(
+            "h-10 bg-muted/25 text-muted-foreground shadow-xs",
+            controlClassName
+          )}
           value={value ? customerLabel(value) : "客户信息受限"}
           readOnly
         />
@@ -64,7 +68,7 @@ export function CommunicationCustomerField({
       disabled={disabled}
       onChange={onChange}
       portalContainer={portalContainer}
-      triggerClassName={triggerClassName}
+      triggerClassName={controlClassName}
     />
   );
 }

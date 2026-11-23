@@ -392,7 +392,7 @@ export function ProductForm({
         )}
 
         <FieldSet>
-          <FieldLegend>基础信息</FieldLegend>
+          <FieldLegend className="mb-2">基础信息</FieldLegend>
           <div className="grid gap-4 sm:grid-cols-2">
             {textField("name", 128)}
             {textField("englishName", 128)}
@@ -400,6 +400,7 @@ export function ProductForm({
               value={draft.customer}
               locked={customerLocked}
               disabled={controlsDisabled}
+              controlClassName="h-8"
               onChange={(customer) => changeDraft({ ...draft, customer })}
             />
             <ProductPresetField
@@ -425,7 +426,7 @@ export function ProductForm({
         </FieldSet>
 
         <FieldSet>
-          <FieldLegend>规格工艺</FieldLegend>
+          <FieldLegend className="mb-2">规格工艺</FieldLegend>
           <div className="grid gap-4 sm:grid-cols-2">
             {specificationFields.map(attributeField)}
             {textField("packagingSpecification", 128)}
@@ -441,7 +442,7 @@ export function ProductForm({
         </FieldSet>
 
         <FieldSet>
-          <FieldLegend>价格</FieldLegend>
+          <FieldLegend className="mb-2">价格</FieldLegend>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor={`${id}-currency`} preventControlActivation>
