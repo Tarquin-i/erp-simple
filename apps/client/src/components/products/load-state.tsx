@@ -17,7 +17,7 @@ export function ProductPagePending() {
     <main
       aria-busy="true"
       aria-label="正在加载产品"
-      className="min-w-0 flex-1 space-y-5 bg-background p-5 sm:p-6"
+      className="min-w-0 flex-1 space-y-5 bg-background px-4 py-5 sm:p-6"
     >
       <Skeleton className="h-8 w-40" />
       <Skeleton className="h-36 w-full" />

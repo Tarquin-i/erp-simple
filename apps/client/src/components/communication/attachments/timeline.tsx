@@ -205,9 +205,9 @@ function AttachmentTile({
           <Button
             aria-busy={downloading}
             aria-label={`下载 ${fileName}`}
-            className="pointer-events-auto bg-black/25 text-white backdrop-blur-sm hover:bg-black/55 hover:text-white [@media(hover:none)]:size-10"
+            className="pointer-events-auto bg-black/25 text-white backdrop-blur-sm hover:bg-black/55 hover:text-white"
             disabled={downloading}
-            size="icon-sm"
+            size="icon"
             title="下载"
             type="button"
             variant="ghost"
@@ -224,9 +224,9 @@ function AttachmentTile({
           <Button
             aria-busy={deleting}
             aria-label={`${deleteLabel} ${fileName}`}
-            className="pointer-events-auto bg-black/25 text-white backdrop-blur-sm hover:bg-destructive/80 hover:text-white [@media(hover:none)]:size-10"
+            className="pointer-events-auto bg-black/25 text-white backdrop-blur-sm hover:bg-destructive/80 hover:text-white"
             disabled={deletingId !== undefined}
-            size="icon-sm"
+            size="icon"
             title={deleteLabel}
             type="button"
             variant="ghost"

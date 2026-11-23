@@ -157,7 +157,7 @@ function ProductWorkspace({ product }: { product: ProductDetailRecord }) {
           if (!archiving.current) setConfirmOpen(open);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100%-2rem)]">
           <AlertDialogHeader>
             <AlertDialogTitle>归档产品</AlertDialogTitle>
             <AlertDialogDescription>

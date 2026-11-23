@@ -48,7 +48,7 @@ export const Route = createFileRoute("/_protected/customers/$customerId/")({
   component: CustomerDetailRoute,
   pendingComponent: () => (
     <main
-      className="flex-1 space-y-5 bg-background p-6"
+      className="flex-1 space-y-5 bg-background px-4 py-6 sm:px-6"
       aria-label="正在加载客户详情"
     >
       <Skeleton className="h-8 w-44" />

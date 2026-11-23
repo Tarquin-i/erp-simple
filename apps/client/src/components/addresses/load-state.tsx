@@ -28,7 +28,7 @@ export function AddressCollectionPending() {
 export function AddressPagePending() {
   return (
     <main
-      className="min-w-0 flex-1 space-y-5 bg-background p-5 sm:p-6"
+      className="min-w-0 flex-1 space-y-5 bg-background px-4 py-5 sm:p-6"
       aria-busy="true"
       aria-label="正在加载地址"
     >
