@@ -181,7 +181,8 @@ export function ProductForm({
   const [validationError, setValidationError] = useState("");
   const locked = disabled || pending;
   const controlsDisabled = locked || fieldsLocked;
-  const formError = validationError || (fieldError ? undefined : error);
+  const formError = validationError || error;
+  const formErrorId = `${id}-form-error`;
   const selectedType: ProductPresetOption | null =
     draft.productType === "user-defined" && draft.customerDefinedType
       ? { name: draft.customerDefinedType, value: draft.productType }
@@ -299,9 +300,9 @@ export function ProductForm({
 
   function textField(field: ProductTextField, maxLength: number) {
     const inputId = `${id}-${field}`;
-    const issue = fieldError === field ? error : undefined;
+    const invalid = fieldError === field && Boolean(error);
     return (
-      <Field key={field} data-invalid={issue ? true : undefined}>
+      <Field key={field} data-invalid={invalid || undefined}>
         <FieldLabel htmlFor={inputId}>{productFieldLabels[field]}</FieldLabel>
         <Input
           id={inputId}
@@ -309,13 +310,12 @@ export function ProductForm({
           required
           maxLength={maxLength}
           disabled={controlsDisabled}
-          aria-invalid={issue ? true : undefined}
-          aria-describedby={issue ? `${inputId}-error` : undefined}
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? formErrorId : undefined}
           onChange={(event) =>
             changeDraft({ ...draft, [field]: event.target.value })
           }
         />
-        {issue && <FieldError id={`${inputId}-error`}>{issue}</FieldError>}
       </Field>
     );
   }
@@ -386,7 +386,10 @@ export function ProductForm({
         </header>
 
         {formError && (
-          <FieldError className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
+          <FieldError
+            id={formErrorId}
+            className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2"
+          >
             {formError}
           </FieldError>
         )}

@@ -8,8 +8,8 @@ import { useRef, useState } from "react";
 import { VersionConflictDialog } from "@/components/customers/version-conflict-dialog";
 import { ProductForm, readProductDraft } from "@/components/products/form";
 import {
+  ProductFormPending,
   ProductPageError,
-  ProductPagePending,
 } from "@/components/products/load-state";
 import {
   isSameProductEntry,
@@ -40,7 +40,7 @@ export const Route = createFileRoute("/_protected/products/$productId/edit")({
     handler: ({ params, abortController }) =>
       getProduct(params.productId, abortController.signal),
   },
-  pendingComponent: ProductPagePending,
+  pendingComponent: ProductFormPending,
   errorComponent: ProductPageError,
   component: EditProductPage,
 });
