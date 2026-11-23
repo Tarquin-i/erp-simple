@@ -37,6 +37,7 @@ import { listProducts, productTypeLabels } from "@/request/products";
 import type { ProductListQuery } from "@/request/products";
 
 import { ProductListFilters } from "./list/filters";
+import type { productListOrigin } from "./navigation";
 
 type ProductPage = Awaited<ReturnType<typeof listProducts>>;
 type QueryUpdater = (previous: ProductListQuery) => ProductListQuery;
@@ -56,12 +57,16 @@ const dateTime = new Intl.DateTimeFormat("zh-CN", {
 export function ProductList({
   canCreate = true,
   query,
+  listOrigin,
   onQueryChange,
+  onPageCorrection,
   onOpenProduct,
 }: {
   canCreate?: boolean;
   query: ProductListQuery;
+  listOrigin: ReturnType<typeof productListOrigin>;
   onQueryChange: (update: QueryUpdater, replace?: boolean) => void;
+  onPageCorrection: (page: number) => void;
   onOpenProduct: (id: string) => void;
 }) {
   const [load, setLoad] = useState<ListState>();
@@ -131,14 +136,8 @@ export function ProductList({
 
   useEffect(() => {
     if (!result || result.page <= pageCount) return;
-    onQueryChange(
-      (previous) => ({
-        ...previous,
-        page: pageCount > 1 ? pageCount : undefined,
-      }),
-      true
-    );
-  }, [result, pageCount, onQueryChange]);
+    onPageCorrection(pageCount);
+  }, [result, pageCount, onPageCorrection]);
 
   return (
     <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
@@ -223,11 +222,7 @@ export function ProductList({
           </Popover>
           {canCreate && (
             <Button asChild className="h-10 px-4">
-              <Link
-                to="/products/new"
-                state={{ productListQuery: query }}
-                aria-label="新建产品"
-              >
+              <Link to="/products/new" state={listOrigin} aria-label="新建产品">
                 <Plus data-icon="inline-start" />
                 新建
               </Link>
@@ -312,7 +307,7 @@ export function ProductList({
                     className="block w-fit max-w-full truncate rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                     to="/products/$productId"
                     params={{ productId: product.id }}
-                    state={{ productListQuery: query }}
+                    state={listOrigin}
                     title={product.name}
                   >
                     {product.name}

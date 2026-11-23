@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 
+import { productListDestination, productListOrigin } from "./navigation";
+
 export function ProductBreadcrumbs() {
   const { pathname, state } = useLocation();
   const [, module, productId, action] = pathname.split("/");
@@ -28,11 +30,10 @@ export function ProductBreadcrumbs() {
             {productId ? (
               <BreadcrumbLink asChild>
                 <Link
-                  to="/products"
-                  search={state.productListQuery ?? {}}
+                  {...productListDestination(state)}
                   activeOptions={{ exact: true }}
                 >
-                  产品
+                  {state.productCustomerList ? "客户产品" : "产品"}
                 </Link>
               </BreadcrumbLink>
             ) : (
@@ -48,7 +49,7 @@ export function ProductBreadcrumbs() {
                     <Link
                       to="/products/$productId"
                       params={{ productId }}
-                      state={{ productListQuery: state.productListQuery }}
+                      state={productListOrigin(state)}
                       activeOptions={{ exact: true }}
                       preload={false}
                       replace

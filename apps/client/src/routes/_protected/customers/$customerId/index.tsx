@@ -1,15 +1,22 @@
 import {
   Link,
   createFileRoute,
+  useLocation,
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
+import { useCallback } from "react";
 
 import { readCommunicationPage } from "@/components/communication/navigation";
 import { CustomerDetail } from "@/components/customers/detail";
+import { CustomerProductsTab } from "@/components/customers/detail/products-tab";
 import { isCustomerDetailTab } from "@/components/customers/detail/tabs";
 import type { CustomerDetailTab } from "@/components/customers/detail/tabs";
 import { readListQueryFromState } from "@/components/customers/list-query";
+import {
+  readProductPage,
+  replaceProductEntryAndGoBack,
+} from "@/components/products/navigation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CustomerApiError, getCustomer } from "@/request/customers";
@@ -17,7 +24,11 @@ import { CustomerApiError, getCustomer } from "@/request/customers";
 export const Route = createFileRoute("/_protected/customers/$customerId/")({
   validateSearch: (
     search: Record<string, unknown>
-  ): { tab?: CustomerDetailTab; communicationPage?: number } => {
+  ): {
+    tab?: CustomerDetailTab;
+    communicationPage?: number;
+    productPage?: number;
+  } => {
     const tab =
       isCustomerDetailTab(search.tab) && search.tab !== "contacts"
         ? search.tab
@@ -28,6 +39,8 @@ export const Route = createFileRoute("/_protected/customers/$customerId/")({
         tab === "communication"
           ? readCommunicationPage(search.communicationPage)
           : undefined,
+      productPage:
+        tab === "products" ? readProductPage(search.productPage) : undefined,
     };
   },
   loader: ({ params, abortController }) =>
@@ -47,13 +60,72 @@ export const Route = createFileRoute("/_protected/customers/$customerId/")({
 
 function CustomerDetailRoute() {
   const { customer } = Route.useLoaderData();
-  const { tab } = Route.useSearch();
+  const { tab, productPage } = Route.useSearch();
+  const { href, state } = useLocation();
   const navigate = Route.useNavigate();
+  const router = useRouter();
+  const productLinkState = {
+    productCustomerList: { customerId: customer.id, page: productPage },
+    productListEntryIndex: state.__TSR_index,
+    customerListQuery: readListQueryFromState(state),
+  };
+
+  const changeProductPage = useCallback(
+    (page: number, replace?: boolean) => {
+      const search = {
+        tab: "products",
+        productPage: readProductPage(page),
+      } as const;
+      if (
+        replace &&
+        state.productPreviousListHref &&
+        router.history.canGoBack()
+      ) {
+        const destination = router.buildLocation({
+          to: "/customers/$customerId",
+          params: { customerId: customer.id },
+          search,
+        });
+        if (state.productPreviousListHref === destination.href) {
+          replaceProductEntryAndGoBack(router.history, destination.publicHref);
+          return;
+        }
+      }
+      void navigate({
+        search,
+        state: (previous) => ({
+          ...previous,
+          productPreviousListHref: replace
+            ? previous.productPreviousListHref
+            : href,
+        }),
+        resetScroll: false,
+        replace,
+      });
+    },
+    [customer.id, href, navigate, router, state.productPreviousListHref]
+  );
+
   return (
     <CustomerDetail
       key={customer.id}
       customer={customer}
       activeTab={tab ?? "contacts"}
+      productsTab={
+        <CustomerProductsTab
+          customerId={customer.id}
+          page={productPage ?? 1}
+          onPageChange={changeProductPage}
+          productLinkState={productLinkState}
+          onOpenProduct={(productId) =>
+            void navigate({
+              to: "/products/$productId",
+              params: { productId },
+              state: productLinkState,
+            })
+          }
+        />
+      }
       onTabChange={(value) =>
         void navigate({
           search: { tab: value === "contacts" ? undefined : value },

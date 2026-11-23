@@ -91,10 +91,12 @@ function CustomerRemark({ remark }: { remark: string | null }) {
 export function CustomerDetail({
   customer,
   activeTab,
+  productsTab,
   onTabChange,
 }: {
   customer: Customer;
   activeTab: CustomerDetailTab;
+  productsTab: ReactNode;
   onTabChange: (tab: CustomerDetailTab) => void;
 }) {
   // 客户关联页签共用页签栏右侧的新建位置。
@@ -245,6 +247,8 @@ export function CustomerDetail({
                 customerId={customer.id}
                 createActionSlot={tabActionsSlot}
               />
+            ) : tab.value === "products" ? (
+              productsTab
             ) : tab.value === "addresses" ? (
               <Suspense fallback={<AddressCollectionPending />}>
                 <CustomerAddressesTab

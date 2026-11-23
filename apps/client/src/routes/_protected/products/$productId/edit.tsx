@@ -11,7 +11,10 @@ import {
   ProductPageError,
   ProductPagePending,
 } from "@/components/products/load-state";
-import { isSameProductEntry } from "@/components/products/navigation";
+import {
+  isSameProductEntry,
+  productListOrigin,
+} from "@/components/products/navigation";
 import {
   productChanges,
   productDifferences,
@@ -59,13 +62,12 @@ function EditProductSession({ product }: { product: ProductDetailRecord }) {
   const [conflict, setConflict] = useState<Conflict>();
   const [pending, setPending] = useState(false);
   const submitting = useRef(false);
-  const productListQuery = state.productListQuery;
 
   function returnToDetail() {
     return navigate({
       to: "/products/$productId",
       params: { productId: product.id },
-      state: { productListQuery },
+      state: productListOrigin(state),
       replace: true,
     });
   }

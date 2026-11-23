@@ -10,6 +10,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductApiError } from "@/request/products";
 
+import { productListDestination } from "./navigation";
+
 export function ProductPagePending() {
   return (
     <main
@@ -47,8 +49,8 @@ export function ProductPageError({
         </EmptyHeader>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
-            <Link to="/products" search={state.productListQuery ?? {}} replace>
-              返回产品列表
+            <Link {...productListDestination(state)} replace>
+              {state.productCustomerList ? "返回客户产品" : "返回产品列表"}
             </Link>
           </Button>
           {!unavailable && (

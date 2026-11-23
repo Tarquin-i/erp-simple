@@ -1,4 +1,7 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
+
+import { blockDiscardedProductListEntries } from "@/components/products/navigation";
+
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
@@ -8,6 +11,7 @@ export function getRouter() {
     defaultPreload: "intent",
     defaultPreloadStaleTime: 0,
   });
+  blockDiscardedProductListEntries(router.history);
 
   return router;
 }

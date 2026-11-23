@@ -6,7 +6,10 @@ import {
 import { useRef, useState } from "react";
 
 import { ProductForm, readProductDraft } from "@/components/products/form";
-import { isSameProductEntry } from "@/components/products/navigation";
+import {
+  isSameProductEntry,
+  productListOrigin,
+} from "@/components/products/navigation";
 import { productFormIssue } from "@/components/products/save-state";
 import type { ProductFormIssue } from "@/components/products/save-state";
 import { toastManager } from "@/components/ui/toast";
@@ -51,7 +54,7 @@ function NewProductSession() {
       await navigate({
         to: "/products/$productId",
         params: { productId: product.id },
-        state: { productListQuery },
+        state: productListOrigin(state),
         replace: true,
       });
     } catch (failure) {
