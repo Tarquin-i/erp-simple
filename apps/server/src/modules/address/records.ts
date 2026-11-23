@@ -27,7 +27,7 @@ function activeAddresses(customerId: string) {
 function defaultConflict(
   code: "existing_default_conflict" | "default_unset_forbidden",
   message: string,
-  current: ReturnType<typeof addressView>
+  current: ReturnType<typeof addressView> | null
 ): never {
   throw new HTTPException(409, {
     res: Response.json({ code, message, current }, { status: 409 }),
@@ -128,16 +128,16 @@ async function clearDefaultAddress(
  * @param access 调用方身份及数据范围。
  * @param customerId 所属客户 ID。
  * @param input 已校验的收货资料和默认标记。
- * @param replaceExistingDefault 用户是否确认替换当前默认地址。
+ * @param expectedDefault 用户确认过的默认地址 ID 和版本。省略表示首次提交，null 表示确认当前没有默认地址。
  * @param requestId 同一次新建在断线重试时复用的提交 UUID。
  * @returns 新建地址，或以当前权限重新读取已保存的地址。
- * @throws 客户或地址不可见时返回 404，重用提交 ID 提交不同资料或未确认替换默认地址时返回 409。
+ * @throws 客户或地址不可见时返回 404。重用提交 ID 提交不同资料，或默认地址尚未确认或已变更时返回 409。
  */
 export function createAddress(
   access: BusinessAccess,
   customerId: string,
   input: AddressCreateInput,
-  replaceExistingDefault: boolean,
+  expectedDefault: { id: string; version: number } | null | undefined,
   requestId: string
 ) {
   // 确认替换默认地址前后属于同一次新建。只对地址资料计算指纹。
@@ -198,14 +198,20 @@ export function createAddress(
       .where(
         and(activeAddresses(customerId), eq(customerAddress.isDefault, true))
       );
-    if (currentDefault && input.isDefault) {
-      if (!replaceExistingDefault) {
-        defaultConflict(
-          "existing_default_conflict",
-          "该客户已有默认地址，请确认是否替换。",
-          addressView(currentDefault, record)
-        );
-      }
+    const defaultNeedsConfirmation = currentDefault
+      ? expectedDefault?.id !== currentDefault.id ||
+        expectedDefault?.version !== currentDefault.version
+      : expectedDefault != null;
+    if (input.isDefault && defaultNeedsConfirmation) {
+      defaultConflict(
+        "existing_default_conflict",
+        expectedDefault === undefined
+          ? "该客户已有默认地址，请确认是否替换。"
+          : "默认地址已变更，请查看最新状态并重新确认。",
+        currentDefault ? addressView(currentDefault, record) : null
+      );
+    }
+    if (input.isDefault && currentDefault) {
       await clearDefaultAddress(tx, customerId);
     }
 

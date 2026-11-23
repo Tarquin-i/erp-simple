@@ -26,9 +26,26 @@ import { archiveAddress, createAddress, updateAddress } from "./records";
 const createFields = [
   ...addressWriteFields,
   "customerId",
+  "expectedDefault",
   "replaceExistingDefault",
 ];
 const updateFields = [...addressWriteFields, "expectedVersion"];
+
+function readExpectedDefault(value: unknown) {
+  if (value === undefined || value === null) return value;
+  if (
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.keys(value).some((key) => key !== "id" && key !== "version")
+  ) {
+    fail(400, "请提交有效的默认地址及版本。");
+  }
+  const { id, version } = value as Record<string, unknown>;
+  return {
+    id: readUuid(id, "默认地址 ID"),
+    version: readExpectedVersion(version),
+  };
+}
 
 function readPagination({ page, pageSize }: Record<string, string>) {
   return {
@@ -54,6 +71,7 @@ addressRoutes.get("/", async (c) => {
 
 addressRoutes.post("/", async (c) => {
   const body = await readObject(c, createFields);
+  // 兼容旧请求中的布尔字段，实际替换以确认的默认地址快照为准。
   const { replaceExistingDefault } = body;
   if (
     replaceExistingDefault !== undefined &&
@@ -65,7 +83,7 @@ addressRoutes.post("/", async (c) => {
     c.get("businessAccess"),
     readUuid(body.customerId, "客户 ID"),
     readAddressCreateInput(body),
-    replaceExistingDefault === true,
+    readExpectedDefault(body.expectedDefault),
     readUuid(c.req.header("Idempotency-Key"), "提交 ID")
   );
   return c.json({ address }, 201);
