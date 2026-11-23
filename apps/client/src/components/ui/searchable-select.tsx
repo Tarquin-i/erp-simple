@@ -36,8 +36,11 @@ type SearchableSelectProps<Option extends SelectOption> = {
   triggerClassName?: string;
   compactTrigger?: { label: string; ariaLabel: string };
   prioritizeCodeMatch?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   remoteSearch?: RemoteSearch;
   getOptionKey?: (option: Option) => string;
+  isOptionDisabled?: (option: Option) => boolean;
   renderOption?: (option: Option) => ReactNode;
   footer?: ReactNode;
   onValueChange: (option: Option) => void;
@@ -57,8 +60,11 @@ export function SearchableSelect<Option extends SelectOption>({
   triggerClassName,
   compactTrigger,
   prioritizeCodeMatch,
+  open,
+  onOpenChange,
   remoteSearch,
   getOptionKey,
+  isOptionDisabled,
   renderOption = (option) => option.name,
   footer,
   onValueChange,
@@ -80,7 +86,7 @@ export function SearchableSelect<Option extends SelectOption>({
       value={value}
       disabled={disabled}
       autoHighlight
-      open={remoteSearch?.open}
+      open={remoteSearch?.open ?? open}
       inputValue={remoteSearch?.query}
       onOpenChange={(open) => {
         if (!open) {
@@ -88,6 +94,7 @@ export function SearchableSelect<Option extends SelectOption>({
           if (prioritizeCodeMatch) setCodeQuery("");
         }
         remoteSearch?.onOpenChange(open);
+        onOpenChange?.(open);
       }}
       onInputValueChange={(query, details) => {
         if (details.reason !== "input-change") return;
@@ -110,7 +117,7 @@ export function SearchableSelect<Option extends SelectOption>({
                 .includes(query.trim().toLowerCase())
       }
       onValueChange={(option) => {
-        if (option) onValueChange(option);
+        if (option && !isOptionDisabled?.(option)) onValueChange(option);
       }}
     >
       <ComboboxTrigger
@@ -189,6 +196,7 @@ export function SearchableSelect<Option extends SelectOption>({
             <ComboboxItem
               key={getOptionKey?.(option) ?? option.name}
               value={option}
+              disabled={isOptionDisabled?.(option)}
               className="min-h-8 pl-2.5"
             >
               {renderOption(option)}
