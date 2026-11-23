@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { ChevronDown, Plus, X } from "lucide-react";
 import {
   type ComponentPropsWithRef,
   type FormEvent,
@@ -7,7 +7,9 @@ import {
   useState,
 } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Combobox,
   ComboboxChip,
@@ -36,6 +38,12 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 export type PickerOption = { id: string; name: string };
 
@@ -103,38 +111,91 @@ function SelectionControl({
 }
 
 export function OptionPicker({
+  id,
+  label,
+  value,
+  onChange,
+  disabled,
   items,
   emptyMessage,
-  ...props
 }: PickerProps & { items: PickerOption[]; emptyMessage: string }) {
-  const anchor = useComboboxAnchor();
+  function removeOption(id: string) {
+    onChange(value.filter((option) => option.id !== id));
+  }
+
   return (
     <Field className="min-w-0">
-      <FieldLabel htmlFor={props.id}>{props.label}</FieldLabel>
-      <Combobox
-        multiple
-        items={items}
-        value={props.value}
-        disabled={props.disabled}
-        onValueChange={props.onChange}
-        itemToStringLabel={optionLabel}
-        isItemEqualToValue={isSameOption}
-        onOpenChange={(open, details) => {
-          if (!open && details.reason === "item-press") details.cancel();
-        }}
-      >
-        <SelectionControl {...props} anchor={anchor} />
-        <ComboboxContent anchor={anchor}>
-          <ComboboxEmpty>{emptyMessage}</ComboboxEmpty>
-          <ComboboxList>
-            {(option: PickerOption) => (
-              <ComboboxItem key={option.id} value={option}>
+      <FieldLabel htmlFor={id} preventControlActivation>
+        {label}
+      </FieldLabel>
+      <Popover>
+        <PopoverAnchor className="flex min-h-10 flex-wrap items-center gap-1 rounded-lg border border-input px-1 py-1 shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+          {value.map((option) => (
+            <Badge
+              key={option.id}
+              className="h-auto max-w-full rounded-lg pr-0"
+            >
+              <span className="truncate">{option.name}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-inherit opacity-80 hover:bg-primary-foreground/15 hover:text-inherit hover:opacity-100"
+                aria-label={`移除${option.name}`}
+                disabled={disabled}
+                onClick={() => removeOption(option.id)}
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </Badge>
+          ))}
+          <PopoverTrigger asChild>
+            <Button
+              id={id}
+              type="button"
+              variant="ghost"
+              className="h-auto min-h-7 min-w-8 flex-1 justify-end px-1.5 py-1 font-normal text-muted-foreground hover:bg-transparent aria-expanded:[&>svg]:rotate-180"
+              aria-label={`打开${label}选项`}
+              disabled={disabled}
+            >
+              {value.length === 0 && (
+                <span className="mr-auto">选择{label}</span>
+              )}
+              <ChevronDown aria-hidden="true" />
+            </Button>
+          </PopoverTrigger>
+        </PopoverAnchor>
+        <PopoverContent
+          aria-label={`${label}选项`}
+          align="start"
+          className="max-h-(--radix-popover-content-available-height) w-(--radix-popover-trigger-width) gap-0 overflow-y-auto p-1"
+        >
+          {items.length === 0 && (
+            <p className="px-2 py-1.5 text-muted-foreground">{emptyMessage}</p>
+          )}
+          {items.map((option) => {
+            const optionId = `${id}-${option.id}`;
+            return (
+              <FieldLabel
+                key={option.id}
+                htmlFor={optionId}
+                className="min-h-8 cursor-pointer gap-2 rounded-md px-2 font-normal hover:bg-accent"
+              >
+                <Checkbox
+                  id={optionId}
+                  checked={value.some((selected) => selected.id === option.id)}
+                  disabled={disabled}
+                  onCheckedChange={(checked) => {
+                    if (checked) onChange([...value, option]);
+                    else removeOption(option.id);
+                  }}
+                />
                 {option.name}
-              </ComboboxItem>
-            )}
-          </ComboboxList>
-        </ComboboxContent>
-      </Combobox>
+              </FieldLabel>
+            );
+          })}
+        </PopoverContent>
+      </Popover>
     </Field>
   );
 }
@@ -312,7 +373,9 @@ export function TagPicker({
         }
       }}
     >
-      <FieldLabel htmlFor={props.id}>{props.label}</FieldLabel>
+      <FieldLabel htmlFor={props.id} preventControlActivation>
+        {props.label}
+      </FieldLabel>
       <Combobox
         multiple
         items={matchingTags}
