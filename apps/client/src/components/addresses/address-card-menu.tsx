@@ -43,6 +43,8 @@ type AddressCardMenuProps = {
 
 export type AddressAction = "edit" | "default" | "archive";
 
+const unconfirmedArchive = "暂时无法确认归档结果，请重试。";
+
 /**
  * 为单条地址提供编辑、设默认和归档操作，分别处理加载与版本冲突。
  * @param props 当前地址摘要、已有的详情，以及保存成功后的刷新回调。
@@ -65,6 +67,7 @@ export function AddressCardMenu({
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<AddressDetail>();
   const [archiveTarget, setArchiveTarget] = useState<AddressListItem>();
+  const [archiveRetry, setArchiveRetry] = useState<AddressListItem>();
   const [latest, setLatest] = useState<AddressDetail>();
   const availableDetail = detail?.id === address.id ? detail : undefined;
   const newestDetail =
@@ -167,6 +170,18 @@ export function AddressCardMenu({
         record = response.address;
       } catch (failure) {
         if (!mounted.current) return;
+        if (action === "archive") {
+          if (
+            !(failure instanceof AddressApiError) ||
+            failure.status >= 500 ||
+            failure.status === 408
+          ) {
+            setArchiveRetry(target);
+            showFailure(unconfirmedArchive);
+            return;
+          }
+          setArchiveRetry(undefined);
+        }
         if (!(failure instanceof AddressApiError && failure.status === 409)) {
           showFailure(
             failure instanceof Error
@@ -201,6 +216,7 @@ export function AddressCardMenu({
       }
 
       if (mounted.current) {
+        if (action === "archive") setArchiveRetry(undefined);
         setLatest(record);
         setArchiveTarget(undefined);
       }
@@ -269,8 +285,10 @@ export function AddressCardMenu({
             variant="destructive"
             onSelect={() => {
               openingDialog.current = true;
-              setError("");
-              setArchiveTarget(current);
+              const retry =
+                archiveRetry?.id === current.id ? archiveRetry : undefined;
+              setError(retry ? unconfirmedArchive : "");
+              setArchiveTarget(retry ?? current);
             }}
           >
             <Archive aria-hidden="true" />
@@ -343,7 +361,11 @@ export function AddressCardMenu({
                 if (archiveTarget) void changeAddress("archive", archiveTarget);
               }}
             >
-              {busy === "archive" ? "正在归档…" : "确认归档"}
+              {busy === "archive"
+                ? "正在归档…"
+                : archiveRetry && archiveRetry === archiveTarget
+                  ? "重试归档"
+                  : "确认归档"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -68,17 +68,21 @@ async function withAddressWrite<T>(
  * 在客户锁之后锁住指定地址，检查版本后才允许写入。
  * @param tx 调用方的写事务。
  * @param access 调用方身份和请求初始权限。
- * @param addressId 活跃地址 ID。
+ * @param addressId 地址 ID。
  * @param expectedVersion 用户读取到的地址版本。
+ * @param operation 归档操作可读取同一版本已归档的结果。
  * @returns 已锁定的地址和所属客户。
- * @throws 地址不存在、已归档或不可见时返回 404，版本过期时返回 409。
+ * @throws 地址不存在、不可见或已归档且不匹配原版本时返回 404。有效地址版本过期时返回 409。
  */
 async function lockAddressForWrite(
   tx: DatabaseTransaction,
   access: BusinessAccess,
   addressId: string,
-  expectedVersion: number
+  expectedVersion: number,
+  operation: "update" | "archive"
 ) {
+  const activeOnly =
+    operation === "update" ? eq(customerAddress.status, "active") : undefined;
   const [target] = await tx
     .select({ customerId: customerAddress.customerId })
     .from(customerAddress)
@@ -86,7 +90,7 @@ async function lockAddressForWrite(
     .where(
       and(
         eq(customerAddress.id, addressId),
-        eq(customerAddress.status, "active"),
+        activeOnly,
         businessScopeWhere(access, customer)
       )
     );
@@ -97,10 +101,18 @@ async function lockAddressForWrite(
   const [address] = await tx
     .select()
     .from(customerAddress)
-    .where(and(activeAddresses(record.id), eq(customerAddress.id, addressId)))
+    .where(
+      and(
+        eq(customerAddress.customerId, record.id),
+        eq(customerAddress.id, addressId),
+        activeOnly
+      )
+    )
     .for("update");
   if (!address) fail(404, "地址不存在。");
-  if (address.version !== expectedVersion) {
+  if (address.status === "archived") {
+    if (address.version !== expectedVersion + 1) fail(404, "地址不存在。");
+  } else if (address.version !== expectedVersion) {
     failVersionConflict(addressView(address, record));
   }
   return { address, record };
@@ -252,7 +264,8 @@ export function updateAddress(
       tx,
       access,
       addressId,
-      expectedVersion
+      expectedVersion,
+      "update"
     );
     if (address.isDefault && input.isDefault === false) {
       defaultConflict(
@@ -309,7 +322,7 @@ export function updateAddress(
  * @param access 调用方身份和范围。
  * @param addressId 待归档的地址 ID。
  * @param expectedVersion 用户读取到的地址版本。
- * @returns 归档后的地址详情。
+ * @returns 归档后的地址详情。同一原版本重试时返回已归档的结果。
  * @throws 地址不可见时返回 404，版本过期时返回 409。
  */
 export function archiveAddress(
@@ -322,8 +335,11 @@ export function archiveAddress(
       tx,
       access,
       addressId,
-      expectedVersion
+      expectedVersion,
+      "archive"
     );
+    if (address.status === "archived") return addressView(address, record);
+
     const [archived] = await tx
       .update(customerAddress)
       .set({ ...revision, isDefault: false, status: "archived" })

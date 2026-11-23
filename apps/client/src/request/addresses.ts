@@ -235,8 +235,8 @@ export function updateAddress(
  * 按已查看的版本归档一条地址。
  * @param id 地址 ID。
  * @param expectedVersion 用户确认归档时依据的版本号。
- * @returns 包含已归档地址的响应。
- * @throws 版本冲突时抛出 409 对应的 AddressApiError，current 字段包含最新地址。
+ * @returns 包含已归档地址的响应，使用原版本重试可获取同一归档结果。
+ * @throws 有效地址版本冲突时抛出 409 对应的 AddressApiError，current 字段包含最新地址。
  */
 export function archiveAddress(id: string, expectedVersion: number) {
   return request<AddressResponse>(
