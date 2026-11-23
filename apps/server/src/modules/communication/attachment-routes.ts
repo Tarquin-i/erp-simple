@@ -20,6 +20,7 @@ import {
   listCommunicationAttachments,
   readCommunicationAttachmentDeletion,
   readCommunicationAttachmentImage,
+  readCommunicationAttachmentUploadLimit,
   readLocalCommunicationAttachment,
   writeLocalCommunicationAttachment,
 } from "./attachments";
@@ -28,6 +29,11 @@ const path = "/:communicationId/attachments";
 const uploadPath = `${path}/uploads/:uploadClientId`;
 
 export const communicationAttachmentRoutes = new Hono<BusinessAccessEnv>();
+
+communicationAttachmentRoutes.get("/attachment-upload-limit", async (c) => {
+  c.header("Cache-Control", "no-store");
+  return c.json(await readCommunicationAttachmentUploadLimit());
+});
 
 communicationAttachmentRoutes.get(path, async (c) => {
   const communicationId = readUuid(c.req.param("communicationId"), "沟通 ID");

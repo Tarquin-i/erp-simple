@@ -24,7 +24,10 @@ import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { lockDepartment } from "../organization/departments";
 import { fail } from "../organization/errors";
-import { verifyAttachmentContent } from "./attachment-files";
+import {
+  attachmentUploadLimit,
+  verifyAttachmentContent,
+} from "./attachment-files";
 import type { AttachmentUploadInput } from "./attachment-files";
 import { attachmentImageResponse } from "./attachment-images";
 import {
@@ -117,6 +120,18 @@ async function uploadStorage(getStorage: GetStorage, fileSize: number) {
     fail(400, "本地存储的单个附件不能超过 128 MiB。");
   }
   return storage;
+}
+
+/** 返回当前适配器和配置共同允许的单个文件大小。 */
+export async function readCommunicationAttachmentUploadLimit() {
+  const { kind } = await useStorage(attachmentStorageFromEnv);
+  const configuredLimit = attachmentUploadLimit();
+  return {
+    maxBytes:
+      kind === "local"
+        ? Math.min(configuredLimit, maxLocalUploadBytes)
+        : configuredLimit,
+  };
 }
 
 async function requireCommunication(

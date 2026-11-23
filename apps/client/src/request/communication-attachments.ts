@@ -48,7 +48,6 @@ export const attachmentAccept =
 
 const attachmentExtensions = attachmentAccept.split(",");
 
-const maxSingleUploadBytes = 5 * 1024 ** 3;
 const hashChunkBytes = 4 * 1024 ** 2;
 const uploadIdleTimeoutMs = 2 * 60 * 1000;
 const attachmentDeletionCheckTimeoutMs = 8_000;
@@ -85,6 +84,20 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
   const body = await response.json().catch(() => null);
   throw attachmentApiError(response.status, body);
+}
+
+/** 读取服务端当前存储模式允许的单个附件大小。 */
+export async function getCommunicationAttachmentUploadLimit(
+  signal?: AbortSignal
+) {
+  const { maxBytes } = await request<{ maxBytes: number }>(
+    "/api/communications/attachment-upload-limit",
+    { cache: "no-store", signal }
+  );
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+    throw new Error("附件大小限制无效。");
+  }
+  return maxBytes;
 }
 
 /**
@@ -217,15 +230,12 @@ export async function readCommunicationAttachmentDeletion(
   }
 }
 
-/** 在读取文件内容前检查支持的扩展名和单次直传的大小上限。 */
+/** 在读取文件内容前检查支持的扩展名。 */
 export function validateAttachmentFile(file: File): void {
   const fileName = file.name.trim().toLowerCase();
   const dot = fileName.lastIndexOf(".");
   if (dot < 0 || !attachmentExtensions.includes(fileName.slice(dot))) {
     throw new CommunicationApiError("不支持该附件类型。", 400);
-  }
-  if (file.size > maxSingleUploadBytes) {
-    throw new CommunicationApiError("单个附件不能超过 5 GiB。", 400);
   }
 }
 

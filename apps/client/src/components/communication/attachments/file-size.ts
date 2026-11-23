@@ -13,3 +13,16 @@ export function formatFileSize(bytes: number) {
   if (kibibytes < 1024) return `${fileSizeFormat.format(kibibytes)} KB`;
   return `${fileSizeFormat.format(kibibytes / 1024)} MB`;
 }
+
+/** 用完整的单位表示上限，避免四舍五入使提示与实际字节数不符。 */
+export function formatAttachmentUploadLimit(bytes: number) {
+  for (const [unit, factor] of [
+    ["GiB", 1024 ** 3],
+    ["MiB", 1024 ** 2],
+    ["KiB", 1024],
+  ] as const) {
+    if (bytes % factor === 0)
+      return `${fileSizeFormat.format(bytes / factor)} ${unit}`;
+  }
+  return `${fileSizeFormat.format(bytes)} B`;
+}

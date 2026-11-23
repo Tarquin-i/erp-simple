@@ -59,7 +59,7 @@ function extensionOf(fileName: string) {
 }
 
 /** 读取可选的上传大小限制。无效的限制返回 503，避免静默放宽配置。 */
-function attachmentUploadLimit() {
+export function attachmentUploadLimit() {
   const configured = process.env.COMMUNICATION_ATTACHMENT_MAX_BYTES?.trim();
   if (!configured) return maxSingleUploadBytes;
   const limit = Number(configured);
@@ -199,7 +199,7 @@ function validateText(decoder: TextDecoder, chunk?: Uint8Array) {
   try {
     decoder.decode(chunk, { stream: chunk !== undefined });
   } catch {
-    fail(400, "附件文本编码无效。");
+    fail(400, "附件文本编码无效，请另存为 UTF-8 编码后重新上传。");
   }
 }
 
