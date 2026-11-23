@@ -21,7 +21,9 @@ export function DepartmentSelect({
 
   return (
     <Field>
-      <FieldLabel htmlFor={selectId}>部门</FieldLabel>
+      <FieldLabel htmlFor={selectId} preventControlActivation>
+        部门
+      </FieldLabel>
       <select
         id={selectId}
         name="departmentId"

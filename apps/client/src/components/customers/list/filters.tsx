@@ -152,7 +152,9 @@ function FilterSelect({
 
   return (
     <div className="min-w-0 space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} preventControlActivation>
+        {label}
+      </Label>
       <Select
         disabled={disabled}
         value={value ?? allValues}

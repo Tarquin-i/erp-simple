@@ -185,7 +185,12 @@ function CustomerPicker({
 
   return (
     <Field className="min-w-0">
-      <FieldLabel htmlFor="communication-form-customer">客户</FieldLabel>
+      <FieldLabel
+        htmlFor="communication-form-customer"
+        preventControlActivation
+      >
+        客户
+      </FieldLabel>
       <SearchableSelect
         id="communication-form-customer"
         items={(result?.customers ?? []).map((customer) => ({

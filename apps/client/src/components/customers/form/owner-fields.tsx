@@ -86,7 +86,12 @@ export function CustomerOwnerFields({
     <>
       {departments && (
         <Field className="min-w-0">
-          <FieldLabel htmlFor="customer-form-department">部门</FieldLabel>
+          <FieldLabel
+            htmlFor="customer-form-department"
+            preventControlActivation
+          >
+            部门
+          </FieldLabel>
           <Select
             required
             disabled={disabled || !departments.length}
@@ -116,7 +121,12 @@ export function CustomerOwnerFields({
         </Field>
       )}
       <Field className="min-w-0">
-        <FieldLabel htmlFor="customer-form-owner">业务员</FieldLabel>
+        <FieldLabel
+          htmlFor="customer-form-owner"
+          preventControlActivation={Boolean(ownerOptions)}
+        >
+          业务员
+        </FieldLabel>
         {ownerOptions ? (
           <Select
             required={Boolean(departments)}

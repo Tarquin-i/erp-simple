@@ -89,7 +89,12 @@ export function CommunicationListFilters({
         )}
         <div className="grid grid-cols-2 gap-3">
           <div className="min-w-0 space-y-2">
-            <Label htmlFor="communication-status-filter">状态</Label>
+            <Label
+              htmlFor="communication-status-filter"
+              preventControlActivation
+            >
+              状态
+            </Label>
             <Select
               value={draft.status ?? all}
               onValueChange={(value) =>
@@ -117,7 +122,12 @@ export function CommunicationListFilters({
             </Select>
           </div>
           <div className="min-w-0 space-y-2">
-            <Label htmlFor="communication-owner-filter">业务员</Label>
+            <Label
+              htmlFor="communication-owner-filter"
+              preventControlActivation
+            >
+              业务员
+            </Label>
             <Select
               disabled={!owners}
               value={draft.ownerUserId ?? all}

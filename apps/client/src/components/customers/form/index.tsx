@@ -317,7 +317,7 @@ export function CustomerForm({
           <OptionPicker
             id="customer-form-channels"
             label="渠道"
-            emptyMessage="没有匹配的渠道"
+            emptyMessage="暂无渠道"
             value={draft.channels}
             items={channels.map(({ code, name }) => ({ id: code, name }))}
             onChange={(value) =>

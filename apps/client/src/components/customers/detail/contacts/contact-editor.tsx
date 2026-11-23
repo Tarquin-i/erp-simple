@@ -288,7 +288,9 @@ export function CustomerContactEditor({
         {mode.kind !== "rename" && (
           <>
             <Field>
-              <FieldLabel htmlFor={`${id}-type`}>联系方式</FieldLabel>
+              <FieldLabel htmlFor={`${id}-type`} preventControlActivation>
+                联系方式
+              </FieldLabel>
               <Select
                 disabled={fieldsLocked}
                 value={typeTaken ? "" : type}

@@ -554,7 +554,7 @@ function AddressForm({
           )}
         </Field>
         <Field>
-          <FieldLabel htmlFor={`${id}-country`}>
+          <FieldLabel htmlFor={`${id}-country`} preventControlActivation>
             {fieldLabels.countryCode}
           </FieldLabel>
           <SearchableSelect
@@ -582,7 +582,7 @@ function AddressForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor={`${id}-province`}>
+          <FieldLabel htmlFor={`${id}-province`} preventControlActivation>
             {fieldLabels.province}
           </FieldLabel>
           <SearchableSelect

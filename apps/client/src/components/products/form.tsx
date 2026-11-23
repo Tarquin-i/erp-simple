@@ -444,7 +444,9 @@ export function ProductForm({
           <FieldLegend>价格</FieldLegend>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
-              <FieldLabel htmlFor={`${id}-currency`}>币种</FieldLabel>
+              <FieldLabel htmlFor={`${id}-currency`} preventControlActivation>
+                币种
+              </FieldLabel>
               <SearchableSelect
                 id={`${id}-currency`}
                 items={currencies}

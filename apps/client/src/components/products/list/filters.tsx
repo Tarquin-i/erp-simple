@@ -116,7 +116,9 @@ export function ProductListFilters({
           </div>
         </FieldSet>
         <div className="space-y-2">
-          <Label htmlFor="product-sort-direction">创建时间排序</Label>
+          <Label htmlFor="product-sort-direction" preventControlActivation>
+            创建时间排序
+          </Label>
           <Select
             value={draft.sortDirection ?? "desc"}
             onValueChange={(value) =>

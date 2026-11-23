@@ -36,7 +36,12 @@ export function CommunicationOwnerField({
 }) {
   return (
     <Field className="min-w-0">
-      <FieldLabel htmlFor="communication-form-owner">业务员</FieldLabel>
+      <FieldLabel
+        htmlFor="communication-form-owner"
+        preventControlActivation={editable}
+      >
+        业务员
+      </FieldLabel>
       {editable ? (
         <OwnerSelect
           key={customerId}

@@ -80,7 +80,9 @@ export function ProductPresetField({
 
   return (
     <Field className="min-w-0">
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel htmlFor={id} preventControlActivation>
+        {label}
+      </FieldLabel>
       <SearchableSelect
         id={id}
         items={legacyValue ? [...items, legacyValue] : items}

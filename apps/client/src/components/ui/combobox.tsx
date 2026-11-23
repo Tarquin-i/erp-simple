@@ -99,7 +99,11 @@ function ComboboxContent({
     "side" | "align" | "sideOffset" | "alignOffset" | "anchor"
   > & { container?: ComboboxPrimitive.Portal.Props["container"] }) {
   return (
-    <ComboboxPrimitive.Portal container={container}>
+    // 保留弹层在容器内的焦点顺序，避免包装层撑开 Flex 或 Grid 间距。
+    <ComboboxPrimitive.Portal
+      container={container}
+      className={container ? "contents" : undefined}
+    >
       <ComboboxPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}
