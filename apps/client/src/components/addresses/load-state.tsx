@@ -1,4 +1,5 @@
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
+import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
@@ -7,6 +8,9 @@ import { AddressApiError } from "@/request/addresses";
 
 export const addressCollectionClass =
   "mx-auto w-full max-w-4xl space-y-4 px-1 sm:px-3";
+
+export const addressCreatePageClass =
+  "min-w-0 flex-1 bg-background px-5 py-6 sm:px-7 lg:px-8";
 
 export function AddressCollectionPending() {
   return (
@@ -30,6 +34,65 @@ export function AddressPagePending() {
     >
       <Skeleton className="h-8 w-40" />
       <Skeleton className="h-36 w-full" />
+    </main>
+  );
+}
+
+const addressFields = [
+  "recipient",
+  "phone",
+  "country",
+  "province",
+  "city",
+  "district",
+  "addressLine1",
+  "addressLine2",
+  "postalCode",
+];
+
+function AddressFieldPending({
+  className,
+  multiline,
+}: {
+  className?: string;
+  multiline?: boolean;
+}) {
+  return (
+    <div className={cn("grid gap-2", className)}>
+      <Skeleton className="h-[1.375em] w-14 text-sm" />
+      <Skeleton className={multiline ? "h-16 w-full" : "h-8 w-full"} />
+    </div>
+  );
+}
+
+export function AddressCreatePending() {
+  return (
+    <main
+      aria-busy="true"
+      aria-label="正在加载地址"
+      className={cn(addressCreatePageClass, "space-y-5")}
+    >
+      <header
+        aria-hidden="true"
+        className="flex flex-wrap items-center justify-between gap-4"
+      >
+        <Skeleton className="h-8 w-24" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-10 w-16" />
+          <Skeleton className="h-10 w-20" />
+        </div>
+      </header>
+      <AddressFieldPending />
+      <div className="grid gap-4 sm:grid-cols-2">
+        {addressFields.map((field) => (
+          <AddressFieldPending
+            key={field}
+            className={field === "addressLine1" ? "sm:col-span-2" : undefined}
+          />
+        ))}
+      </div>
+      <AddressFieldPending multiline />
+      <Skeleton className="h-[1.375em] w-28 text-sm" />
     </main>
   );
 }

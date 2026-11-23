@@ -60,6 +60,7 @@ import {
   formatAddressPostalCode,
   getAddressRegions,
 } from "./geography";
+import { addressCreatePageClass } from "./load-state";
 
 const fieldLabels = {
   recipientName: "收货人",
@@ -630,6 +631,11 @@ function AddressForm({
       </Field>
     </>
   );
+  const errorAlert = error && (
+    <FieldError className="shrink-0 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
+      {error}
+    </FieldError>
+  );
   const actions = (
     <>
       <Button
@@ -677,16 +683,16 @@ function AddressForm({
               </DialogDescription>
             </DialogHeader>
             <form className="flex min-h-0 flex-col gap-4" onSubmit={submit}>
+              {errorAlert}
               <div className="min-h-0 space-y-4 overflow-y-auto p-1">
                 {fields}
-                {error && <FieldError>{error}</FieldError>}
               </div>
               <DialogFooter>{actions}</DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       ) : (
-        <main className="min-w-0 flex-1 bg-background px-5 py-6 sm:px-7 lg:px-8">
+        <main className={addressCreatePageClass}>
           <form className="space-y-5" onSubmit={submit}>
             <header className="flex flex-wrap items-center justify-between gap-4">
               <h1 className="text-2xl font-semibold tracking-tight">
@@ -694,11 +700,7 @@ function AddressForm({
               </h1>
               <div className="flex items-center gap-2">{actions}</div>
             </header>
-            {error && (
-              <FieldError className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
-                {error}
-              </FieldError>
-            )}
+            {errorAlert}
             {fields}
           </form>
         </main>

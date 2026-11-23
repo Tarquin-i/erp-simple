@@ -6,8 +6,8 @@ import {
 
 import { AddressCreateForm } from "@/components/addresses/address-form";
 import {
+  AddressCreatePending,
   AddressPageError,
-  AddressPagePending,
 } from "@/components/addresses/load-state";
 import {
   customerAddressTabLink,
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/_protected/addresses/new")({
     return { customer: undefined };
   },
   component: NewAddressPage,
-  pendingComponent: AddressPagePending,
+  pendingComponent: AddressCreatePending,
   errorComponent: ({ error }) => <AddressPageError error={error} detail />,
 });
 
