@@ -6,3 +6,4 @@ export * from "./customer-address";
 export * from "./customer-contact";
 export * from "./department-access";
 export * from "./organization";
+export * from "./product";
