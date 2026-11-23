@@ -624,7 +624,7 @@ export function CommunicationAttachmentsTab({
         }}
       >
         {deleteTarget && (
-          <AlertDialogContent>
+          <AlertDialogContent className="w-[calc(100%-2rem)]">
             <AlertDialogHeader>
               <AlertDialogTitle>删除附件？</AlertDialogTitle>
               <AlertDialogDescription className="wrap-anywhere">

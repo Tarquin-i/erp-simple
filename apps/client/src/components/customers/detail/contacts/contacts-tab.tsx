@@ -558,7 +558,7 @@ export function CustomerContacts({
         }}
       >
         {deletion && (
-          <AlertDialogContent>
+          <AlertDialogContent className="w-[calc(100%-2rem)]">
             <AlertDialogHeader>
               <AlertDialogTitle>删除联系方式</AlertDialogTitle>
               <AlertDialogDescription className="wrap-anywhere">

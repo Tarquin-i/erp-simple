@@ -313,6 +313,7 @@ export function AddressCardMenu({
         }}
       >
         <AlertDialogContent
+          className="w-[calc(100%-2rem)]"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             restoreFocus();
