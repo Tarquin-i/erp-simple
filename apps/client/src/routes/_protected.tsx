@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AddressBreadcrumbs } from "@/components/addresses/breadcrumbs";
 import { CommunicationBreadcrumbs } from "@/components/communication/breadcrumbs";
 import { CustomerBreadcrumbs } from "@/components/customers/breadcrumbs";
+import { ProductBreadcrumbs } from "@/components/products/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import {
   SidebarInset,
@@ -50,6 +51,7 @@ function WorkspaceLayout() {
             <CustomerBreadcrumbs />
             <CommunicationBreadcrumbs />
             <AddressBreadcrumbs />
+            <ProductBreadcrumbs />
           </header>
           <Outlet />
         </SidebarInset>
