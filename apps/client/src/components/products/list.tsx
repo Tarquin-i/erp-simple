@@ -31,6 +31,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
 import { listProducts, productTypeLabels } from "@/request/products";
@@ -304,7 +305,7 @@ export function ProductList({
               >
                 <TableCell className="h-14 max-w-0 px-2.5">
                   <Link
-                    className="block w-fit max-w-full truncate rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    className={`${tableLinkClassName} font-medium`}
                     to="/products/$productId"
                     params={{ productId: product.id }}
                     state={listOrigin}
@@ -326,7 +327,7 @@ export function ProductList({
                 </TableCell>
                 <TableCell className="max-w-0 px-2.5">
                   <Link
-                    className="block w-fit max-w-full truncate rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    className={tableLinkClassName}
                     to="/customers/$customerId"
                     params={{ customerId: product.customer.id }}
                     title={product.customer.companyName}

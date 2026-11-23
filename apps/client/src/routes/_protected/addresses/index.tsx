@@ -23,6 +23,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
 import { listDefaultAddresses } from "@/request/addresses";
@@ -186,7 +187,7 @@ function AddressDirectory() {
                         {...destination}
                         preload={false}
                         title={address.formattedAddress}
-                        className="block w-fit max-w-full truncate rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                        className={tableLinkClassName}
                       >
                         {address.formattedAddress}
                       </Link>

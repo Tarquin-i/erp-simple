@@ -51,6 +51,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
 import {
@@ -83,9 +84,6 @@ type ListState = {
 
 const defaultColumns = ["主题", "客户", "标签", "状态", "业务员", "最近更新"];
 const customerColumns = defaultColumns.filter((name) => name !== "客户");
-// 用可见文本盒绘制下划线，让省略号也被覆盖。
-const listLinkClassName =
-  "block w-fit max-w-full truncate bg-size-[100%_1px] bg-bottom bg-no-repeat outline-none hover:bg-[linear-gradient(currentColor,currentColor)] focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring";
 const pendingCreationLabel = "处理待确认提交";
 const noPendingCreation = () => false;
 const customerDetailRoute = getRouteApi("/_protected/customers/$customerId/");
@@ -484,7 +482,7 @@ export function CommunicationList({
                     <Link
                       {...destination}
                       preload={false}
-                      className={listLinkClassName}
+                      className={tableLinkClassName}
                       title={communication.title}
                     >
                       {communication.title}
@@ -493,7 +491,7 @@ export function CommunicationList({
                   {!customerId && (
                     <TableCell className="max-w-0 truncate px-2.5">
                       <CommunicationCustomerLink
-                        className={listLinkClassName}
+                        className={tableLinkClassName}
                         customer={
                           communication.canViewCustomer
                             ? communication.customer

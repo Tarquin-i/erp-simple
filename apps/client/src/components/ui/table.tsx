@@ -1,6 +1,9 @@
 import * as React from "react";
 import { cn } from "cn";
 
+const tableLinkClassName =
+  "block w-fit max-w-full truncate rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring";
+
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
@@ -110,4 +113,5 @@ export {
   TableRow,
   TableCell,
   TableCaption,
+  tableLinkClassName,
 };

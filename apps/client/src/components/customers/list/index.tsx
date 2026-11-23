@@ -26,6 +26,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
 import { listCustomers } from "@/request/customers";
@@ -270,7 +271,7 @@ export function CustomerList({
                 </TableCell>
                 <TableCell className="max-w-0 px-2.5">
                   <Link
-                    className="block w-fit max-w-full truncate rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    className={`${tableLinkClassName} font-medium`}
                     params={{ customerId: customer.id }}
                     state={{ customerListQuery: query }}
                     title={customer.companyName}

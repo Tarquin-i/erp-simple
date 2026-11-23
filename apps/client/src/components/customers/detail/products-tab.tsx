@@ -17,6 +17,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
 import {
@@ -188,7 +189,7 @@ export function CustomerProductsTab({
                 params={{ productId: product.id }}
                 state={productLinkState}
                 preload={false}
-                className="block w-fit max-w-full truncate rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                className={tableLinkClassName}
                 title={product.name}
               >
                 {product.name}
