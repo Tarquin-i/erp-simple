@@ -93,6 +93,19 @@ export function AppSidebar({
                           <Link
                             to={path}
                             activeOptions={{ exact, includeSearch: false }}
+                            onClick={(event) => {
+                              if (
+                                isMobile &&
+                                !event.defaultPrevented &&
+                                event.button === 0 &&
+                                !event.altKey &&
+                                !event.ctrlKey &&
+                                !event.metaKey &&
+                                !event.shiftKey
+                              ) {
+                                setOpenMobile(false);
+                              }
+                            }}
                           >
                             <Icon aria-hidden="true" />
                             <span>{label}</span>
