@@ -80,18 +80,17 @@ async function lockProductForWrite(
   tx: DatabaseTransaction,
   access: BusinessAccess,
   id: string,
-  expectedVersion: number
+  expectedVersion: number,
+  operation: "update" | "archive"
 ) {
+  const activeOnly =
+    operation === "update" ? eq(product.status, "active") : undefined;
   const [target] = await tx
     .select({ customerId: product.customerId })
     .from(product)
     .innerJoin(customer, eq(product.customerId, customer.id))
     .where(
-      and(
-        eq(product.id, id),
-        eq(product.status, "active"),
-        businessScopeWhere(access, customer)
-      )
+      and(eq(product.id, id), activeOnly, businessScopeWhere(access, customer))
     );
   if (!target) fail(404, "产品不存在。");
 
@@ -104,10 +103,14 @@ async function lockProductForWrite(
   const [current] = await tx
     .select()
     .from(product)
-    .where(activeProduct(id, owner.id))
+    .where(
+      and(eq(product.id, id), eq(product.customerId, owner.id), activeOnly)
+    )
     .for("update");
   if (!current) fail(404, "产品不存在。");
-  if (current.version !== expectedVersion) {
+  if (current.status === "archived") {
+    if (current.version !== expectedVersion + 1) fail(404, "产品不存在。");
+  } else if (current.version !== expectedVersion) {
     failVersionConflict(productView(current, owner));
   }
   return { current, owner };
@@ -184,7 +187,8 @@ export function updateProduct(
       tx,
       access,
       id,
-      expectedVersion
+      expectedVersion,
+      "update"
     );
     const changes = resolveProductPatch(current, input);
     const changed = (Object.keys(changes) as (keyof ProductPatch)[]).some(
@@ -208,19 +212,22 @@ export function updateProduct(
   });
 }
 
-/** 保留产品编号和资料，归档后名称不再占用有效产品的唯一约束。 */
+/** 已完成的归档可按原预期版本重试，直接返回归档结果。 */
 export function archiveProduct(
   access: BusinessAccess,
   id: string,
   expectedVersion: number
 ) {
   return writeProduct(async (tx) => {
-    const { owner } = await lockProductForWrite(
+    const { current, owner } = await lockProductForWrite(
       tx,
       access,
       id,
-      expectedVersion
+      expectedVersion,
+      "archive"
     );
+    if (current.status === "archived") return productView(current, owner);
+
     const [archived] = await tx
       .update(product)
       .set({ status: "archived", ...revision })
