@@ -46,6 +46,9 @@ export function productChanges(
   proposed: ProductWriteInput
 ) {
   const fields = new Set(differentFields(base, proposed));
+  if (fields.has("productType") || fields.has("customerDefinedType")) {
+    fields.add("finishedSize");
+  }
   if (fields.has("productType")) {
     for (const field of typeSpecificFields) fields.add(field);
   }
@@ -71,6 +74,7 @@ export function rebaseProductEdit(
       ...merged,
       productType: proposed.productType,
       customerDefinedType: proposed.customerDefinedType,
+      finishedSize: proposed.finishedSize,
       dieCutDirection: proposed.dieCutDirection,
       peelOffQuantity: proposed.peelOffQuantity,
       scratchOffArea: proposed.scratchOffArea,
