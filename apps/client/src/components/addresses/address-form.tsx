@@ -478,6 +478,7 @@ function AddressForm({
         locked={Boolean(address || customer)}
         disabled={disabled}
         portalContainer={portalContainer}
+        controlClassName="h-8"
         onChange={(choice) => {
           setSelectedCustomer(choice);
           setError("");
