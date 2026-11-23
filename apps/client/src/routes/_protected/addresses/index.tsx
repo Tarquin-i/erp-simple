@@ -16,7 +16,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
+import { ListSearchInput, ListToolbar } from "@/components/ui/list-toolbar";
 import {
   Table,
   TableBody,
@@ -74,49 +74,48 @@ function AddressDirectory() {
 
   return (
     <main className="min-w-0 flex-1 space-y-5 bg-background px-4 py-5 sm:px-6 sm:py-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">地址</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <form onSubmit={search} className="flex items-center gap-2">
-            <Input
-              key={query.search ?? ""}
-              name="search"
-              type="search"
-              aria-label="搜索地址"
-              placeholder="客户名称、编号或收货人"
-              defaultValue={query.search ?? ""}
-              maxLength={128}
-              className="min-w-0 sm:w-56"
-            />
-            <Button type="submit" variant="outline">
-              <Search aria-hidden="true" />
-              搜索
-            </Button>
-            {query.search && (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() =>
-                  void navigate({ search: {}, resetScroll: false })
-                }
-              >
-                清除
-              </Button>
-            )}
-          </form>
-          <Button asChild>
-            <Link
-              to="/addresses/new"
-              search={{}}
-              state={{ addressListQuery: query }}
-              preload={false}
-            >
-              <Plus aria-hidden="true" />
-              新建地址
-            </Link>
+      <ListToolbar title="地址">
+        <form onSubmit={search} className="flex min-w-0 items-center gap-2">
+          <ListSearchInput
+            key={query.search ?? ""}
+            name="search"
+            aria-label="搜索地址"
+            placeholder="客户、编号或收货人"
+            defaultValue={query.search ?? ""}
+            maxLength={128}
+          />
+          <Button
+            type="submit"
+            size="icon"
+            variant="outline"
+            aria-label="搜索"
+            title="搜索"
+          >
+            <Search aria-hidden="true" />
           </Button>
-        </div>
-      </header>
+          {query.search && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => void navigate({ search: {}, resetScroll: false })}
+            >
+              清除
+            </Button>
+          )}
+        </form>
+        <Button asChild size="icon">
+          <Link
+            to="/addresses/new"
+            search={{}}
+            state={{ addressListQuery: query }}
+            preload={false}
+            aria-label="新建地址"
+            title="新建地址"
+          >
+            <Plus aria-hidden="true" />
+          </Link>
+        </Button>
+      </ListToolbar>
 
       {addresses.length === 0 ? (
         <Empty className="border border-dashed">

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ContactRound, Filter, Plus, Search } from "lucide-react";
+import { ContactRound, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -12,7 +12,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
+import {
+  ListFilterButton,
+  ListSearchInput,
+  ListToolbar,
+} from "@/components/ui/list-toolbar";
 import {
   Popover,
   PopoverContent,
@@ -69,9 +73,6 @@ export function CustomerList({
   const pageCount = customerPage
     ? Math.max(1, Math.ceil(customerPage.total / customerPage.pageSize))
     : 1;
-  const hasFilters = Boolean(
-    query.channelCode || query.tagId || query.ownerUserId
-  );
   const filterCount =
     Number(Boolean(query.channelCode)) +
     Number(Boolean(query.tagId)) +
@@ -112,86 +113,67 @@ export function CustomerList({
 
   return (
     <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[22px] leading-tight font-semibold tracking-tight">
-          客户
-        </h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <CustomerSearch
-            search={query.search ?? ""}
-            onSearch={(search) =>
-              onQueryChange(
-                (previous) => ({ ...previous, search, page: undefined }),
-                true
-              )
-            }
-          />
-          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                className="h-10 gap-2 px-4"
-                variant={hasFilters ? "secondary" : "outline"}
-                aria-label={
-                  hasFilters ? `筛选，已应用 ${filterCount} 项` : "筛选"
-                }
-              >
-                <Filter data-icon="inline-start" />
-                筛选
-                {hasFilters && (
-                  <Badge variant="outline" className="size-5 p-0 tabular-nums">
-                    {filterCount}
-                  </Badge>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              sideOffset={8}
-              aria-label="客户筛选"
-              className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
+      <ListToolbar title="客户" className="mb-5">
+        <CustomerSearch
+          search={query.search ?? ""}
+          onSearch={(search) =>
+            onQueryChange(
+              (previous) => ({ ...previous, search, page: undefined }),
+              true
+            )
+          }
+        />
+        <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+          <PopoverTrigger asChild>
+            <ListFilterButton count={filterCount} />
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            sideOffset={8}
+            aria-label="客户筛选"
+            className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
+          >
+            {filterOpen && (
+              <CustomerListFilters
+                filters={{
+                  channelCode: query.channelCode,
+                  tagId: query.tagId,
+                  ownerUserId: query.ownerUserId,
+                }}
+                selectedTag={selectedTag}
+                onApply={(filters) => {
+                  setFilterOpen(false);
+                  if (
+                    filters.channelCode === query.channelCode &&
+                    filters.tagId === query.tagId &&
+                    filters.ownerUserId === query.ownerUserId
+                  )
+                    return;
+                  onQueryChange((previous) => ({
+                    ...previous,
+                    channelCode: filters.channelCode,
+                    tagId: filters.tagId,
+                    ownerUserId: filters.ownerUserId,
+                    page: undefined,
+                  }));
+                }}
+              />
+            )}
+          </PopoverContent>
+        </Popover>
+        {canCreate && (
+          <Button asChild size="icon">
+            <Link
+              to="/customers/new"
+              state={{ customerListQuery: query }}
+              aria-label="新建客户"
+              title="新建客户"
             >
-              {filterOpen && (
-                <CustomerListFilters
-                  filters={{
-                    channelCode: query.channelCode,
-                    tagId: query.tagId,
-                    ownerUserId: query.ownerUserId,
-                  }}
-                  selectedTag={selectedTag}
-                  onApply={(filters) => {
-                    setFilterOpen(false);
-                    if (
-                      filters.channelCode === query.channelCode &&
-                      filters.tagId === query.tagId &&
-                      filters.ownerUserId === query.ownerUserId
-                    )
-                      return;
-                    onQueryChange((previous) => ({
-                      ...previous,
-                      channelCode: filters.channelCode,
-                      tagId: filters.tagId,
-                      ownerUserId: filters.ownerUserId,
-                      page: undefined,
-                    }));
-                  }}
-                />
-              )}
-            </PopoverContent>
-          </Popover>
-          {canCreate && (
-            <Button asChild className="h-10 px-4">
-              <Link
-                to="/customers/new"
-                state={{ customerListQuery: query }}
-                aria-label="新建客户"
-              >
-                <Plus data-icon="inline-start" />
-                新建
-              </Link>
-            </Button>
-          )}
-        </div>
-      </div>
+              <Plus aria-hidden="true" />
+            </Link>
+          </Button>
+        )}
+      </ListToolbar>
       {currentLoad?.error ? (
         <Empty className="min-h-56 border">
           <EmptyHeader>
@@ -348,21 +330,13 @@ function CustomerSearch({
   }, [draft, onSearch, search]);
 
   return (
-    <div className="relative w-56 max-w-full sm:w-80">
-      <Search
-        className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-        aria-hidden="true"
-      />
-      <Input
-        className="h-10 pl-8"
-        type="search"
-        aria-label="搜索客户编号或名称"
-        placeholder="搜索客户编号或名称"
-        maxLength={256}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-      />
-    </div>
+    <ListSearchInput
+      aria-label="搜索客户编号或名称"
+      placeholder="客户名称或编号"
+      maxLength={256}
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+    />
   );
 }
 

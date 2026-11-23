@@ -6,14 +6,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import {
-  Clock,
-  Filter,
-  LoaderCircle,
-  MessagesSquare,
-  Plus,
-  Search,
-} from "lucide-react";
+import { Clock, LoaderCircle, MessagesSquare, Plus } from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -37,7 +30,11 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import {
+  ListFilterButton,
+  ListSearchInput,
+  ListToolbar,
+} from "@/components/ui/list-toolbar";
 import {
   Popover,
   PopoverContent,
@@ -284,13 +281,12 @@ export function CommunicationList({
     }
   }
 
-  const createButtonClass = customerId ? "h-8 px-3" : "h-10 px-4";
   const createAction =
     canCreate &&
     (opening || hasPending ? (
       <Button
         type="button"
-        className={createButtonClass}
+        className="px-3"
         aria-busy={opening}
         disabled={opening}
         onClick={() => void openPendingCreation()}
@@ -306,15 +302,20 @@ export function CommunicationList({
         {opening ? "正在等待保存结果…" : pendingCreationLabel}
       </Button>
     ) : (
-      <Button asChild className={createButtonClass}>
+      <Button
+        asChild
+        className={customerId ? "px-3" : undefined}
+        size={customerId ? "default" : "icon"}
+      >
         <Link
           aria-label="新建沟通"
+          title={customerId ? undefined : "新建沟通"}
           to="/communication/new"
           search={origin}
           state={navigationState}
         >
           <Plus data-icon="inline-start" />
-          新建
+          {customerId && "新建"}
         </Link>
       </Button>
     ));
@@ -324,73 +325,51 @@ export function CommunicationList({
       {customerId ? (
         createActionSlot && createPortal(createAction, createActionSlot)
       ) : (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-[22px] leading-tight font-semibold tracking-tight">
-            沟通
-          </h1>
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-            <CommunicationSearch
-              search={query.search ?? ""}
-              onSearch={submitSearch}
-            />
-            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  className="h-10 gap-2 px-4"
-                  variant={filterCount ? "secondary" : "outline"}
-                  aria-label={
-                    filterCount ? `筛选，已应用 ${filterCount} 项` : "筛选"
-                  }
-                >
-                  <Filter data-icon="inline-start" />
-                  筛选
-                  {filterCount > 0 && (
-                    <Badge
-                      variant="outline"
-                      className="size-5 p-0 tabular-nums"
-                    >
-                      {filterCount}
-                    </Badge>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                sideOffset={8}
-                aria-label="沟通筛选"
-                className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
-              >
-                {filterOpen && (
-                  <CommunicationListFilters
-                    filters={{
-                      status: query.status,
-                      tagId: query.tagId,
-                      ownerUserId: query.ownerUserId,
-                    }}
-                    selectedTag={selectedTag}
-                    onApply={({ status, tagId, ownerUserId }) => {
-                      setFilterOpen(false);
-                      if (
-                        status === query.status &&
-                        tagId === query.tagId &&
-                        ownerUserId === query.ownerUserId
-                      )
-                        return;
-                      onQueryChange((previous) => ({
-                        ...previous,
-                        status,
-                        tagId,
-                        ownerUserId,
-                        page: undefined,
-                      }));
-                    }}
-                  />
-                )}
-              </PopoverContent>
-            </Popover>
-            {createAction}
-          </div>
-        </div>
+        <ListToolbar title="沟通" className="mb-5">
+          <CommunicationSearch
+            search={query.search ?? ""}
+            onSearch={submitSearch}
+          />
+          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+            <PopoverTrigger asChild>
+              <ListFilterButton count={filterCount} />
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              sideOffset={8}
+              aria-label="沟通筛选"
+              className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
+            >
+              {filterOpen && (
+                <CommunicationListFilters
+                  filters={{
+                    status: query.status,
+                    tagId: query.tagId,
+                    ownerUserId: query.ownerUserId,
+                  }}
+                  selectedTag={selectedTag}
+                  onApply={({ status, tagId, ownerUserId }) => {
+                    setFilterOpen(false);
+                    if (
+                      status === query.status &&
+                      tagId === query.tagId &&
+                      ownerUserId === query.ownerUserId
+                    )
+                      return;
+                    onQueryChange((previous) => ({
+                      ...previous,
+                      status,
+                      tagId,
+                      ownerUserId,
+                      page: undefined,
+                    }));
+                  }}
+                />
+              )}
+            </PopoverContent>
+          </Popover>
+          {createAction}
+        </ListToolbar>
       )}
       {creationError && (
         <FieldError className="mb-4">{creationError}</FieldError>
@@ -579,23 +558,15 @@ function CommunicationSearch({
   }, [draft, onSearch, search, composing]);
 
   return (
-    <div className="relative w-56 max-w-full sm:w-72">
-      <Search
-        className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-        aria-hidden="true"
-      />
-      <Input
-        className="h-10 pl-8"
-        type="search"
-        aria-label="搜索沟通"
-        placeholder="搜索"
-        maxLength={256}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onCompositionStart={() => setComposing(true)}
-        onCompositionEnd={() => setComposing(false)}
-      />
-    </div>
+    <ListSearchInput
+      aria-label="搜索沟通"
+      placeholder="搜索沟通"
+      maxLength={256}
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onCompositionStart={() => setComposing(true)}
+      onCompositionEnd={() => setComposing(false)}
+    />
   );
 }
 

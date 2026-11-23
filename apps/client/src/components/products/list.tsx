@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Filter, Package, Plus, Search } from "lucide-react";
+import { Package, Plus } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { CustomerPagination } from "@/components/customers/pagination";
@@ -13,10 +13,10 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
+  ListFilterButton,
+  ListSearchInput,
+  ListToolbar,
+} from "@/components/ui/list-toolbar";
 import {
   Popover,
   PopoverContent,
@@ -142,95 +142,74 @@ export function ProductList({
 
   return (
     <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[22px] leading-tight font-semibold tracking-tight">
-          产品
-        </h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <InputGroup className="h-10 w-56 max-w-full sm:w-80">
-            <InputGroupInput
-              type="search"
-              aria-label="搜索产品"
-              placeholder="搜索产品名称、编号或客户"
-              maxLength={256}
-              value={searchDraft}
-              onChange={(event) => setSearchDraft(event.target.value)}
-            />
-            <InputGroupAddon>
-              <Search aria-hidden="true" />
-            </InputGroupAddon>
-          </InputGroup>
-          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                className="h-10 gap-2 px-4"
-                variant={filterCount ? "secondary" : "outline"}
-                aria-label={
-                  filterCount ? `筛选，已应用 ${filterCount} 项` : "筛选"
-                }
-              >
-                <Filter data-icon="inline-start" />
-                筛选
-                {filterCount > 0 && (
-                  <Badge variant="outline" className="size-5 p-0 tabular-nums">
-                    {filterCount}
-                  </Badge>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              ref={setFilterContainer}
-              align="end"
-              sideOffset={8}
-              aria-label="产品筛选"
-              className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] gap-0 overflow-y-auto p-0"
-              onEscapeKeyDown={(event) =>
-                keepDialogOpenOnComboboxEscape(event, filterContainer)
-              }
+      <ListToolbar title="产品" className="mb-5">
+        <ListSearchInput
+          aria-label="搜索产品"
+          placeholder="名称、编号或客户"
+          maxLength={256}
+          value={searchDraft}
+          onChange={(event) => setSearchDraft(event.target.value)}
+        />
+        <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+          <PopoverTrigger asChild>
+            <ListFilterButton count={filterCount} />
+          </PopoverTrigger>
+          <PopoverContent
+            ref={setFilterContainer}
+            align="end"
+            sideOffset={8}
+            aria-label="产品筛选"
+            className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] gap-0 overflow-y-auto p-0"
+            onEscapeKeyDown={(event) =>
+              keepDialogOpenOnComboboxEscape(event, filterContainer)
+            }
+          >
+            {filterOpen && (
+              <ProductListFilters
+                filters={{
+                  customerId: query.customerId,
+                  productTypes: query.productTypes,
+                  sortDirection: query.sortDirection,
+                }}
+                selectedCustomer={selectedCustomer}
+                container={filterContainer}
+                onApply={(filters) => {
+                  setFilterOpen(false);
+                  const types = filters.productTypes ?? [];
+                  if (
+                    filters.customerId === query.customerId &&
+                    (filters.sortDirection ?? "desc") ===
+                      (query.sortDirection ?? "desc") &&
+                    types.length === (query.productTypes?.length ?? 0) &&
+                    types.every((type) => query.productTypes?.includes(type))
+                  ) {
+                    return;
+                  }
+                  onQueryChange((previous) => ({
+                    ...previous,
+                    customerId: filters.customerId,
+                    productTypes: filters.productTypes,
+                    sortDirection: filters.sortDirection,
+                    page: undefined,
+                  }));
+                }}
+              />
+            )}
+          </PopoverContent>
+        </Popover>
+        {canCreate && (
+          <Button asChild size="icon">
+            <Link
+              to="/products/new"
+              state={listOrigin}
+              aria-label="新建产品"
+              title="新建产品"
             >
-              {filterOpen && (
-                <ProductListFilters
-                  filters={{
-                    customerId: query.customerId,
-                    productTypes: query.productTypes,
-                    sortDirection: query.sortDirection,
-                  }}
-                  selectedCustomer={selectedCustomer}
-                  container={filterContainer}
-                  onApply={(filters) => {
-                    setFilterOpen(false);
-                    const types = filters.productTypes ?? [];
-                    if (
-                      filters.customerId === query.customerId &&
-                      (filters.sortDirection ?? "desc") ===
-                        (query.sortDirection ?? "desc") &&
-                      types.length === (query.productTypes?.length ?? 0) &&
-                      types.every((type) => query.productTypes?.includes(type))
-                    ) {
-                      return;
-                    }
-                    onQueryChange((previous) => ({
-                      ...previous,
-                      customerId: filters.customerId,
-                      productTypes: filters.productTypes,
-                      sortDirection: filters.sortDirection,
-                      page: undefined,
-                    }));
-                  }}
-                />
-              )}
-            </PopoverContent>
-          </Popover>
-          {canCreate && (
-            <Button asChild className="h-10 px-4">
-              <Link to="/products/new" state={listOrigin} aria-label="新建产品">
-                <Plus data-icon="inline-start" />
-                新建
-              </Link>
-            </Button>
-          )}
-        </div>
-      </div>
+              <Plus aria-hidden="true" />
+            </Link>
+          </Button>
+        )}
+      </ListToolbar>
 
       {current?.error ? (
         <Empty className="min-h-56 border">
