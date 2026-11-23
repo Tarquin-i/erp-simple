@@ -41,7 +41,7 @@ import type {
   AttachmentListResult,
 } from "@/request/communication-attachments";
 
-import { AttachmentDropZone } from "./drop-zone";
+import { AttachmentDropZone, attachmentEncodingHint } from "./drop-zone";
 import { AttachmentQueue } from "./queue";
 import { AttachmentTimeline } from "./timeline";
 import { useAttachmentUploadQueue } from "./use-upload-queue";
@@ -440,7 +440,7 @@ export function CommunicationAttachmentsTab({
           void upload();
         }}
       >
-        {({ selectFiles, dropButton }) => (
+        {({ selectFiles, selectionDisabled, dropButton }) => (
           <>
             {downloadError && (
               <div className="flex flex-wrap items-center gap-2">
@@ -501,13 +501,15 @@ export function CommunicationAttachmentsTab({
                             variant="ghost"
                             size="icon"
                             aria-label="上传附件"
-                            disabled={uploadDisabled}
+                            disabled={selectionDisabled}
                             onClick={selectFiles}
                           >
                             <Upload aria-hidden="true" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>上传附件</TooltipContent>
+                        <TooltipContent>
+                          上传附件 · {attachmentEncodingHint}
+                        </TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>

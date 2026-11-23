@@ -195,14 +195,18 @@ export function CommunicationDetail({
               </Link>
             </Button>
           )}
+          {/* 从客户页签进入编辑时复用详情的历史位置。 */}
           <Button asChild className="h-10 px-4">
             <Link
               to="/communication/$communicationId/edit"
               preload={false}
+              replace={Boolean(returnCustomerId)}
               params={{ communicationId: record.id }}
               search={returnCustomerId ? origin : {}}
               state={{
-                communicationEditFromDetail: record.id,
+                communicationEditFromDetail: returnCustomerId
+                  ? undefined
+                  : record.id,
                 communicationListQuery: state.communicationListQuery,
                 customerListQuery: state.customerListQuery,
               }}
