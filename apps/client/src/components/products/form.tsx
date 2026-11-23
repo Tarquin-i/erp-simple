@@ -14,13 +14,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
-import { productTypeLabels } from "@/request/products";
+import { isProductType, productTypeLabels } from "@/request/products";
 import type {
   ProductCreateInput,
   ProductDetailRecord,
   ProductType,
   ProductWriteInput,
 } from "@/request/products";
+
+import { productAttributes, readProductAttributeOptions } from "./form-options";
+import type { ProductAttributeField } from "./form-options";
+import { ProductPresetField } from "./preset-field";
+import type { ProductPresetOption } from "./preset-field";
 
 export const productFieldLabels = {
   name: "产品名称",
@@ -53,31 +58,44 @@ export type ProductDraft = Omit<
   peelOffQuantity: string;
 };
 
-type ProductTextField = Exclude<
-  keyof ProductWriteInput,
-  "productType" | "currencyCode" | "unitPrice" | "remark"
->;
+type ProductTextField = "name" | "englishName" | "packagingSpecification";
 
 const specificationFields = [
-  ["specification", 128],
-  ["finishedSize", 64],
-  ["paperType", 64],
-  ["colorCount", 32],
-  ["surfaceTreatment", 64],
-  ["finalMolding", 64],
-  ["variableColor", 64],
-  ["variationMethod", 64],
-  ["packagingSpecification", 128],
-] as const;
+  "specification",
+  "finishedSize",
+  "paperType",
+  "colorCount",
+  "surfaceTreatment",
+  "finalMolding",
+  "variableColor",
+  "variationMethod",
+] as const satisfies readonly ProductAttributeField[];
 const requiredFields = [
   "name",
   "englishName",
-  ...specificationFields.map(([key]) => key),
+  ...specificationFields,
+  "packagingSpecification",
 ] as const;
 
-const productTypes = (Object.keys(productTypeLabels) as ProductType[]).map(
-  (code) => ({ code, name: productTypeLabels[code] })
+const productTypes = (Object.keys(productTypeLabels) as ProductType[])
+  .filter((type) => type !== "user-defined")
+  .map((value) => ({ value, name: productTypeLabels[value] }));
+const presetTypeNames = new Set(
+  productTypes.flatMap(({ name, value }) => [name, value.toLowerCase()])
 );
+
+function validateCustomProductType(value: string) {
+  return presetTypeNames.has(value.toLowerCase())
+    ? "该名称属于预设类型，请直接选择对应的产品类型。"
+    : undefined;
+}
+
+function isValidPeelOffQuantity(value: string) {
+  const quantity = Number(value);
+  return (
+    /^\d+$/u.test(value.trim()) && quantity > 0 && quantity <= 2_147_483_647
+  );
+}
 
 // 与产品接口的 ISO 4217 币种清单一致。
 const currencyCodes =
@@ -164,6 +182,10 @@ export function ProductForm({
   const locked = disabled || pending;
   const controlsDisabled = locked || fieldsLocked;
   const formError = validationError || (fieldError ? undefined : error);
+  const selectedType: ProductPresetOption | null =
+    draft.productType === "user-defined" && draft.customerDefinedType
+      ? { name: draft.customerDefinedType, value: draft.productType }
+      : (productTypes.find(({ value }) => value === draft.productType) ?? null);
 
   useEffect(() => {
     if (fieldError && error && !controlsDisabled) {
@@ -176,13 +198,21 @@ export function ProductForm({
     onDraftChange(next);
   }
 
-  function changeType(productType: ProductType) {
-    if (productType === draft.productType) return;
+  function changeType(
+    productType: ProductType,
+    customerDefinedType: string | null = null
+  ) {
+    if (
+      productType === draft.productType &&
+      customerDefinedType === draft.customerDefinedType
+    ) {
+      return;
+    }
     changeDraft({
       ...draft,
       productType,
-      customerDefinedType:
-        productType === "user-defined" ? draft.customerDefinedType : null,
+      customerDefinedType,
+      finishedSize: "",
       dieCutDirection:
         productType === "pull-tab" ? draft.dieCutDirection : null,
       peelOffQuantity: productType === "pull-tab" ? draft.peelOffQuantity : "",
@@ -229,11 +259,7 @@ export function ProductForm({
       productType === "pull-tab" ? Number(fields.peelOffQuantity) : null;
     if (
       productType === "pull-tab" &&
-      (!dieCutDirection ||
-        !/^\d+$/u.test(fields.peelOffQuantity.trim()) ||
-        peelOffQuantity === null ||
-        peelOffQuantity < 1 ||
-        peelOffQuantity > 2147483647)
+      (!dieCutDirection || !isValidPeelOffQuantity(fields.peelOffQuantity))
     ) {
       setValidationError("请填写模切方向和有效的正整数揭开口数量。");
       return;
@@ -282,7 +308,6 @@ export function ProductForm({
           value={draft[field] ?? ""}
           required
           maxLength={maxLength}
-          inputMode={field === "peelOffQuantity" ? "numeric" : undefined}
           disabled={controlsDisabled}
           aria-invalid={issue ? true : undefined}
           aria-describedby={issue ? `${inputId}-error` : undefined}
@@ -292,6 +317,44 @@ export function ProductForm({
         />
         {issue && <FieldError id={`${inputId}-error`}>{issue}</FieldError>}
       </Field>
+    );
+  }
+
+  function attributeField(field: ProductAttributeField) {
+    const { maxLength, allowCustom } = productAttributes[field];
+    const options = readProductAttributeOptions(field, draft.productType);
+    const current = draft[field] ?? "";
+    const isQuantity = field === "peelOffQuantity";
+    const changeValue = (value: string) => {
+      if (current !== value) changeDraft({ ...draft, [field]: value });
+    };
+    return (
+      <ProductPresetField
+        key={field}
+        id={`${id}-${field}`}
+        label={productFieldLabels[field]}
+        items={options.map((value) => ({ name: value, value }))}
+        value={current ? { name: current, value: current } : null}
+        disabled={controlsDisabled}
+        onChange={({ value }) => changeValue(value)}
+        custom={
+          allowCustom
+            ? {
+                initialValue: options.includes(current) ? "" : current,
+                maxLength,
+                inputMode: isQuantity ? "numeric" : undefined,
+                validate: isQuantity
+                  ? (value) =>
+                      isValidPeelOffQuantity(value)
+                        ? undefined
+                        : "请输入有效的正整数揭开口数量。"
+                  : undefined,
+                onConfirm: (value) =>
+                  changeValue(isQuantity ? String(Number(value)) : value),
+              }
+            : undefined
+        }
+      />
     );
   }
 
@@ -339,54 +402,41 @@ export function ProductForm({
               disabled={controlsDisabled}
               onChange={(customer) => changeDraft({ ...draft, customer })}
             />
-            <Field>
-              <FieldLabel htmlFor={`${id}-type`}>产品类型</FieldLabel>
-              <SearchableSelect
-                id={`${id}-type`}
-                items={productTypes}
-                value={
-                  productTypes.find(({ code }) => code === draft.productType) ??
-                  null
-                }
-                placeholder="请选择产品类型"
-                searchPlaceholder="搜索产品类型"
-                emptyMessage="没有匹配的产品类型"
-                disabled={controlsDisabled}
-                required
-                onValueChange={({ code }) => changeType(code)}
-              />
-            </Field>
-            {draft.productType === "user-defined" &&
-              textField("customerDefinedType", 64)}
-          </div>
-          <Field>
-            <FieldLabel htmlFor={`${id}-remark`}>备注</FieldLabel>
-            <Textarea
-              id={`${id}-remark`}
-              value={draft.remark}
-              maxLength={4096}
+            <ProductPresetField
+              id={`${id}-type`}
+              label="产品类型"
+              items={productTypes}
+              value={selectedType}
               disabled={controlsDisabled}
-              onChange={(event) =>
-                changeDraft({ ...draft, remark: event.target.value })
-              }
+              onChange={({ value }) => {
+                if (isProductType(value) && value !== "user-defined") {
+                  changeType(value);
+                }
+              }}
+              custom={{
+                initialValue: draft.customerDefinedType ?? "",
+                label: "自定义类型名称",
+                maxLength: 64,
+                validate: validateCustomProductType,
+                onConfirm: (value) => changeType("user-defined", value),
+              }}
             />
-          </Field>
+          </div>
         </FieldSet>
 
         <FieldSet>
           <FieldLegend>规格工艺</FieldLegend>
           <div className="grid gap-4 sm:grid-cols-2">
-            {specificationFields.map(([field, limit]) =>
-              textField(field, limit)
-            )}
+            {specificationFields.map(attributeField)}
+            {textField("packagingSpecification", 128)}
             {draft.productType === "pull-tab" && (
               <>
-                {textField("dieCutDirection", 32)}
-                {textField("peelOffQuantity", 10)}
+                {attributeField("dieCutDirection")}
+                {attributeField("peelOffQuantity")}
               </>
             )}
             {needsScratchOffArea(draft.productType) &&
-              textField("scratchOffArea", 64)}
+              attributeField("scratchOffArea")}
           </div>
         </FieldSet>
 
@@ -429,6 +479,18 @@ export function ProductForm({
             </Field>
           </div>
         </FieldSet>
+        <Field>
+          <FieldLabel htmlFor={`${id}-remark`}>备注</FieldLabel>
+          <Textarea
+            id={`${id}-remark`}
+            value={draft.remark}
+            maxLength={4096}
+            disabled={controlsDisabled}
+            onChange={(event) =>
+              changeDraft({ ...draft, remark: event.target.value })
+            }
+          />
+        </Field>
       </form>
     </main>
   );
