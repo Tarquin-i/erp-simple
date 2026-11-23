@@ -16,6 +16,11 @@ export type AddressListItem = {
   formattedAddress: string;
 };
 
+export type ExpectedDefaultAddress = Pick<
+  AddressListItem,
+  "id" | "version"
+> | null;
+
 export type AddressWriteInput = {
   recipientName: string;
   phone: string;
@@ -86,18 +91,19 @@ function queryString(query: Record<string, string | number | undefined>) {
 /**
  * 校验冲突响应中的地址快照，再让表单读取其版本和地址资料。
  * @param value 服务端错误响应中的 current 字段。
- * @param id 本次提交的地址 ID。
- * @returns 快照对应本次提交且具备完整字段时返回 true。
+ * @param id 本次提交的地址 ID。如果未指定，仅校验快照本身。
+ * @returns 快照具备完整字段，且在指定 ID 时与之匹配，返回 true。
  */
 export function isAddressSnapshot(
   value: unknown,
-  id: string
+  id?: string
 ): value is AddressDetail {
   if (typeof value !== "object" || value === null) return false;
   const address = value as Partial<AddressDetail>;
   const owner = address.customer;
   return (
-    address.id === id &&
+    typeof address.id === "string" &&
+    (id === undefined || address.id === id) &&
     typeof address.version === "number" &&
     Number.isInteger(address.version) &&
     address.version > 0 &&
@@ -177,15 +183,15 @@ export function getAddress(id: string, signal?: AbortSignal) {
  * @param customerId 客户 ID。
  * @param input 完整的表单字段。
  * @param submissionId 本次提交的唯一标识，重试时复用。
- * @param replaceExistingDefault 用户是否确认替换已有默认地址。
+ * @param expectedDefault 用户确认时看到的默认地址及版本，null 表示确认当前无默认。
  * @returns 包含已创建地址详情的响应。
- * @throws 新地址设为默认而已有默认地址待确认时抛出 409 对应的 AddressApiError。
+ * @throws 替换默认地址尚未确认或确认后默认地址有变化时抛出 409 对应的 AddressApiError。
  */
 export function createAddress(
   customerId: string,
   input: AddressWriteInput,
   submissionId: string,
-  replaceExistingDefault = false
+  expectedDefault?: ExpectedDefaultAddress
 ) {
   return request<AddressResponse>("/addresses", {
     method: "POST",
@@ -193,7 +199,7 @@ export function createAddress(
       "Content-Type": "application/json",
       "Idempotency-Key": submissionId,
     },
-    body: JSON.stringify({ ...input, customerId, replaceExistingDefault }),
+    body: JSON.stringify({ ...input, customerId, expectedDefault }),
   });
 }
 

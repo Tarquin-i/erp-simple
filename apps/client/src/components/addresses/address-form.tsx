@@ -52,6 +52,7 @@ import {
   type AddressDetail,
   type AddressWriteInput,
   createAddress,
+  type ExpectedDefaultAddress,
   isAddressSnapshot,
   updateAddress,
 } from "@/request/addresses";
@@ -83,7 +84,7 @@ type CreateSubmission = {
   submissionId: string;
   customerId: string;
   input: AddressWriteInput;
-  replaceExistingDefault: boolean;
+  expectedDefault?: ExpectedDefaultAddress;
 };
 type EditSubmission = {
   kind: "edit";
@@ -91,7 +92,11 @@ type EditSubmission = {
   patch: Partial<AddressWriteInput>;
 };
 type Prompt =
-  | { kind: "replace-default"; submission: CreateSubmission }
+  | {
+      kind: "replace-default";
+      submission: CreateSubmission;
+      current: AddressDetail | null;
+    }
   | { kind: "version"; submission: EditSubmission };
 
 const addressFields = Object.keys(fieldLabels) as AddressField[];
@@ -237,6 +242,9 @@ function AddressForm({
     return [{ code: "", name: draft.province, keywords: "" }, ...options];
   }, [draft.countryCode, draft.province]);
   const disabled = pending || saved;
+  const defaultPrompt = prompt?.kind === "replace-default" ? prompt : null;
+  const defaultChanged =
+    defaultPrompt?.submission.expectedDefault !== undefined;
   const versionPrompt = prompt?.kind === "version" ? prompt.submission : null;
   const differences = versionPrompt
     ? addressFields.flatMap((field) => {
@@ -307,7 +315,7 @@ function AddressForm({
                 submission.customerId,
                 submission.input,
                 submission.submissionId,
-                submission.replaceExistingDefault
+                submission.expectedDefault
               )
             : await updateAddress(
                 submission.base.id,
@@ -316,22 +324,28 @@ function AddressForm({
               );
         result = response.address;
       } catch (failure) {
+        const current =
+          failure instanceof AddressApiError ? failure.current : undefined;
         if (
           submission.kind === "create" &&
-          !submission.replaceExistingDefault &&
           failure instanceof AddressApiError &&
-          failure.code === "existing_default_conflict"
+          failure.status === 409 &&
+          failure.code === "existing_default_conflict" &&
+          (current === null ||
+            (isAddressSnapshot(current) &&
+              current.customerId === submission.customerId &&
+              current.isDefault &&
+              current.status === "active"))
         ) {
-          setPrompt({ kind: "replace-default", submission });
+          setPrompt({ kind: "replace-default", submission, current });
           return;
         }
         if (
           submission.kind === "edit" &&
           failure instanceof AddressApiError &&
           failure.code === "version_conflict" &&
-          isAddressSnapshot(failure.current, submission.base.id)
+          isAddressSnapshot(current, submission.base.id)
         ) {
-          const current = failure.current;
           const patch = getPatch(current, submission.patch);
           if (Object.keys(patch).length) {
             setPrompt({
@@ -445,7 +459,6 @@ function AddressForm({
         submissionId: creation.current.id,
         customerId,
         input,
-        replaceExistingDefault: false,
       });
     }
   }
@@ -706,32 +719,58 @@ function AddressForm({
         </main>
       )}
       <AlertDialog
-        open={prompt?.kind === "replace-default"}
+        open={defaultPrompt !== null}
         onOpenChange={(open) => {
           if (!open) closePrompt();
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100%-2rem)]">
           <AlertDialogHeader>
-            <AlertDialogTitle>替换默认地址</AlertDialogTitle>
-            <AlertDialogDescription>
-              该客户已有默认地址。确认后，新地址将成为默认地址。
+            <AlertDialogTitle>
+              {defaultChanged ? "默认地址已变更" : "替换默认地址"}
+            </AlertDialogTitle>
+            <AlertDialogDescription aria-live="polite">
+              {defaultPrompt?.current
+                ? "确认后，新地址将替换下方的默认地址。"
+                : "该客户当前没有默认地址。确认后，新地址将设为默认。"}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {defaultPrompt?.current && (
+            <div
+              className="max-h-[45vh] space-y-1 overflow-y-auto rounded-lg border p-3 text-sm"
+              aria-live="polite"
+            >
+              <p className="font-medium">当前默认地址</p>
+              <p className="flex flex-wrap gap-x-2">
+                <span className="wrap-anywhere">
+                  {defaultPrompt.current.recipientName}
+                </span>
+                <span className="text-muted-foreground tabular-nums">
+                  {defaultPrompt.current.phone}
+                </span>
+              </p>
+              <p className="wrap-anywhere text-muted-foreground">
+                {defaultPrompt.current.formattedAddress}
+              </p>
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={pending}>取消</AlertDialogCancel>
             <AlertDialogAction
               disabled={pending}
               onClick={(event) => {
                 event.preventDefault();
-                if (prompt?.kind !== "replace-default") return;
+                if (!defaultPrompt) return;
+                const { current, submission } = defaultPrompt;
                 void save({
-                  ...prompt.submission,
-                  replaceExistingDefault: true,
+                  ...submission,
+                  expectedDefault: current
+                    ? { id: current.id, version: current.version }
+                    : null,
                 });
               }}
             >
-              {pending ? "正在保存…" : "确认替换"}
+              {pending ? "正在保存…" : defaultChanged ? "确认覆盖" : "确认替换"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
