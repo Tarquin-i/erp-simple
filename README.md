@@ -80,7 +80,9 @@ COMMUNICATION_ATTACHMENT_LOCAL_DIR=../../../.erp-simple-private/communication-at
 
 同时创建 12 个以「演示·」开头的客户、12 位联系人及 48 条联系方式，以及 24 条沟通记录。客户分布在两个业务部门的主管和员工名下，客户与沟通各有 4 个独立标签；沟通包含待跟进、急需跟进和已完结三种状态，也包含同部门其他业务员负责的沟通，方便检查列表、详情和权限。客户编号由数据库自动生成。
 
-演示记录使用固定 ID，重复 seed 会补建缺失的演示客户和沟通，不会覆盖已有客户、沟通、联系方式及其关联的修改。
+产品种子包含 22 条演示产品，覆盖七种产品类型以及人民币、美元和欧元。星河包装、晨光礼品和松果创意各有至少 6 条产品，可在客户详情的「产品」Tab 检查翻页。锦程印务也有产品，其余演示客户可用于查看空列表。
+
+演示记录使用固定 ID，重复 seed 会补建缺失的演示客户、沟通和产品，不会覆盖已有资料的修改或恢复已归档的产品。
 
 `db:push`、`db:reset` 和 `seed` 共用本地目标校验：主机只允许 `localhost`、`127.0.0.1` 或 `[::1]`；库名只允许当前本地配置使用的 `app`、Compose 默认的 `erp-simple`，以及以 `erp-simple_` 开头、后缀由小写字母、数字和下划线组成的开发测试库。`NODE_ENV`、`APP_ENV`、`VERCEL_ENV`、`ENVIRONMENT` 任一值为 `prod` 或 `production` 时都会拒绝执行，判断忽略大小写和首尾空格。这些命令操作已有数据库，不负责创建数据库本身。
 
@@ -119,7 +121,7 @@ bun run seed
 | `bun run db:push`      | 将 Drizzle 表定义同步到本地数据库          |
 | `bun run db:reset`     | 清空本地数据，再调用 `db:push` 重建结构    |
 | `bun run db:studio`    | 打开 Drizzle Studio                        |
-| `bun run seed`         | 初始化本地账号、部门和客户渠道             |
+| `bun run seed`         | 初始化本地账号、部门、客户渠道和演示数据   |
 | `bun run format`       | 用 Biome 格式化代码                        |
 | `bun run format:check` | 检查格式                                   |
 | `bun run check-types`  | 检查前端、后端和数据库包的 TypeScript 类型 |
