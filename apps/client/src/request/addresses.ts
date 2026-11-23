@@ -31,8 +31,9 @@ export type AddressWriteInput = {
 };
 
 export type AddressDetail = AddressListItem &
-  AddressWriteInput & {
+  Omit<AddressWriteInput, "province"> & {
     phoneNormalized: string;
+    province: string | null;
     status: "active" | "archived";
     createdAt: string;
   };
@@ -82,14 +83,6 @@ function queryString(query: Record<string, string | number | undefined>) {
   return params.size ? `?${params}` : "";
 }
 
-function write(path: string, method: "POST" | "PATCH", body: object) {
-  return request<AddressResponse>(path, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
 /**
  * 校验冲突响应中的地址快照，再让表单读取其版本和地址资料。
  * @param value 服务端错误响应中的 current 字段。
@@ -117,7 +110,7 @@ export function isAddressSnapshot(
     typeof address.phone === "string" &&
     typeof address.phoneNormalized === "string" &&
     typeof address.countryCode === "string" &&
-    typeof address.province === "string" &&
+    (address.province === null || typeof address.province === "string") &&
     typeof address.city === "string" &&
     (address.district === null || typeof address.district === "string") &&
     typeof address.addressLine1 === "string" &&
@@ -183,6 +176,7 @@ export function getAddress(id: string, signal?: AbortSignal) {
  * 在指定客户下新建地址。
  * @param customerId 客户 ID。
  * @param input 完整的表单字段。
+ * @param submissionId 本次提交的唯一标识，重试时复用。
  * @param replaceExistingDefault 用户是否确认替换已有默认地址。
  * @returns 包含已创建地址详情的响应。
  * @throws 新地址设为默认而已有默认地址待确认时抛出 409 对应的 AddressApiError。
@@ -190,12 +184,16 @@ export function getAddress(id: string, signal?: AbortSignal) {
 export function createAddress(
   customerId: string,
   input: AddressWriteInput,
+  submissionId: string,
   replaceExistingDefault = false
 ) {
-  return write("/addresses", "POST", {
-    ...input,
-    customerId,
-    replaceExistingDefault,
+  return request<AddressResponse>("/addresses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": submissionId,
+    },
+    body: JSON.stringify({ ...input, customerId, replaceExistingDefault }),
   });
 }
 
@@ -212,9 +210,18 @@ export function updateAddress(
   expectedVersion: number,
   patch: Partial<AddressWriteInput>
 ) {
-  return write(`/addresses/${encodeURIComponent(id)}`, "PATCH", {
-    ...patch,
-    expectedVersion,
+  return request<AddressResponse>(`/addresses/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...patch,
+      // 换国家时，表单用空字符串保留草稿里的清空意图，接口用省略表示。
+      province:
+        patch.countryCode !== undefined && patch.province === ""
+          ? undefined
+          : patch.province,
+      expectedVersion,
+    }),
   });
 }
 

@@ -93,10 +93,16 @@ export function addressView(
   row: Address,
   { id, customerNo, companyName }: AddressCustomer
 ) {
+  const {
+    creationActorUserId,
+    creationRequestId,
+    creationRequestHash,
+    ...address
+  } = row;
   return {
-    ...row,
+    ...address,
     customer: { id, customerNo, companyName },
-    formattedAddress: formatAddress(row),
+    formattedAddress: formatAddress(address),
   };
 }
 

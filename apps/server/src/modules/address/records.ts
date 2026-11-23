@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { customer, customerAddress } from "@repo/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
@@ -128,17 +129,69 @@ async function clearDefaultAddress(
  * @param customerId 所属客户 ID。
  * @param input 已校验的收货资料和默认标记。
  * @param replaceExistingDefault 用户是否确认替换当前默认地址。
- * @returns 已保存的新地址详情。
- * @throws 客户不可见时返回 404，未确认替换已有默认地址时返回 409。
+ * @param requestId 同一次新建在断线重试时复用的提交 UUID。
+ * @returns 新建地址，或以当前权限重新读取已保存的地址。
+ * @throws 客户或地址不可见时返回 404，重用提交 ID 提交不同资料或未确认替换默认地址时返回 409。
  */
 export function createAddress(
   access: BusinessAccess,
   customerId: string,
   input: AddressCreateInput,
-  replaceExistingDefault: boolean
+  replaceExistingDefault: boolean,
+  requestId: string
 ) {
+  // 确认替换默认地址前后属于同一次新建。只对地址资料计算指纹。
+  const requestHash = createHash("sha256")
+    .update(JSON.stringify({ customerId, ...input }))
+    .digest("hex");
   return withAddressWrite(async (tx) => {
-    const { record } = await lockCustomerForWrite(tx, access, customerId);
+    const lockKey = JSON.stringify([
+      "address-create",
+      access.userId,
+      requestId,
+    ]);
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`
+    );
+    const [existing] = await tx
+      .select({
+        id: customerAddress.id,
+        customerId: customerAddress.customerId,
+      })
+      .from(customerAddress)
+      .where(
+        and(
+          eq(customerAddress.creationActorUserId, access.userId),
+          eq(customerAddress.creationRequestId, requestId)
+        )
+      );
+    const { record } = await lockCustomerForWrite(
+      tx,
+      access,
+      existing?.customerId ?? customerId
+    );
+    if (existing) {
+      const [saved] = await tx
+        .select()
+        .from(customerAddress)
+        .where(
+          and(activeAddresses(record.id), eq(customerAddress.id, existing.id))
+        );
+      if (!saved) fail(404, "地址不存在。");
+      if (saved.creationRequestHash !== requestHash) {
+        throw new HTTPException(409, {
+          res: Response.json(
+            {
+              code: "idempotency_conflict",
+              message: "该提交 ID 已用于不同的地址资料。",
+            },
+            { status: 409 }
+          ),
+        });
+      }
+      return addressView(saved, record);
+    }
+
     const [currentDefault] = await tx
       .select()
       .from(customerAddress)
@@ -162,6 +215,9 @@ export function createAddress(
         ...input,
         customerId,
         isDefault: input.isDefault || !currentDefault,
+        creationActorUserId: access.userId,
+        creationRequestId: requestId,
+        creationRequestHash: requestHash,
       })
       .returning();
     return addressView(created, record);
@@ -170,13 +226,13 @@ export function createAddress(
 
 /**
  * 编辑地址资料或把它设为默认，客户归属保持为当前记录的客户。
- * 变更省或州时须提供城市，未提供的区县和邮编会清空。
+ * 变更国家或省州时须提供城市，未提供的区县和邮编会清空。变更国家时也清空未提供的省州。
  * @param access 调用方身份和范围。
  * @param addressId 待编辑的地址 ID。
  * @param input 已校验的部分更新字段。
  * @param expectedVersion 用户读取到的地址版本。
  * @returns 更新后的地址详情。
- * @throws 地址不可见时返回 404。变更省或州时缺少城市，或邮编无效时返回 400。
+ * @throws 地址不可见时返回 404。变更国家或省州时缺少城市，或邮编无效时返回 400。
  * 版本过期或直接取消默认时返回 409。
  */
 export function updateAddress(
@@ -199,19 +255,28 @@ export function updateAddress(
         addressView(address, record)
       );
     }
+    const countryChanged =
+      input.countryCode !== undefined &&
+      input.countryCode !== address.countryCode;
     const provinceChanged =
       input.province !== undefined && input.province !== address.province;
-    if (provinceChanged && input.city === undefined) {
-      fail(400, "更换省或州时，请重新填写城市。");
+    const locationChanged = countryChanged || provinceChanged;
+    if (locationChanged && input.city === undefined) {
+      fail(
+        400,
+        countryChanged
+          ? "更换国家或地区时，请重新填写城市。"
+          : "更换省或州时，请重新填写城市。"
+      );
     }
-    const nextPostalCode = provinceChanged
+    const nextPostalCode = locationChanged
       ? (input.postalCode ?? null)
       : input.postalCode;
     const postalCode =
-      input.countryCode !== undefined || nextPostalCode !== undefined
+      nextPostalCode !== undefined
         ? normalizeAddressPostalCode(
             input.countryCode ?? address.countryCode,
-            nextPostalCode === undefined ? address.postalCode : nextPostalCode
+            nextPostalCode
           )
         : undefined;
     if (input.isDefault && !address.isDefault) {
@@ -223,7 +288,8 @@ export function updateAddress(
       .set({
         ...input,
         ...revision,
-        district: provinceChanged ? (input.district ?? null) : input.district,
+        province: countryChanged ? (input.province ?? null) : input.province,
+        district: locationChanged ? (input.district ?? null) : input.district,
         postalCode,
       })
       .where(eq(customerAddress.id, addressId))

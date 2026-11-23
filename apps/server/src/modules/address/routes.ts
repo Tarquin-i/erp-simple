@@ -65,7 +65,8 @@ addressRoutes.post("/", async (c) => {
     c.get("businessAccess"),
     readUuid(body.customerId, "客户 ID"),
     readAddressCreateInput(body),
-    replaceExistingDefault === true
+    replaceExistingDefault === true,
+    readUuid(c.req.header("Idempotency-Key"), "提交 ID")
   );
   return c.json({ address }, 201);
 });

@@ -45,6 +45,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { createUuid } from "@/lib/uuid";
 import {
   AddressApiError,
   type AddressCustomer,
@@ -78,6 +79,7 @@ type AddressField = keyof AddressWriteInput;
 type TextField = Exclude<AddressField, "isDefault">;
 type CreateSubmission = {
   kind: "create";
+  submissionId: string;
   customerId: string;
   input: AddressWriteInput;
   replaceExistingDefault: boolean;
@@ -129,6 +131,7 @@ function getPatch(base: AddressDetail, input: Partial<AddressWriteInput>) {
     addressFields.flatMap((field) => {
       const value = input[field];
       if (value === undefined || value === base[field]) return [];
+      if (field === "province" && value === "") return [];
       if (
         field === "phone" &&
         typeof value === "string" &&
@@ -139,8 +142,9 @@ function getPatch(base: AddressDetail, input: Partial<AddressWriteInput>) {
       return [[field, value]];
     })
   ) as Partial<AddressWriteInput>;
-  // 换省时即使重填的城市、区县或邮编与原值相同，也要显式提交。
-  if (patch.province !== undefined) {
+  // 更换国家或省州时，重填的下级地址字段即使与原值相同也要提交。
+  if (patch.countryCode !== undefined) patch.province = input.province ?? "";
+  if (patch.countryCode !== undefined || patch.province !== undefined) {
     patch.city = input.city;
     patch.district = input.district;
     patch.postalCode = input.postalCode;
@@ -214,6 +218,7 @@ function AddressForm({
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState(false);
   const submitting = useRef(false);
+  const creation = useRef<{ id: string; signature: string } | null>(null);
 
   const phone = readPhoneDraft(draft.phone, phoneCountry);
   const country = addressCountries.find(
@@ -300,6 +305,7 @@ function AddressForm({
             ? await createAddress(
                 submission.customerId,
                 submission.input,
+                submission.submissionId,
                 submission.replaceExistingDefault
               )
             : await updateAddress(
@@ -403,13 +409,20 @@ function AddressForm({
       postalCode,
       remark: draft.remark.trim(),
     };
+    const provinceRequired =
+      !base ||
+      (base.countryCode === input.countryCode && Boolean(base.province));
     if (
       !input.recipientName ||
-      !input.province ||
+      (provinceRequired && !input.province) ||
       !input.city ||
       !input.addressLine1
     ) {
-      setError("请填写收货人、省或州、城市和详细地址。");
+      setError(
+        provinceRequired
+          ? "请填写收货人、省或州、城市和详细地址。"
+          : "请填写收货人、城市和详细地址。"
+      );
       return;
     }
     if (base) {
@@ -420,9 +433,16 @@ function AddressForm({
       }
       void save({ kind: "edit", base, patch });
     } else {
+      const customerId = selectedCustomer.id;
+      const signature = JSON.stringify({ customerId, ...input });
+      // 同一份新建资料的重试和默认地址确认复用提交 ID。
+      if (creation.current?.signature !== signature) {
+        creation.current = { id: createUuid(), signature };
+      }
       void save({
         kind: "create",
-        customerId: selectedCustomer.id,
+        submissionId: creation.current.id,
+        customerId,
         input,
         replaceExistingDefault: false,
       });

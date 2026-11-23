@@ -33,7 +33,7 @@ export const customerAddress = pgTable(
     // 保留用户填写的原号码，同时记录规范化的国际手机号。
     phoneNormalized: varchar("phone_normalized", { length: 16 }).notNull(),
     countryCode: char("country_code", { length: 2 }).default("CN").notNull(),
-    province: varchar("province", { length: 128 }).notNull(),
+    province: varchar("province", { length: 128 }),
     city: varchar("city", { length: 128 }).notNull(),
     district: varchar("district", { length: 128 }),
     addressLine1: varchar("address_line1", { length: 256 }).notNull(),
@@ -42,6 +42,10 @@ export const customerAddress = pgTable(
     remark: text("remark").default("").notNull(),
     isDefault: boolean("is_default").default(false).notNull(),
     status: customerAddressStatus("status").default("active").notNull(),
+    // 历史地址没有提交标识。新建时用于在断线后识别同一次提交。
+    creationActorUserId: text("creation_actor_user_id"),
+    creationRequestId: uuid("creation_request_id"),
+    creationRequestHash: varchar("creation_request_hash", { length: 64 }),
     // 后端更新地址时校验并递增版本号。
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -68,6 +72,16 @@ export const customerAddress = pgTable(
     uniqueIndex("customer_address_customer_default_unique")
       .on(table.customerId)
       .where(sql`${table.isDefault} = true`),
+    uniqueIndex("customer_address_creation_request_unique").on(
+      table.creationActorUserId,
+      table.creationRequestId
+    ),
+    check(
+      "customer_address_creation_request_check",
+      sql`(${table.creationActorUserId} is null and ${table.creationRequestId} is null and ${table.creationRequestHash} is null)
+        or (${table.creationActorUserId} is not null and ${table.creationRequestId} is not null
+          and ${table.creationRequestHash} is not null and ${table.creationRequestHash} ~ '^[0-9a-f]{64}$')`
+    ),
     check(
       "customer_address_default_active_check",
       sql`${table.isDefault} = false or ${table.status} = 'active'`
@@ -80,7 +94,7 @@ export const customerAddress = pgTable(
       "customer_address_required_text_check",
       sql`${table.recipientName} ~ '[^[:space:]]'
         and ${table.phone} ~ '[^[:space:]]'
-        and ${table.province} ~ '[^[:space:]]'
+        and (${table.province} is null or ${table.province} ~ '[^[:space:]]')
         and ${table.city} ~ '[^[:space:]]'
         and ${table.addressLine1} ~ '[^[:space:]]'`
     ),
