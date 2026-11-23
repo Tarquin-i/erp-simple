@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   companyAdministrator,
   customer,
@@ -18,6 +19,7 @@ import {
   exists,
   inArray,
   isNull,
+  ne,
   or,
   sql,
 } from "drizzle-orm";
@@ -429,13 +431,15 @@ function translateWriteError(error: unknown): never {
  * 在同一事务中创建客户及其渠道和标签，编号撞号时最多尝试五次。
  * @param access 调用方的业务权限。仅公司管理员可指定部门。
  * @param input 客户名称及可选资料。公司管理员须提交部门和业务员。
- * @returns 新建的完整客户资料，包含系统生成的编号及关联数据。
+ * @param requestId 同一账号重试这次新建时复用的提交 UUID。
+ * @returns 新建客户，或按当前权限重新读取已保存的客户。
  * @throws 部门或业务员缺失、指派或关联无效时抛出 HTTP 400，权限检查失败时抛出 HTTP 401 或 403。
  * 部门不存在时抛出 HTTP 404，同部门重名或编号重试用尽时抛出 HTTP 409。
  */
 export async function createCustomer(
   access: BusinessAccess,
-  input: CustomerWriteInput & { companyName: string; departmentId?: string }
+  input: CustomerWriteInput & { companyName: string; departmentId?: string },
+  requestId?: string
 ) {
   if (input.departmentId !== undefined && access.scope !== "company")
     fail(403, "只有公司管理员可指定客户所属部门。");
@@ -445,9 +449,64 @@ export async function createCustomer(
   if (access.scope === "company" && input.ownerUserId === undefined)
     fail(400, "请选择业务员。");
 
+  const requestHash = requestId
+    ? createHash("sha256")
+        .update(
+          JSON.stringify({
+            companyName: input.companyName,
+            departmentId: input.departmentId,
+            ownerUserId: input.ownerUserId,
+            remark: input.remark ?? null,
+            channelCodes: input.channelCodes?.toSorted() ?? [],
+            tagIds: input.tagIds?.toSorted() ?? [],
+          })
+        )
+        .digest("hex")
+    : undefined;
+
   for (let attempt = 1; ; attempt++) {
     try {
       return await database.db.transaction(async (tx) => {
+        if (requestId) {
+          // 提交锁先于部门锁，保证并发重试从同一笔事务读取结果。
+          const lockKey = JSON.stringify([
+            "customer-create",
+            access.userId,
+            requestId,
+          ]);
+          await tx.execute(
+            sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`
+          );
+          const [existing] = await tx
+            .select({ id: customer.id, hash: customer.creationRequestHash })
+            .from(customer)
+            .where(
+              and(
+                eq(customer.creationActorUserId, access.userId),
+                eq(customer.creationRequestId, requestId)
+              )
+            );
+          if (existing) {
+            const { access: freshAccess } = await lockCustomerForWrite(
+              tx,
+              access,
+              existing.id,
+              "share"
+            );
+            if (existing.hash !== requestHash) {
+              throw new HTTPException(409, {
+                res: Response.json(
+                  {
+                    code: "idempotency_conflict",
+                    message: "该提交 ID 已用于不同的客户资料。",
+                  },
+                  { status: 409 }
+                ),
+              });
+            }
+            return readCustomer(tx, freshAccess, existing.id);
+          }
+        }
         await lockDepartment(tx, departmentId, "share");
         const freshAccess = await readBusinessAccess(tx, access.userId);
         if (input.departmentId !== undefined) {
@@ -472,6 +531,9 @@ export async function createCustomer(
             ownerUserId,
             companyName: input.companyName,
             remark: input.remark,
+            creationActorUserId: requestId ? access.userId : undefined,
+            creationRequestId: requestId,
+            creationRequestHash: requestHash,
           })
           .returning({ id: customer.id });
         await insertAssignments(tx, record.id, input);
@@ -524,6 +586,27 @@ export async function updateCustomer(
             record.departmentId,
             input.ownerUserId
           );
+        }
+        if (
+          input.companyName !== undefined &&
+          input.companyName !== record.companyName
+        ) {
+          // 与生成列使用同一规范化规则，互换已占用名称时提前返回重名。
+          const [duplicate] = await tx
+            .select({ id: customer.id })
+            .from(customer)
+            .where(
+              and(
+                eq(customer.departmentId, record.departmentId),
+                eq(
+                  customer.normalizedCompanyName,
+                  sql`lower(btrim(${input.companyName}::text))`
+                ),
+                ne(customer.id, id)
+              )
+            )
+            .limit(1);
+          if (duplicate) duplicateCustomer();
         }
 
         await tx

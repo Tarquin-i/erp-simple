@@ -108,14 +108,19 @@ customerRoutes.post("/", async (c) => {
     fail(403, "只有公司管理员可指定客户所属部门。");
   const input = readCustomerWrite(body);
   if (input.companyName === undefined) fail(400, "请填写客户名称。");
-  const customer = await createCustomer(access, {
-    ...input,
-    companyName: input.companyName,
-    departmentId:
-      body.departmentId === undefined
-        ? undefined
-        : readString(body.departmentId, "部门 ID", 128),
-  });
+  const requestId = c.req.header("Idempotency-Key");
+  const customer = await createCustomer(
+    access,
+    {
+      ...input,
+      companyName: input.companyName,
+      departmentId:
+        body.departmentId === undefined
+          ? undefined
+          : readString(body.departmentId, "部门 ID", 128),
+    },
+    requestId === undefined ? undefined : readUuid(requestId, "提交 ID")
+  );
   return c.json({ customer }, 201);
 });
 

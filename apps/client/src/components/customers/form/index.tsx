@@ -15,6 +15,7 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { createUuid } from "@/lib/uuid";
 import {
   createCustomer,
   createCustomerTag,
@@ -85,6 +86,7 @@ export function CustomerForm({
   } | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const saving = useRef(false);
+  const creation = useRef<{ id: string; signature: string } | null>(null);
   const changes = getChangedFields(openedDraft, draft);
   const isEdit = customer !== undefined;
   const pending = savingAction !== undefined;
@@ -147,11 +149,16 @@ export function CustomerForm({
           return;
         }
       } else {
-        await createCustomer({
+        const input = {
           ...payload,
           companyName: draft.companyName.trim(),
           ...(departmentId ? { departmentId } : {}),
-        });
+        };
+        const signature = JSON.stringify(input);
+        if (creation.current?.signature !== signature) {
+          creation.current = { id: createUuid(), signature };
+        }
+        await createCustomer(input, creation.current.id);
       }
       if (leftForm) return;
       savedDraft = true;
@@ -191,6 +198,16 @@ export function CustomerForm({
         failure.code === "duplicate_customer"
       ) {
         setNameValidation(`${message}请修改客户名称后重试。`);
+      } else if (
+        !isEdit &&
+        (failure instanceof TypeError ||
+          failure instanceof SyntaxError ||
+          (failure instanceof CustomerApiError &&
+            (failure.status === 408 || failure.status >= 500)))
+      ) {
+        setError(
+          "暂未确认客户是否已创建。请保留当前资料，再次点击「完成」确认结果。"
+        );
       } else {
         setError(message);
       }

@@ -51,6 +51,10 @@ export const customer = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
     remark: text("remark"),
+    // 历史记录和未提供提交 ID 的请求保留空值。
+    creationActorUserId: text("creation_actor_user_id"),
+    creationRequestId: uuid("creation_request_id"),
+    creationRequestHash: varchar("creation_request_hash", { length: 64 }),
     // 后端用版本号检测并发编辑，并在更新成功时递增。
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -70,6 +74,16 @@ export const customer = pgTable(
     uniqueIndex("customer_department_name_unique").on(
       table.departmentId,
       table.normalizedCompanyName
+    ),
+    uniqueIndex("customer_creation_request_unique").on(
+      table.creationActorUserId,
+      table.creationRequestId
+    ),
+    check(
+      "customer_creation_request_check",
+      sql`(${table.creationActorUserId} is null and ${table.creationRequestId} is null and ${table.creationRequestHash} is null)
+        or (${table.creationActorUserId} is not null and ${table.creationRequestId} is not null
+          and ${table.creationRequestHash} is not null and ${table.creationRequestHash} ~ '^[0-9a-f]{64}$')`
     ),
     index("customer_department_owner_idx").on(
       table.departmentId,

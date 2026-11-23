@@ -144,13 +144,22 @@ export function getCustomer(id: string, signal?: AbortSignal) {
 /**
  * 新建客户。
  * @param input 客户名称及表单字段。公司管理员新建时还需传目标部门和业务员。
+ * @param submissionId 同一份资料重试时复用的提交 ID。
  * @returns `{ customer }`，其中包含服务端生成的客户编号和版本。
  * @throws HTTP 失败时抛出 `CustomerApiError`，同部门重名的错误码为 `duplicate_customer`。
  */
 export function createCustomer(
-  input: CustomerWriteInput & { companyName: string; departmentId?: string }
+  input: CustomerWriteInput & { companyName: string; departmentId?: string },
+  submissionId: string
 ) {
-  return write<{ customer: Customer }>("", "POST", input);
+  return request<{ customer: Customer }>("", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": submissionId,
+    },
+    body: JSON.stringify(input),
+  });
 }
 
 /**
