@@ -1,4 +1,10 @@
-import { Link, useLocation, useRouter } from "@tanstack/react-router";
+import {
+  Link,
+  useLocation,
+  useMatch,
+  useRouteContext,
+  useRouter,
+} from "@tanstack/react-router";
 import { Check, Save } from "lucide-react";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -90,8 +96,10 @@ export function CustomerForm({
     !busy && !missingAssignment && (!isEdit || Object.keys(changes).length > 0);
   const SubmitIcon = isEdit ? Save : Check;
   const submitLabel = isEdit ? "保存" : "完成";
+  const formError = nameError || error;
 
   function setNameValidation(message: string) {
+    setError("");
     setNameError(message);
     requestAnimationFrame(() => nameRef.current?.focus());
   }
@@ -263,9 +271,12 @@ export function CustomerForm({
           </div>
         </div>
 
-        {error ? (
-          <FieldError className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
-            {error}
+        {formError ? (
+          <FieldError
+            id={nameError ? "customer-form-name-error" : undefined}
+            className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2"
+          >
+            {formError}
           </FieldError>
         ) : null}
         {restored && (
@@ -299,9 +310,6 @@ export function CustomerForm({
                 }));
               }}
             />
-            {nameError ? (
-              <FieldError id="customer-form-name-error">{nameError}</FieldError>
-            ) : null}
           </Field>
           <Field className="min-w-0">
             <FieldLabel htmlFor="customer-form-number">客户编号</FieldLabel>
@@ -404,18 +412,50 @@ export function CustomerForm({
 }
 
 export function CustomerFormPending() {
+  const isCreate = useMatch({
+    strict: false,
+    select: ({ routeId }) => routeId === "/_protected/customers/new",
+  });
+  const role = useRouteContext({
+    from: "/_protected",
+    select: ({ viewer }) => viewer.role,
+  });
+  const fields = [
+    "name",
+    "number",
+    "channels",
+    "tags",
+    ...(isCreate && role === "company-admin" ? ["department"] : []),
+    "owner",
+  ];
+
   return (
     <main
-      className="flex-1 bg-background px-5 py-6 sm:px-7 lg:px-8"
+      className="flex-1 space-y-5 bg-background px-5 py-6 sm:px-7 lg:px-8"
       aria-busy="true"
       aria-label="正在加载客户表单"
     >
-      <Skeleton className="mb-6 h-7 w-28" />
-      <div className="grid gap-4 md:grid-cols-2">
-        {Array.from({ length: 5 }, (_, index) => (
-          <Skeleton key={index} className="h-14" />
+      <div
+        aria-hidden="true"
+        className="flex flex-wrap items-center justify-between gap-4"
+      >
+        <Skeleton className="h-8 w-24" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-10 w-[3.875rem]" />
+          <Skeleton className="h-10 w-[5.375rem]" />
+        </div>
+      </div>
+      <div aria-hidden="true" className="grid gap-x-5 gap-y-4 md:grid-cols-2">
+        {fields.map((field) => (
+          <div key={field} className="grid gap-2">
+            <Skeleton className="h-[1.375em] w-14 text-sm" />
+            <Skeleton className="h-10 w-full" />
+          </div>
         ))}
-        <Skeleton className="h-36 md:col-span-2" />
+        <div className="grid gap-2 md:col-span-2">
+          <Skeleton className="h-[1.375em] w-8 text-sm" />
+          <Skeleton className="h-36 w-full" />
+        </div>
       </div>
     </main>
   );

@@ -44,6 +44,9 @@ import { CommunicationOwnerField } from "./owner-field";
 
 type Conflict = { current: Communication; draft: CommunicationDraft };
 
+const formHeaderLayout = "flex flex-wrap items-center justify-between gap-4";
+const formFieldsLayout = "grid gap-x-5 gap-y-4 md:grid-cols-2";
+
 export function CommunicationFormPending() {
   return (
     <main
@@ -51,14 +54,34 @@ export function CommunicationFormPending() {
       aria-busy="true"
       aria-label="正在加载沟通表单"
     >
-      <Skeleton className="h-8 w-40" />
-      <div className="grid gap-4 md:grid-cols-2">
-        <Skeleton className="h-16" />
-        <Skeleton className="h-16" />
-        <Skeleton className="h-16" />
-        <Skeleton className="h-16" />
+      <div aria-hidden="true" className={formHeaderLayout}>
+        <Skeleton className="h-8 w-35" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-10 w-[62px]" />
+          <Skeleton className="h-10 w-[86px]" />
+        </div>
       </div>
-      <Skeleton className="h-36" />
+      <div aria-hidden="true" className={formFieldsLayout}>
+        {[
+          ["title", "w-7"],
+          ["customer", "w-7"],
+          ["tags", "w-7"],
+          ["owner", "w-10.5"],
+        ].map(([field, labelWidth]) => (
+          <Field key={field} className="min-w-0">
+            <div className="h-[1lh] text-sm leading-snug">
+              <Skeleton className={`h-3 ${labelWidth}`} />
+            </div>
+            <Skeleton className="h-10" />
+          </Field>
+        ))}
+        <Field className="min-w-0 md:col-span-2">
+          <div className="h-[1lh] text-sm leading-snug">
+            <Skeleton className="h-3 w-21" />
+          </div>
+          <Skeleton className="h-36" />
+        </Field>
+      </div>
     </main>
   );
 }
@@ -316,7 +339,7 @@ export function CommunicationForm({
   return (
     <main className="flex-1 bg-background px-5 py-6 sm:px-7 lg:px-8">
       <form onSubmit={submit} className="space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className={formHeaderLayout}>
           <h1 className="text-2xl font-semibold tracking-tight">
             {isEdit ? "编辑沟通记录" : "新建沟通记录"}
           </h1>
@@ -359,7 +382,7 @@ export function CommunicationForm({
           </FieldError>
         ) : null}
 
-        <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
+        <div className={formFieldsLayout}>
           <Field className="min-w-0">
             <FieldLabel htmlFor="communication-form-title">主题</FieldLabel>
             <Input
