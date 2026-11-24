@@ -1,10 +1,19 @@
 import { Link } from "@tanstack/react-router";
-import { Package, Plus } from "lucide-react";
+import { ArrowDownUp, Package, Plus } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
+import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { CustomerPagination } from "@/components/shared/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Empty,
   EmptyDescription,
@@ -12,17 +21,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  ListFilterButton,
-  ListSearchInput,
-  ListToolbar,
-} from "@/components/shared/list-toolbar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { keepDialogOpenOnComboboxEscape } from "@/components/shared/searchable-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -37,7 +35,7 @@ import {
 import { listProducts, productTypeLabels } from "@/request/products";
 import type { ProductListQuery } from "@/request/products";
 
-import { ProductListFilters } from "./list/filters";
+import { useProductListFilters } from "./list/filters";
 import type { productListOrigin } from "./navigation";
 
 type ProductPage = Awaited<ReturnType<typeof listProducts>>;
@@ -72,10 +70,6 @@ export function ProductList({
 }) {
   const [load, setLoad] = useState<ListState>();
   const [retry, setRetry] = useState(0);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [filterContainer, setFilterContainer] = useState<HTMLDivElement | null>(
-    null
-  );
   const search = query.search ?? "";
   const [searchDraft, setSearchDraft] = useState(search);
   const lastSubmittedSearch = useRef<string | undefined>(undefined);
@@ -86,13 +80,11 @@ export function ProductList({
   const pageCount = result
     ? Math.max(1, Math.ceil(result.total / result.pageSize))
     : 1;
-  const filterCount =
-    Number(Boolean(query.customerId)) +
-    Number(Boolean(query.productTypes?.length)) +
-    Number(query.sortDirection === "asc");
-  const selectedCustomer = result?.products.find(
-    ({ customerId }) => customerId === query.customerId
-  )?.customer;
+  const filterModel = useProductListFilters(
+    query,
+    onQueryChange,
+    load?.result?.products
+  );
 
   useEffect(() => {
     const submitted = lastSubmittedSearch.current;
@@ -142,74 +134,67 @@ export function ProductList({
 
   return (
     <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
-      <ListToolbar title="产品" className="mb-5">
-        <ListSearchInput
-          aria-label="搜索产品"
-          placeholder="名称、编号或客户"
-          maxLength={256}
-          value={searchDraft}
-          onChange={(event) => setSearchDraft(event.target.value)}
-        />
-        <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-          <PopoverTrigger asChild>
-            <ListFilterButton count={filterCount} />
-          </PopoverTrigger>
-          <PopoverContent
-            ref={setFilterContainer}
-            align="end"
-            sideOffset={8}
-            aria-label="产品筛选"
-            className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] gap-0 overflow-y-auto p-0"
-            onEscapeKeyDown={(event) =>
-              keepDialogOpenOnComboboxEscape(event, filterContainer)
-            }
-          >
-            {filterOpen && (
-              <ProductListFilters
-                filters={{
-                  customerId: query.customerId,
-                  productTypes: query.productTypes,
-                  sortDirection: query.sortDirection,
-                }}
-                selectedCustomer={selectedCustomer}
-                container={filterContainer}
-                onApply={(filters) => {
-                  setFilterOpen(false);
-                  const types = filters.productTypes ?? [];
-                  if (
-                    filters.customerId === query.customerId &&
-                    (filters.sortDirection ?? "desc") ===
-                      (query.sortDirection ?? "desc") &&
-                    types.length === (query.productTypes?.length ?? 0) &&
-                    types.every((type) => query.productTypes?.includes(type))
-                  ) {
-                    return;
-                  }
-                  onQueryChange((previous) => ({
-                    ...previous,
-                    customerId: filters.customerId,
-                    productTypes: filters.productTypes,
-                    sortDirection: filters.sortDirection,
-                    page: undefined,
-                  }));
-                }}
-              />
+      <ListFilterToolbar
+        title="产品"
+        filterModel={filterModel}
+        search={
+          <ListSearchInput
+            aria-label="搜索产品"
+            placeholder="名称、编号或客户"
+            maxLength={256}
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
+          />
+        }
+        actions={
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="创建时间排序"
+                  title="创建时间排序"
+                >
+                  <ArrowDownUp aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" aria-label="创建时间排序">
+                <DropdownMenuRadioGroup
+                  value={query.sortDirection ?? "desc"}
+                  onValueChange={(value) => {
+                    const sortDirection = value === "asc" ? "asc" : undefined;
+                    onQueryChange((previous) =>
+                      previous.sortDirection === sortDirection
+                        ? previous
+                        : { ...previous, sortDirection, page: undefined }
+                    );
+                  }}
+                >
+                  <DropdownMenuRadioItem value="desc">
+                    最新优先
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="asc">
+                    最早优先
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {canCreate && (
+              <Button asChild size="icon">
+                <Link
+                  to="/products/new"
+                  state={listOrigin}
+                  aria-label="新建产品"
+                  title="新建产品"
+                >
+                  <Plus aria-hidden="true" />
+                </Link>
+              </Button>
             )}
-          </PopoverContent>
-        </Popover>
-        {canCreate && (
-          <Button asChild size="icon">
-            <Link
-              to="/products/new"
-              state={listOrigin}
-              aria-label="新建产品"
-              title="新建产品"
-            >
-              <Plus aria-hidden="true" />
-            </Link>
-          </Button>
-        )}
-      </ListToolbar>
+          </>
+        }
+      />
 
       {current?.error ? (
         <Empty className="min-h-56 border">
@@ -253,7 +238,7 @@ export function ProductList({
               <Package />
             </EmptyMedia>
             <EmptyTitle className="text-xl font-semibold">
-              {query.search || filterCount
+              {query.search || filterModel.filters.length
                 ? "没有找到符合条件的产品"
                 : "暂无产品"}
             </EmptyTitle>

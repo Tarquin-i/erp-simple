@@ -1,3 +1,8 @@
+import type {
+  ListOptionOperator,
+  ListOptionValue,
+} from "@/lib/list-option-query";
+
 export const productTypeLabels = {
   "pull-tab": "揭开卡",
   lottery: "彩票",
@@ -58,8 +63,10 @@ export type ProductDetailRecord = ProductListItem &
 
 export type ProductListQuery = {
   search?: string;
-  customerId?: string;
+  customerId?: ListOptionValue;
+  customerOperator?: ListOptionOperator;
   productTypes?: ProductType[];
+  productTypeOperator?: ListOptionOperator;
   sortDirection?: "asc" | "desc";
   page?: number;
   pageSize?: number;
@@ -134,11 +141,13 @@ export function listProducts(
   signal?: AbortSignal
 ) {
   const params = new URLSearchParams();
-  const { productTypes, ...filters } = query;
-  for (const [field, value] of Object.entries(filters)) {
-    if (value !== undefined && value !== "") params.set(field, String(value));
+  for (const [field, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(field, item);
+    } else if (value !== undefined && value !== "") {
+      params.set(field, String(value));
+    }
   }
-  for (const type of productTypes ?? []) params.append("productTypes", type);
   return request<ProductPage>(params.size ? `?${params}` : "", { signal });
 }
 

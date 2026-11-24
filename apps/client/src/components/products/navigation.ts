@@ -4,6 +4,11 @@ import type {
   RouterHistory,
 } from "@tanstack/react-router";
 
+import {
+  listOptionOperator,
+  listOptionValue,
+  readListOptionValues,
+} from "@/lib/list-option-query";
 import { isProductType } from "@/request/products";
 import type { ProductListQuery } from "@/request/products";
 
@@ -108,15 +113,40 @@ export function readProductListQuery(
   const term =
     typeof search.search === "string" ? search.search.trim().slice(0, 256) : "";
   if (term) query.search = term;
-  const customerId = readProductCustomerId(search.customerId);
-  if (customerId) query.customerId = customerId;
-  const values = Array.isArray(search.productTypes)
-    ? search.productTypes
-    : typeof search.productTypes === "string"
-      ? search.productTypes.split(",")
-      : [];
-  const types = [...new Set(values.filter(isProductType))];
-  if (types.length) query.productTypes = types;
+  const customers = readListOptionValues(
+    search.customerId,
+    readProductCustomerId
+  );
+  if (customers.length) {
+    query.customerId = listOptionValue(customers);
+    const operator = listOptionOperator(
+      customers.length,
+      search.customerOperator
+    );
+    if (operator) query.customerOperator = operator;
+  }
+  const values = [search.productTypes, search.productType].flatMap((value) =>
+    Array.isArray(value) ? value : [value]
+  );
+  const types = [
+    ...new Set(
+      values
+        .flatMap((value) =>
+          typeof value === "string"
+            ? value.split(",").map((type) => type.trim())
+            : []
+        )
+        .filter(isProductType)
+    ),
+  ];
+  if (types.length) {
+    query.productTypes = types;
+    const operator = listOptionOperator(
+      types.length,
+      search.productTypeOperator
+    );
+    if (operator) query.productTypeOperator = operator;
+  }
   if (search.sortDirection === "asc") query.sortDirection = "asc";
   const page = readProductPage(search.page);
   const pageSize = positiveInteger(search.pageSize, 100);
