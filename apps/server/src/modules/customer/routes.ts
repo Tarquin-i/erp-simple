@@ -48,17 +48,29 @@ function readSelection(
   return [...new Set(value.map(parse))];
 }
 
-function readFilterOperator(
-  operator: string | undefined,
-  value: string | undefined,
-  label: string
+function readListOptionFilter(
+  values: string[] | undefined,
+  operators: string[] | undefined,
+  label: string,
+  parse: (item: string) => string
 ) {
-  if (operator === undefined) return;
-  if (operator !== "is" && operator !== "is not") {
-    fail(400, `请选择有效的${label}筛选运算符。`);
+  if (operators && operators.length > 1) {
+    fail(400, `${label}筛选只接受一个运算符。`);
   }
-  if (value === undefined) fail(400, `请选择要筛选的${label}。`);
-  return operator;
+  const operator = operators?.[0];
+  if (!values?.length) {
+    if (operator !== undefined) fail(400, `请选择要筛选的${label}。`);
+    return;
+  }
+  if (values.length > 100) fail(400, `${label}筛选最多接受 100 项。`);
+  const distinctValues = [...new Set(values.map(parse))];
+  const multiple = distinctValues.length > 1;
+  const include = multiple ? "is any of" : "is";
+  const exclude = multiple ? "is none of" : "is not";
+  if (operator !== undefined && operator !== include && operator !== exclude) {
+    fail(400, `请选择与${label}所选项数量匹配的筛选运算符。`);
+  }
+  return { values: distinctValues, excluded: operator === exclude };
 }
 
 /**
@@ -95,43 +107,28 @@ customerRoutes.route("/", customerContactRoutes);
 customerRoutes.route("/", customerAddressRoutes);
 
 customerRoutes.get("/", async (c) => {
-  const allQueryValues = c.req.queries();
-  const filterKeys = [
-    "channelCode",
-    "channelOperator",
-    "tagId",
-    "tagOperator",
-    "ownerUserId",
-    "ownerOperator",
-  ];
-  if (filterKeys.some((key) => (allQueryValues[key]?.length ?? 0) > 1)) {
-    fail(400, "渠道、标签和业务员筛选各只接受一个选项和一个运算符。");
-  }
-  const {
-    search,
-    channelCode,
-    channelOperator,
-    tagId,
-    tagOperator,
-    ownerUserId,
-    ownerOperator,
-    page,
-    pageSize,
-  } = c.req.query();
+  const query = c.req.queries();
+  const { search, page, pageSize } = c.req.query();
   const result = await listCustomers(c.get("businessAccess"), {
     search: search?.trim() ? readString(search, "搜索词", 256) : undefined,
-    channelCode:
-      channelCode === undefined
-        ? undefined
-        : readString(channelCode, "渠道编码", 64),
-    channelOperator: readFilterOperator(channelOperator, channelCode, "渠道"),
-    tagId: tagId === undefined ? undefined : readUuid(tagId, "标签 ID"),
-    tagOperator: readFilterOperator(tagOperator, tagId, "标签"),
-    ownerUserId:
-      ownerUserId === undefined
-        ? undefined
-        : readString(ownerUserId, "业务员 ID", 128),
-    ownerOperator: readFilterOperator(ownerOperator, ownerUserId, "业务员"),
+    channels: readListOptionFilter(
+      query.channelCode,
+      query.channelOperator,
+      "渠道",
+      (value) => readString(value, "渠道编码", 64)
+    ),
+    tags: readListOptionFilter(
+      query.tagId,
+      query.tagOperator,
+      "标签",
+      (value) => readUuid(value, "标签 ID")
+    ),
+    owners: readListOptionFilter(
+      query.ownerUserId,
+      query.ownerOperator,
+      "业务员",
+      (value) => readString(value, "业务员 ID", 128)
+    ),
     page: readPositiveInteger(page, "页码", 1, 1_000_000),
     pageSize: readPositiveInteger(pageSize, "每页条数", 20, 100),
   });

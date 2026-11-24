@@ -21,6 +21,7 @@ import {
   isNull,
   ne,
   notExists,
+  notInArray,
   or,
   sql,
 } from "drizzle-orm";
@@ -46,16 +47,13 @@ export interface CustomerWriteInput {
   tagIds?: string[];
 }
 
-type CustomerFilterOperator = "is" | "is not";
+type CustomerOptionFilter = { values: string[]; excluded: boolean };
 
 interface CustomerFilters {
   search?: string;
-  channelCode?: string;
-  channelOperator?: CustomerFilterOperator;
-  tagId?: string;
-  tagOperator?: CustomerFilterOperator;
-  ownerUserId?: string;
-  ownerOperator?: CustomerFilterOperator;
+  channels?: CustomerOptionFilter;
+  tags?: CustomerOptionFilter;
+  owners?: CustomerOptionFilter;
   page: number;
   pageSize: number;
 }
@@ -153,32 +151,22 @@ export function listCustomers(
   access: BusinessAccess,
   filters: CustomerFilters
 ) {
-  const {
-    page,
-    pageSize,
-    search,
-    channelCode,
-    channelOperator,
-    tagId,
-    tagOperator,
-    ownerUserId,
-    ownerOperator,
-  } = filters;
-  const channelMatches = channelOperator === "is not" ? notExists : exists;
-  const tagMatches = tagOperator === "is not" ? notExists : exists;
-  const ownerMatches = ownerOperator === "is not" ? ne : eq;
+  const { page, pageSize, search, channels, tags, owners } = filters;
+  const channelMatches = channels?.excluded ? notExists : exists;
+  const tagMatches = tags?.excluded ? notExists : exists;
+  const ownerMatches = owners?.excluded ? notInArray : inArray;
 
   return withBusinessReadSnapshot(access.userId, async (tx, currentAccess) => {
     const filter = and(
       businessScopeWhere(currentAccess, customer),
-      ownerUserId ? ownerMatches(customer.ownerUserId, ownerUserId) : undefined,
+      owners ? ownerMatches(customer.ownerUserId, owners.values) : undefined,
       search
         ? or(
             sql`position(lower(${search}::text) in ${customer.normalizedCompanyName}) > 0`,
             sql`position(lower(${search}::text) in lower(${customer.customerNo})) > 0`
           )
         : undefined,
-      channelCode
+      channels
         ? channelMatches(
             tx
               .select({ id: customerChannelAssignment.customerId })
@@ -186,12 +174,15 @@ export function listCustomers(
               .where(
                 and(
                   eq(customerChannelAssignment.customerId, customer.id),
-                  eq(customerChannelAssignment.channelCode, channelCode)
+                  inArray(
+                    customerChannelAssignment.channelCode,
+                    channels.values
+                  )
                 )
               )
           )
         : undefined,
-      tagId
+      tags
         ? tagMatches(
             tx
               .select({ id: customerTagAssignment.customerId })
@@ -199,7 +190,7 @@ export function listCustomers(
               .where(
                 and(
                   eq(customerTagAssignment.customerId, customer.id),
-                  eq(customerTagAssignment.tagId, tagId)
+                  inArray(customerTagAssignment.tagId, tags.values)
                 )
               )
           )
