@@ -1,184 +1,332 @@
-import { useEffect, useState } from "react";
+import { ListChecks, Tag, UserRound } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode, SetStateAction } from "react";
 
-import { TagSelector } from "@/components/shared/tag-selector";
+import { useDataTableFilters } from "@/components/shared/data-table-filter";
+import type {
+  ColumnConfig,
+  ColumnOption,
+  FiltersState,
+} from "@/components/shared/data-table-filter/core/types";
+import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
+import { TagListFilter } from "@/components/shared/tag-list-filter";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { PopoverHeader, PopoverTitle } from "@/components/ui/popover";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  listOptionLimit,
+  listOptionOperator,
+  listOptionValue,
+  listOptionValues,
+} from "@/lib/list-option-query";
 import {
+  CommunicationApiError,
   communicationStatusLabels,
   getCommunicationTag,
   listCommunicationOwners,
   listCommunicationTags,
 } from "@/request/communication";
 import type {
+  CommunicationListItem,
   CommunicationListQuery,
   CommunicationListTag,
-  CommunicationStatus,
 } from "@/request/communication";
 
-export type CommunicationFilters = Pick<
-  CommunicationListQuery,
-  "status" | "tagId" | "ownerUserId"
->;
+import { parseCommunicationListQuery } from "./query";
 
-const all = "__all__";
-const statusChoices = Object.entries(communicationStatusLabels);
+type QueryUpdater = (
+  previous: CommunicationListQuery
+) => CommunicationListQuery;
+type OptionColumn = ColumnConfig<CommunicationListItem, "option">;
+type TagLabel = { label: string; retryable?: boolean };
 
-export function CommunicationListFilters({
-  filters,
-  selectedTag,
-  onApply,
+const statusField = {
+  id: "status",
+  operatorKey: "statusOperator",
+  displayName: "状态",
+  icon: ListChecks,
+  type: "option",
+  flatValueOptions: true,
+} as const;
+const tagField = {
+  id: "tagId",
+  operatorKey: "tagOperator",
+  displayName: "标签",
+  icon: Tag,
+  type: "option",
+  flatValueOptions: true,
+  accessor: (record: CommunicationListItem) => record.tags.map(({ id }) => id),
+} as const;
+const ownerField = {
+  id: "ownerUserId",
+  operatorKey: "ownerOperator",
+  displayName: "业务员",
+  icon: UserRound,
+  type: "option",
+  flatValueOptions: true,
+} as const;
+const filterFields = [statusField, tagField, ownerField];
+const statusOptions = Object.entries(communicationStatusLabels).map(
+  ([value, label]) => ({ value, label })
+);
+const serverRows: CommunicationListItem[] = [];
+
+function readFilters(query: CommunicationListQuery): FiltersState {
+  return filterFields.flatMap(({ id, type, operatorKey }) => {
+    const values = listOptionValues(query[id]);
+    return values.length
+      ? [
+          {
+            columnId: id,
+            type,
+            operator:
+              listOptionOperator(values.length, query[operatorKey]) ?? "is",
+            values,
+          },
+        ]
+      : [];
+  });
+}
+
+function applyFilters(
+  query: CommunicationListQuery,
+  update: SetStateAction<FiltersState>
+) {
+  const filters =
+    typeof update === "function" ? update(readFilters(query)) : update;
+  const next: Record<string, unknown> = { ...query };
+  let changed = false;
+
+  for (const { id, operatorKey } of filterFields) {
+    const filter = filters.find((entry) => entry.columnId === id);
+    const selected = [
+      ...new Set(filter?.values.filter((value) => typeof value === "string")),
+    ];
+    if (selected.length > listOptionLimit) continue;
+    const previous = listOptionValues(query[id]);
+    const operator = listOptionOperator(selected.length, filter?.operator);
+    if (
+      query[operatorKey] === operator &&
+      previous.length === selected.length &&
+      previous.every((value, index) => value === selected[index])
+    )
+      continue;
+    changed = true;
+    next[id] = listOptionValue(selected);
+    next[operatorKey] = operator;
+  }
+
+  return changed
+    ? parseCommunicationListQuery({ ...next, page: undefined })
+    : query;
+}
+
+/** 把独立沟通列表的 URL 与服务端候选项接入公共筛选工具栏。 */
+export function CommunicationFilterToolbar({
+  query,
+  onQueryChange,
+  records,
+  search,
+  actions,
 }: {
-  filters: CommunicationFilters;
-  selectedTag?: CommunicationListTag;
-  onApply: (filters: CommunicationFilters) => void;
+  query: CommunicationListQuery;
+  onQueryChange: (update: QueryUpdater) => void;
+  records?: CommunicationListItem[];
+  search: ReactNode;
+  actions: ReactNode;
 }) {
-  const [draft, setDraft] = useState(filters);
-  const [owners, setOwners] =
-    useState<Awaited<ReturnType<typeof listCommunicationOwners>>["owners"]>();
-  const [error, setError] = useState("");
-  const [retry, setRetry] = useState(0);
+  const [owners, setOwners] = useState<ColumnOption[]>();
+  const [ownerError, setOwnerError] = useState(false);
+  const [ownerRetry, setOwnerRetry] = useState(0);
+  const [tagLabels, setTagLabels] = useState<ReadonlyMap<string, TagLabel>>(
+    () => new Map()
+  );
+  const tagIds = useMemo(() => listOptionValues(query.tagId), [query.tagId]);
+  const pageTags = useMemo(
+    () =>
+      new Map(
+        records?.flatMap(({ tags }) =>
+          tags.map((tag) => [tag.id, tag.name] as const)
+        )
+      ),
+    [records]
+  );
 
   useEffect(() => {
     const controller = new AbortController();
     void listCommunicationOwners(controller.signal).then(
       ({ owners }) => {
-        if (!controller.signal.aborted) setOwners(owners);
+        if (!controller.signal.aborted) {
+          setOwners(owners.map(({ id, name }) => ({ value: id, label: name })));
+        }
       },
-      (failure: unknown) => {
-        if (!controller.signal.aborted)
-          setError(
-            failure instanceof Error ? failure.message : "暂时无法加载业务员。"
-          );
+      () => {
+        if (!controller.signal.aborted) setOwnerError(true);
       }
     );
     return () => controller.abort();
-  }, [retry]);
+  }, [ownerRetry]);
 
-  const missingOwner =
-    draft.ownerUserId && !owners?.some(({ id }) => id === draft.ownerUserId);
+  useEffect(() => {
+    const missingIds = tagIds.filter(
+      (id) => !pageTags.has(id) && !tagLabels.has(id)
+    );
+    if (!missingIds.length) return;
+    const controller = new AbortController();
+    void Promise.all(
+      missingIds.map(async (id): Promise<[string, TagLabel]> => {
+        try {
+          const { tag } = await getCommunicationTag(id, controller.signal);
+          return [id, { label: tag.name }];
+        } catch (error) {
+          const unavailable =
+            error instanceof CommunicationApiError && error.status === 404;
+          return [
+            id,
+            {
+              label: unavailable ? "所选标签不可用" : "所选标签加载失败",
+              retryable: !unavailable,
+            },
+          ];
+        }
+      })
+    ).then((labels) => {
+      if (!controller.signal.aborted) {
+        setTagLabels((previous) => new Map([...previous, ...labels]));
+      }
+    });
+    return () => controller.abort();
+  }, [tagIds, pageTags, tagLabels]);
+
+  const onFiltersChange = useCallback(
+    (update: SetStateAction<FiltersState>) =>
+      onQueryChange((previous) => applyFilters(previous, update)),
+    [onQueryChange]
+  );
+  const toggleTag = useCallback(
+    (tag: CommunicationListTag) => {
+      setTagLabels((previous) =>
+        previous.get(tag.id)?.label === tag.name
+          ? previous
+          : new Map(previous).set(tag.id, { label: tag.name })
+      );
+      onQueryChange((previous) => {
+        const selected = listOptionValues(previous.tagId);
+        const next = selected.includes(tag.id)
+          ? selected.filter((id) => id !== tag.id)
+          : [...selected, tag.id];
+        if (next.length > listOptionLimit) return previous;
+        return {
+          ...previous,
+          tagId: listOptionValue(next),
+          tagOperator: listOptionOperator(next.length, previous.tagOperator),
+          page: undefined,
+        };
+      });
+    },
+    [onQueryChange]
+  );
+
+  const columnsConfig = useMemo(() => {
+    const pending = "正在读取选项…";
+    const missingOwners = listOptionValues(query.ownerUserId).filter(
+      (id) => !owners?.some(({ value }) => value === id)
+    );
+    return [
+      {
+        ...statusField,
+        accessor: (record) => record.status,
+        options: statusOptions,
+      },
+      {
+        ...tagField,
+        options: tagIds.map((id) => ({
+          value: id,
+          label:
+            pageTags.get(id) ?? tagLabels.get(id)?.label ?? "正在读取标签…",
+        })),
+        renderFilterValue: (filter) => (
+          <TagListFilter
+            loadTags={listCommunicationTags}
+            selectionLimit={listOptionLimit}
+            selected={filter?.values ?? []}
+            labelLookupFailed={tagIds.some(
+              (id) => !pageTags.has(id) && tagLabels.get(id)?.retryable
+            )}
+            onRetryLabels={() =>
+              setTagLabels(
+                (previous) =>
+                  new Map([...previous].filter(([, tag]) => !tag.retryable))
+              )
+            }
+            onToggle={toggleTag}
+          />
+        ),
+      },
+      {
+        ...ownerField,
+        // 业务员 ID 由候选接口提供，列表记录只包含业务员名称。
+        accessor: () => undefined,
+        options: [
+          ...(owners ?? []),
+          ...missingOwners.map((id) => ({
+            value: id,
+            label: owners || ownerError ? "所选业务员不可用" : pending,
+          })),
+        ],
+        renderFilterValue: owners
+          ? undefined
+          : () => (
+              <div className="flex items-center justify-between gap-2 p-3 text-sm">
+                {ownerError ? (
+                  <>
+                    <span role="alert" className="text-destructive">
+                      暂时无法加载选项。
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => {
+                        setOwnerError(false);
+                        setOwnerRetry((attempt) => attempt + 1);
+                      }}
+                    >
+                      重试
+                    </Button>
+                  </>
+                ) : (
+                  <span role="status" className="text-muted-foreground">
+                    {pending}
+                  </span>
+                )}
+              </div>
+            ),
+      },
+    ] satisfies OptionColumn[];
+  }, [
+    owners,
+    ownerError,
+    query.ownerUserId,
+    pageTags,
+    tagIds,
+    tagLabels,
+    toggleTag,
+  ]);
+
+  const filters = useMemo(() => readFilters(query), [query]);
+  const filterModel = useDataTableFilters({
+    columnsConfig,
+    strategy: "server",
+    data: serverRows,
+    filters,
+    onFiltersChange,
+  });
 
   return (
-    <div role="form" aria-label="沟通筛选">
-      <PopoverHeader className="border-b px-4 py-3">
-        <PopoverTitle>筛选沟通</PopoverTitle>
-      </PopoverHeader>
-      <div className="space-y-4 p-4">
-        {error && (
-          <div className="flex items-center justify-between gap-3" role="alert">
-            <span className="text-xs text-destructive">{error}</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              onClick={() => {
-                setError("");
-                setRetry((attempt) => attempt + 1);
-              }}
-            >
-              重试
-            </Button>
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="min-w-0 space-y-2">
-            <Label
-              htmlFor="communication-status-filter"
-              preventControlActivation
-            >
-              状态
-            </Label>
-            <Select
-              value={draft.status ?? all}
-              onValueChange={(value) =>
-                setDraft((previous) => ({
-                  ...previous,
-                  status:
-                    value === all ? undefined : (value as CommunicationStatus),
-                }))
-              }
-            >
-              <SelectTrigger
-                id="communication-status-filter"
-                className="w-full data-[size=default]:h-9"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={all}>全部状态</SelectItem>
-                {statusChoices.map(([status, label]) => (
-                  <SelectItem key={status} value={status}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="min-w-0 space-y-2">
-            <Label
-              htmlFor="communication-owner-filter"
-              preventControlActivation
-            >
-              业务员
-            </Label>
-            <Select
-              disabled={!owners}
-              value={draft.ownerUserId ?? all}
-              onValueChange={(value) =>
-                setDraft((previous) => ({
-                  ...previous,
-                  ownerUserId: value === all ? undefined : value,
-                }))
-              }
-            >
-              <SelectTrigger
-                id="communication-owner-filter"
-                className="w-full data-[size=default]:h-9"
-              >
-                {owners || error ? (
-                  <SelectValue />
-                ) : (
-                  <span className="text-muted-foreground">正在加载…</span>
-                )}
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={all}>全部业务员</SelectItem>
-                {missingOwner && draft.ownerUserId && (
-                  <SelectItem value={draft.ownerUserId}>已选业务员</SelectItem>
-                )}
-                {owners?.map(({ id, name }) => (
-                  <SelectItem key={id} value={id}>
-                    {name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <TagSelector
-          tagId={draft.tagId}
-          selectedTag={selectedTag}
-          loadTags={listCommunicationTags}
-          loadTag={getCommunicationTag}
-          inputId="communication-tag-filter"
-          onChange={(tagId) => setDraft((previous) => ({ ...previous, tagId }))}
-        />
-      </div>
-      <div className="flex items-center justify-between border-t px-4 py-3">
-        <Button type="button" variant="ghost" onClick={() => onApply({})}>
-          重置
-        </Button>
-        <Button type="button" onClick={() => onApply(draft)}>
-          应用筛选
-        </Button>
-      </div>
-    </div>
+    <ListFilterToolbar
+      title="沟通"
+      search={search}
+      actions={actions}
+      filterModel={filterModel}
+    />
   );
 }

@@ -1,3 +1,8 @@
+import type {
+  ListOptionOperator,
+  ListOptionValue,
+} from "@/lib/list-option-query";
+
 export type CommunicationStatus = "pending" | "urgent" | "completed";
 
 export const communicationStatusLabels: Record<CommunicationStatus, string> = {
@@ -48,9 +53,12 @@ type PageResult = { page: number; pageSize: number; total: number };
 
 export type CommunicationListQuery = PageQuery & {
   customerId?: string;
-  ownerUserId?: string;
-  tagId?: string;
-  status?: CommunicationStatus;
+  status?: ListOptionValue<CommunicationStatus>;
+  statusOperator?: ListOptionOperator;
+  tagId?: ListOptionValue;
+  tagOperator?: ListOptionOperator;
+  ownerUserId?: ListOptionValue;
+  ownerOperator?: ListOptionOperator;
 };
 
 export type CommunicationWriteInput = {
@@ -85,10 +93,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   );
 }
 
-function queryString(query: Record<string, string | number | undefined>) {
+function queryString(
+  query: Record<string, ListOptionValue | number | undefined>
+) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined && value !== "") params.set(key, String(value));
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(key, item);
+    } else if (value !== undefined && value !== "") {
+      params.set(key, String(value));
+    }
   }
   return params.size ? `?${params}` : "";
 }

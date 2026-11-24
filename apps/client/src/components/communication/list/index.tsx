@@ -19,6 +19,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { readListQueryFromState } from "@/components/customers/list-query";
+import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { CustomerPagination } from "@/components/shared/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,16 +31,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
-import {
-  ListFilterButton,
-  ListSearchInput,
-  ListToolbar,
-} from "@/components/shared/list-toolbar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -66,7 +57,7 @@ import {
   readCreationRecovery,
   subscribeToCreationSubmissions,
 } from "../form/creation-submission";
-import { CommunicationListFilters } from "./filters";
+import { CommunicationFilterToolbar } from "./filters";
 
 type QueryUpdater = (
   previous: CommunicationListQuery
@@ -163,7 +154,6 @@ export function CommunicationList({
   const columns = customerId ? customerColumns : defaultColumns;
   const [load, setLoad] = useState<ListState>();
   const [retry, setRetry] = useState(0);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [opening, setOpening] = useState(false);
   const [creationError, setCreationError] = useState("");
   const openingRef = useRef(false);
@@ -173,13 +163,6 @@ export function CommunicationList({
   const pageCount = result
     ? Math.max(1, Math.ceil(result.total / result.pageSize))
     : 1;
-  const filterCount =
-    Number(Boolean(query.status)) +
-    Number(Boolean(query.tagId)) +
-    Number(Boolean(query.ownerUserId));
-  const selectedTag = result?.communications
-    .flatMap(({ tags }) => tags)
-    .find(({ id }) => id === query.tagId);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -320,51 +303,18 @@ export function CommunicationList({
       {customerId ? (
         createActionSlot && createPortal(createAction, createActionSlot)
       ) : (
-        <ListToolbar title="沟通" className="mb-5">
-          <CommunicationSearch
-            search={query.search ?? ""}
-            onSearch={submitSearch}
-          />
-          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-            <PopoverTrigger asChild>
-              <ListFilterButton count={filterCount} />
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              sideOffset={8}
-              aria-label="沟通筛选"
-              className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
-            >
-              {filterOpen && (
-                <CommunicationListFilters
-                  filters={{
-                    status: query.status,
-                    tagId: query.tagId,
-                    ownerUserId: query.ownerUserId,
-                  }}
-                  selectedTag={selectedTag}
-                  onApply={({ status, tagId, ownerUserId }) => {
-                    setFilterOpen(false);
-                    if (
-                      status === query.status &&
-                      tagId === query.tagId &&
-                      ownerUserId === query.ownerUserId
-                    )
-                      return;
-                    onQueryChange((previous) => ({
-                      ...previous,
-                      status,
-                      tagId,
-                      ownerUserId,
-                      page: undefined,
-                    }));
-                  }}
-                />
-              )}
-            </PopoverContent>
-          </Popover>
-          {createAction}
-        </ListToolbar>
+        <CommunicationFilterToolbar
+          query={query}
+          records={load?.result?.communications}
+          onQueryChange={onQueryChange}
+          search={
+            <CommunicationSearch
+              search={query.search ?? ""}
+              onSearch={submitSearch}
+            />
+          }
+          actions={createAction}
+        />
       )}
       {creationError && (
         <FieldError className="mb-4">{creationError}</FieldError>

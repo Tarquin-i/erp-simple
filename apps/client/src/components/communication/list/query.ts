@@ -1,3 +1,8 @@
+import {
+  listOptionOperator,
+  listOptionValue,
+  readListOptionValues,
+} from "@/lib/list-option-query";
 import { communicationStatusLabels } from "@/request/communication";
 import type {
   CommunicationListQuery,
@@ -24,20 +29,31 @@ function searchText(value: unknown, limit: number) {
 export function parseCommunicationListQuery(
   search: Record<string, unknown>
 ): CommunicationListQuery {
-  const tagId = searchText(search.tagId, 36);
-  const status = searchText(search.status, 16);
+  const statuses = readListOptionValues(search.status, (value) => {
+    const status = searchText(value, 16);
+    return status && Object.hasOwn(communicationStatusLabels, status)
+      ? (status as CommunicationStatus)
+      : undefined;
+  });
+  const tags = readListOptionValues(search.tagId, (value) => {
+    const tag = searchText(value, 36);
+    return tag && uuidPattern.test(tag) ? tag.toLowerCase() : undefined;
+  });
+  const owners = readListOptionValues(search.ownerUserId, (value) =>
+    searchText(value, 128)
+  );
 
   return {
     search: searchText(
       typeof search.search === "number" ? String(search.search) : search.search,
       256
     ),
-    status:
-      status && Object.hasOwn(communicationStatusLabels, status)
-        ? (status as CommunicationStatus)
-        : undefined,
-    tagId: tagId && uuidPattern.test(tagId) ? tagId.toLowerCase() : undefined,
-    ownerUserId: searchText(search.ownerUserId, 128),
+    status: listOptionValue(statuses),
+    statusOperator: listOptionOperator(statuses.length, search.statusOperator),
+    tagId: listOptionValue(tags),
+    tagOperator: listOptionOperator(tags.length, search.tagOperator),
+    ownerUserId: listOptionValue(owners),
+    ownerOperator: listOptionOperator(owners.length, search.ownerOperator),
     page: readCommunicationPage(search.page),
   };
 }
