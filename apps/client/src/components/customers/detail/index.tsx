@@ -106,7 +106,7 @@ export function CustomerDetail({
     null
   );
   const tabViewport = useRef<HTMLDivElement>(null);
-  const addressTabTrigger = useRef<HTMLButtonElement>(null);
+  const activeTabTrigger = useRef<HTMLButtonElement>(null);
   // 鼠标点击仅显示选中样式，键盘操作时保留焦点提示。
   const [pointerFocus, setPointerFocus] = useState(false);
   const tabTriggerClass = `min-w-[88px] focus-visible:border-transparent focus-visible:ring-0 ${pointerFocus ? "focus-visible:outline-none" : "focus-visible:outline-2 focus-visible:outline-offset-1"}`;
@@ -116,18 +116,21 @@ export function CustomerDetail({
 
   useEffect(() => {
     const viewport = tabViewport.current;
-    const trigger = addressTabTrigger.current;
-    if (activeTab !== "addresses" || !viewport || !trigger) return;
+    const trigger = activeTabTrigger.current;
+    if (!viewport || !trigger) return;
 
-    // 窄屏右侧出现新建按钮后，仍让当前选中的地址页签完整可见。
-    const revealAddressTab = () => {
-      const overflow =
-        trigger.getBoundingClientRect().right -
-        viewport.getBoundingClientRect().right;
-      if (overflow > 0) viewport.scrollLeft += Math.ceil(overflow);
+    // 窄屏右侧出现新建按钮后，仍让当前页签完整可见。
+    const revealActiveTab = () => {
+      const tab = trigger.getBoundingClientRect();
+      const bounds = viewport.getBoundingClientRect();
+      if (tab.right > bounds.right) {
+        viewport.scrollLeft += Math.ceil(tab.right - bounds.right);
+      } else if (tab.left < bounds.left) {
+        viewport.scrollLeft -= Math.ceil(bounds.left - tab.left);
+      }
     };
-    revealAddressTab();
-    const observer = new ResizeObserver(revealAddressTab);
+    revealActiveTab();
+    const observer = new ResizeObserver(revealActiveTab);
     observer.observe(viewport);
     return () => observer.disconnect();
   }, [activeTab]);
@@ -214,14 +217,16 @@ export function CustomerDetail({
                 }
               }}
             >
-              <TabsTrigger className={tabTriggerClass} value="contacts">
+              <TabsTrigger
+                ref={activeTab === "contacts" ? activeTabTrigger : undefined}
+                className={tabTriggerClass}
+                value="contacts"
+              >
                 联系方式
               </TabsTrigger>
               {relatedTabs.map((tab) => (
                 <TabsTrigger
-                  ref={
-                    tab.value === "addresses" ? addressTabTrigger : undefined
-                  }
+                  ref={tab.value === activeTab ? activeTabTrigger : undefined}
                   className={tabTriggerClass}
                   key={tab.value}
                   value={tab.value}
