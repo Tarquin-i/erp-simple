@@ -49,7 +49,7 @@ export function CommunicationCustomerLink({
           客户信息受限
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent size="sm">
+      <AlertDialogContent size="sm" className="w-[calc(100%-2rem)]">
         <AlertDialogHeader>
           <AlertDialogTitle>没有权限查看客户</AlertDialogTitle>
           <AlertDialogDescription>

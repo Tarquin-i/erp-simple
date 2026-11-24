@@ -130,7 +130,7 @@ export function CommunicationCreationRecovery({
                     结束本次确认
                   </Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent>
+                <AlertDialogContent className="w-[calc(100%-2rem)]">
                   <AlertDialogHeader>
                     <AlertDialogTitle>结束本次确认？</AlertDialogTitle>
                     <AlertDialogDescription>
