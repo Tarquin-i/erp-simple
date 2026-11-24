@@ -60,32 +60,21 @@ function usePayoutDetailNavigation() {
       }
       return;
     }
-    void router.navigate({ ...destination, replace: true });
-  }
-
-  function openCopy(payoutId: string) {
     void router.navigate({
-      to: "/payouts/$payoutId",
-      params: { payoutId },
-      search,
-      state: { payoutListEntryIndex: state.payoutListEntryIndex },
+      ...destination,
       replace: true,
+      ignoreBlocker: discard,
     });
   }
 
-  return { returnToList, openCopy };
+  return returnToList;
 }
 
 function PayoutDetailPage() {
   const { payout } = Route.useLoaderData();
-  const { returnToList, openCopy } = usePayoutDetailNavigation();
+  const returnToList = usePayoutDetailNavigation();
   return (
-    <PayoutDetail
-      key={payout.id}
-      payout={payout}
-      onReturn={returnToList}
-      onCopy={openCopy}
-    />
+    <PayoutDetail key={payout.id} payout={payout} onReturn={returnToList} />
   );
 }
 
@@ -121,7 +110,7 @@ function PayoutDetailError({
   reset: () => void;
 }) {
   const router = useRouter();
-  const { returnToList } = usePayoutDetailNavigation();
+  const returnToList = usePayoutDetailNavigation();
   const unavailable =
     error instanceof PayoutApiError && [403, 404].includes(error.status);
 

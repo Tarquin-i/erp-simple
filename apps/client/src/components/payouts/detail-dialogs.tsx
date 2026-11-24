@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -27,8 +26,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { formatPayoutQuantity } from "@/lib/payouts";
-import type { PayoutCopyInput, PayoutDetailRecord } from "@/request/payouts";
+import type { PayoutDetailRecord } from "@/request/payouts";
 
 export type PayoutBasics = Pick<
   PayoutDetailRecord,
@@ -146,122 +144,6 @@ export function PayoutBasicsDialog({
             </Button>
             <Button type="submit" disabled={pending}>
               {pending ? "正在保存…" : "保存"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function PayoutCopyDialog({
-  payout,
-  hasDraft,
-  pending,
-  issue,
-  onChange,
-  onClose,
-  onSubmit,
-  onCloseAutoFocus,
-}: {
-  payout: PayoutDetailRecord;
-  hasDraft: boolean;
-  pending: boolean;
-  issue?: string;
-  onChange: () => void;
-  onClose: () => void;
-  onSubmit: (input: PayoutCopyInput) => void;
-  onCloseAutoFocus: (event: Event) => void;
-}) {
-  const nameId = useId();
-  const countId = useId();
-  const [name, setName] = useState("");
-  const [count, setCount] = useState(String(payout.ticketCount));
-  const [validation, setValidation] = useState("");
-
-  function clearErrors() {
-    setValidation("");
-    onChange();
-  }
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
-      <DialogContent
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md"
-        showCloseButton={!pending}
-        onCloseAutoFocus={onCloseAutoFocus}
-      >
-        <form
-          className="grid min-w-0 gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const ticketCount = Number(count.trim());
-            if (
-              !/^\d+$/u.test(count.trim()) ||
-              ticketCount < 1 ||
-              ticketCount > 1000000
-            ) {
-              setValidation("总张数须为 1 至 1000000 的整数。");
-              return;
-            }
-            if (ticketCount < payout.metrics.winningTicketCount) {
-              setValidation(
-                `总张数至少为 ${formatPayoutQuantity(payout.metrics.winningTicketCount)}，才能容纳已保存的中奖张数。`
-              );
-              return;
-            }
-            onSubmit({ name: name.trim() || undefined, ticketCount });
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>复制 Payout</DialogTitle>
-            <DialogDescription>
-              在同一产品下新建一份 Payout，并带入已保存的奖项。
-              {hasDraft && " 继续复制会打开副本，当前奖项草稿将丢失。"}
-            </DialogDescription>
-          </DialogHeader>
-          <FieldGroup className="gap-4">
-            <Field>
-              <FieldLabel htmlFor={nameId}>副本名称</FieldLabel>
-              <Input
-                id={nameId}
-                value={name}
-                maxLength={128}
-                placeholder="选填，留空自动生成"
-                disabled={pending}
-                onChange={(event) => {
-                  setName(event.target.value);
-                  clearErrors();
-                }}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={countId}>总张数</FieldLabel>
-              <Input
-                id={countId}
-                value={count}
-                inputMode="numeric"
-                required
-                disabled={pending}
-                onChange={(event) => {
-                  setCount(event.target.value);
-                  clearErrors();
-                }}
-              />
-            </Field>
-          </FieldGroup>
-          <FieldError>{validation || issue}</FieldError>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={pending}
-              onClick={onClose}
-            >
-              取消
-            </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "正在复制…" : "复制"}
             </Button>
           </DialogFooter>
         </form>

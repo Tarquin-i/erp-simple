@@ -75,8 +75,6 @@ export type PayoutCreateInput = {
   remark?: string;
 };
 
-export type PayoutCopyInput = { name?: string; ticketCount: number };
-
 export type PayoutPatch = Partial<
   Pick<PayoutDetailRecord, "name" | "unitPrice" | "remark" | "definition">
 >;
@@ -172,21 +170,6 @@ export function updatePayout(
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...patch, expectedVersion }),
-  });
-}
-
-export function copyPayout(
-  id: string,
-  input: PayoutCopyInput,
-  submissionId: string
-) {
-  return request<PayoutResponse>(`/${encodeURIComponent(id)}/copy`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Idempotency-Key": submissionId,
-    },
-    body: JSON.stringify(input),
   });
 }
 

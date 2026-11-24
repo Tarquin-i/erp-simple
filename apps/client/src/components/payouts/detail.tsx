@@ -1,10 +1,20 @@
-import { Link, useRouter } from "@tanstack/react-router";
-import { Archive, Copy, Pencil, Save } from "lucide-react";
+import { Link, useBlocker, useRouter } from "@tanstack/react-router";
+import { Archive, Pencil, Save } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { DetailField } from "@/components/shared/detail-field";
 import { toastManager } from "@/components/shared/toast";
 import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
 import {
@@ -13,16 +23,13 @@ import {
   formatPayoutPercent,
   formatPayoutQuantity,
 } from "@/lib/payouts";
-import { createUuid } from "@/lib/uuid";
 import {
   archivePayout,
-  copyPayout,
   isPayoutSnapshot,
   PayoutApiError,
   updatePayout,
 } from "@/request/payouts";
 import type {
-  PayoutCopyInput,
   PayoutDefinition,
   PayoutDetailRecord,
   PayoutPatch,
@@ -32,12 +39,11 @@ import { PayoutAwards } from "./awards";
 import {
   PayoutArchiveDialog,
   PayoutBasicsDialog,
-  PayoutCopyDialog,
 } from "./detail-dialogs";
 import type { PayoutBasics } from "./detail-dialogs";
 
 type SaveKind = "basics" | "awards";
-type WriteKind = SaveKind | "copy" | "archive";
+type WriteKind = SaveKind | "archive";
 type SaveConflict = {
   kind: SaveKind;
   current: PayoutDetailRecord;
@@ -143,11 +149,9 @@ function conflictDifferences({ current, patch }: SaveConflict) {
 export function PayoutDetail({
   payout,
   onReturn,
-  onCopy,
 }: {
   payout: PayoutDetailRecord;
   onReturn: (discard: boolean) => void;
-  onCopy: (payoutId: string) => void;
 }) {
   const router = useRouter();
   const [latest, setLatest] = useState<PayoutDetailRecord>();
@@ -160,19 +164,24 @@ export function PayoutDetail({
     draft: PayoutBasics;
     base: PayoutDetailRecord;
   }>();
-  const [copyOpen, setCopyOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveRetryVersion, setArchiveRetryVersion] = useState<number>();
   const [conflict, setConflict] = useState<SaveConflict>();
   const [issues, setIssues] = useState<Partial<Record<WriteKind, string>>>({});
   const [pending, setPending] = useState<WriteKind>();
   const inFlight = useRef(false);
-  const copySubmissions = useRef(new Map<string, string>());
   const editButton = useRef<HTMLButtonElement>(null);
-  const copyButton = useRef<HTMLButtonElement>(null);
   const archiveButton = useRef<HTMLButtonElement>(null);
   const saveAwardsButton = useRef<HTMLButtonElement>(null);
   const conflictKind = useRef<SaveKind>(undefined);
+  const leaveWithDraft = useBlocker({
+    disabled: !awardDraft,
+    shouldBlockFn: ({ current, next }) =>
+      current.pathname !== next.pathname &&
+      next.routeId !== "/_auth/login/" &&
+      next.routeId !== "/department-access/",
+    withResolver: true,
+  });
 
   const current = latest && latest.version >= payout.version ? latest : payout;
   const definition = awardDraft?.definition ?? current.definition;
@@ -293,31 +302,6 @@ export function PayoutDetail({
     save("basics", patch, basicEdit.base.version);
   }
 
-  function submitCopy(input: PayoutCopyInput) {
-    const payload = JSON.stringify(input);
-    const submissions = copySubmissions.current;
-    const submissionId = submissions.get(payload) ?? createUuid();
-    submissions.set(payload, submissionId);
-
-    void runWrite(
-      "copy",
-      () => copyPayout(current.id, input, submissionId),
-      (created) => {
-        setCopyOpen(false);
-        toastManager.add({ title: "Payout 已复制" });
-        onCopy(created.id);
-      },
-      (error) => {
-        if (uncertainFailure(error)) {
-          showIssue("copy", "暂时无法确认复制结果，请使用原资料重试。");
-          return;
-        }
-        submissions.delete(payload);
-        showIssue("copy", (error as PayoutApiError).message);
-      }
-    );
-  }
-
   function submitArchive() {
     const version = archiveRetryVersion ?? current.version;
     void runWrite(
@@ -376,19 +360,6 @@ export function PayoutDetail({
           >
             <Pencil data-icon="inline-start" />
             编辑
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            ref={copyButton}
-            disabled={Boolean(pending)}
-            onClick={() => {
-              showIssue("copy");
-              setCopyOpen(true);
-            }}
-          >
-            <Copy data-icon="inline-start" />
-            复制
           </Button>
           <Button
             type="button"
@@ -496,7 +467,6 @@ export function PayoutDetail({
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 disabled={Boolean(pending)}
                 onClick={() => {
                   setAwardDraft(undefined);
@@ -507,7 +477,6 @@ export function PayoutDetail({
               </Button>
               <Button
                 type="button"
-                size="sm"
                 ref={saveAwardsButton}
                 disabled={Boolean(pending)}
                 onClick={() =>
@@ -527,6 +496,34 @@ export function PayoutDetail({
       />
       <FieldError>{issues.awards}</FieldError>
 
+      <AlertDialog
+        open={leaveWithDraft.status === "blocked"}
+        onOpenChange={(open) => {
+          if (!open) leaveWithDraft.reset?.();
+        }}
+      >
+        <AlertDialogContent className="w-[calc(100%-2rem)]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>离开 Payout 详情？</AlertDialogTitle>
+            <AlertDialogDescription>
+              离开后，未保存的奖项修改会丢失。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>继续编辑</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={(event) => {
+                event.preventDefault();
+                leaveWithDraft.proceed?.();
+              }}
+            >
+              确认离开
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {basicEdit && (
         <PayoutBasicsDialog
           open={conflict?.kind !== "basics"}
@@ -543,21 +540,6 @@ export function PayoutDetail({
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             if (!conflict) editButton.current?.focus();
-          }}
-        />
-      )}
-      {copyOpen && (
-        <PayoutCopyDialog
-          payout={current}
-          hasDraft={Boolean(awardDraft)}
-          pending={pending === "copy"}
-          issue={issues.copy}
-          onChange={() => showIssue("copy")}
-          onClose={() => setCopyOpen(false)}
-          onSubmit={submitCopy}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            copyButton.current?.focus();
           }}
         />
       )}
