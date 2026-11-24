@@ -5,36 +5,41 @@ import {
   FilterMenuCheckbox,
   FilterMenuCommand,
   FilterMenuSearch,
-} from "@/components/shared/filter-menu";
+} from "./filter-menu";
 import { Button } from "@/components/ui/button";
 import {
   CommandGroup,
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { listCustomerTags } from "@/request/customers";
-import type { CustomerTag } from "@/request/customers";
 
-import { customerFilterLimit } from "../list-query";
+type TagOption = { id: string; name: string };
+type TagPage = { tags: TagOption[]; total: number };
 
 const pageSize = 20;
 
 /** 以服务端原始顺序展示标签候选，翻页和搜索时从同一份列表条件读取勾选状态。 */
-export function CustomerTagFilter({
+export function TagListFilter({
+  loadTags,
+  selectionLimit,
   selected,
   labelLookupFailed,
   onRetryLabels,
   onToggle,
 }: {
+  loadTags: (
+    query: { search?: string; page: number; pageSize: number },
+    signal: AbortSignal
+  ) => Promise<TagPage>;
+  selectionLimit: number;
   selected: string[];
   labelLookupFailed: boolean;
   onRetryLabels: () => void;
-  onToggle: (tag: CustomerTag) => void;
+  onToggle: (tag: TagOption) => void;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [result, setResult] =
-    useState<Awaited<ReturnType<typeof listCustomerTags>>>();
+  const [result, setResult] = useState<TagPage>();
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   const keyword = search.trim();
@@ -44,7 +49,7 @@ export function CustomerTagFilter({
     const { signal } = controller;
     const timer = window.setTimeout(
       () => {
-        void listCustomerTags(
+        void loadTags(
           { search: keyword || undefined, page, pageSize },
           signal
         ).then(
@@ -65,7 +70,7 @@ export function CustomerTagFilter({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [keyword, page, retry]);
+  }, [keyword, loadTags, page, retry]);
 
   function changePage(next: number) {
     setPage(next);
@@ -97,7 +102,7 @@ export function CustomerTagFilter({
                   value={tag.id}
                   aria-checked={checked}
                   className="h-8 rounded-md"
-                  disabled={!checked && selected.length >= customerFilterLimit}
+                  disabled={!checked && selected.length >= selectionLimit}
                   onSelect={() => onToggle(tag)}
                 >
                   <FilterMenuCheckbox checked={checked} />
@@ -147,9 +152,9 @@ export function CustomerTagFilter({
           </Button>
         </div>
       )}
-      {selected.length >= customerFilterLimit && (
+      {selected.length >= selectionLimit && (
         <p className="px-3 py-2 text-xs text-muted-foreground" role="status">
-          最多选择 {customerFilterLimit} 项标签
+          最多选择 {selectionLimit} 项标签
         </p>
       )}
       {result && (page > 1 || result.total > pageSize) && (

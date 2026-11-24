@@ -8,12 +8,14 @@ import type {
   FiltersState,
 } from "@/components/shared/data-table-filter/core/types";
 import { useDataTableFilters } from "@/components/shared/data-table-filter";
+import { TagListFilter } from "@/components/shared/tag-list-filter";
 import { Button } from "@/components/ui/button";
 import {
   CustomerApiError,
   getCustomerTag,
   listCustomerChannels,
   listCustomerOwners,
+  listCustomerTags,
 } from "@/request/customers";
 import type {
   Customer,
@@ -27,7 +29,6 @@ import {
   customerFilterValue,
   customerFilterValues,
 } from "../list-query";
-import { CustomerTagFilter } from "./tag-filter";
 
 type QueryUpdater = (previous: CustomerListQuery) => CustomerListQuery;
 type CustomerOptionColumn = ColumnConfig<Customer, "option">;
@@ -204,7 +205,7 @@ export function useCustomerListFilters(
     [onQueryChange]
   );
   const toggleTag = useCallback(
-    (tag: CustomerTag) => {
+    (tag: Pick<CustomerTag, "id" | "name">) => {
       setTagLabels((previous) =>
         previous.get(tag.id)?.label === tag.name
           ? previous
@@ -283,7 +284,9 @@ export function useCustomerListFilters(
             "正在读取标签…",
         })),
         renderFilterValue: (filter) => (
-          <CustomerTagFilter
+          <TagListFilter
+            loadTags={listCustomerTags}
+            selectionLimit={customerFilterLimit}
             selected={filter?.values ?? []}
             labelLookupFailed={tagIds.some(
               (id) => !pageTags.has(id) && tagLabels.get(id)?.retryable

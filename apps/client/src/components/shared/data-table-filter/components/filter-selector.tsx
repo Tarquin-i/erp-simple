@@ -1,4 +1,5 @@
 import {
+  FilterMenuAutoFocus,
   FilterMenuCheckbox,
   FilterMenuCommand,
   FilterMenuContent,
@@ -14,7 +15,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { Popover, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverAnchor, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { ChevronRightIcon, FilterIcon } from 'lucide-react'
 import {
@@ -22,11 +23,11 @@ import {
   memo,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react'
 import React from 'react'
+import type { PointerEvent } from 'react'
 import type {
   Column,
   ColumnDataType,
@@ -49,6 +50,12 @@ interface FilterSelectorProps<TData> {
   align?: 'start' | 'center' | 'end'
 }
 
+type HoveredField = {
+  id: string
+  anchor: HTMLDivElement
+  side: 'left' | 'right'
+}
+
 export const FilterSelector = memo(__FilterSelector) as typeof __FilterSelector
 
 function __FilterSelector<TData>({
@@ -63,7 +70,12 @@ function __FilterSelector<TData>({
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState('')
   const [property, setProperty] = useState<string | undefined>(undefined)
+  const [hoveredField, setHoveredField] = useState<HoveredField>()
   const inputRef = useRef<HTMLInputElement>(null)
+  const fieldMenuRef = useRef<HTMLDivElement>(null)
+  const valueMenuRef = useRef<HTMLDivElement>(null)
+  const hoverTimer = useRef<number>(undefined)
+  const allowSideFocus = useRef(false)
 
   const column = property ? getColumn(columns, property) : undefined
   const filter = property
@@ -74,6 +86,9 @@ function __FilterSelector<TData>({
   const flat = columns.some((column) => column.flatValueOptions)
   const MenuCommand = flat ? FilterMenuCommand : Command
   const MenuSearch = flat ? FilterMenuSearch : CommandInput
+  const hoveredColumn = hoveredField && getColumn(columns, hoveredField.id)
+  const hoveredFilter =
+    hoveredField && filters.find(({ columnId }) => columnId === hoveredField.id)
 
   useEffect(() => {
     if (property && inputRef) {
@@ -82,75 +97,131 @@ function __FilterSelector<TData>({
     }
   }, [property])
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: need filters to be updated
-  const content = useMemo(
-    () =>
-      property && column ? (
-        <FilterValueController
-          filter={filter}
-          column={column as Column<TData, ColumnDataType>}
-          actions={actions}
-          strategy={strategy}
-          locale={locale}
-        />
-      ) : (
-        <MenuCommand
-          loop
-          filter={(value, search, keywords) => {
-            const extendValue = `${value} ${keywords?.join(' ')}`
-            return extendValue.toLowerCase().includes(search.toLowerCase())
-              ? 1
-              : 0
+  const cancelHoverTimer = useCallback(() => {
+    window.clearTimeout(hoverTimer.current)
+  }, [])
+  useEffect(() => cancelHoverTimer, [cancelHoverTimer])
+
+  function openSideMenu(id: string, event: PointerEvent<HTMLDivElement>) {
+    if (!flat || event.pointerType !== 'mouse') return
+    cancelHoverTimer()
+    if (hoveredField?.id === id) return
+    const anchor = event.currentTarget
+    hoverTimer.current = window.setTimeout(() => {
+      const menu = fieldMenuRef.current?.getBoundingClientRect()
+      if (!menu || !anchor.isConnected) return
+      // 预留侧面间距以及视口边缘空间。空间不足时沿用点击打开候选的方式。
+      const requiredSpace = menu.width + 16
+      const side =
+        menu.left >= requiredSpace
+          ? 'left'
+          : document.documentElement.clientWidth - menu.right >= requiredSpace
+            ? 'right'
+            : undefined
+      if (valueMenuRef.current?.contains(document.activeElement)) {
+        inputRef.current?.focus({ preventScroll: true })
+      }
+      allowSideFocus.current = false
+      setHoveredField(side ? { id, anchor, side } : undefined)
+    }, 100)
+  }
+
+  function scheduleCloseSideMenu(event: PointerEvent) {
+    if (event.pointerType !== 'mouse') return
+    cancelHoverTimer()
+    // 鼠标经过两块面板之间的间隙时，仍可进入候选菜单。
+    hoverTimer.current = window.setTimeout(() => {
+      if (!valueMenuRef.current?.contains(document.activeElement)) {
+        setHoveredField(undefined)
+      }
+    }, 160)
+  }
+
+  function selectField(id: string) {
+    cancelHoverTimer()
+    const valueInput =
+      hoveredField?.id === id
+        ? valueMenuRef.current?.querySelector<HTMLInputElement>(
+            '[data-slot="command-input"]',
+          )
+        : undefined
+    if (valueInput) {
+      allowSideFocus.current = true
+      valueInput.focus({ preventScroll: true })
+      return
+    }
+    setHoveredField(undefined)
+    setProperty(id)
+  }
+
+  const content =
+    property && column ? (
+      <FilterValueController
+        filter={filter}
+        column={column as Column<TData, ColumnDataType>}
+        actions={actions}
+        strategy={strategy}
+        locale={locale}
+      />
+    ) : (
+      <MenuCommand
+        loop
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            cancelHoverTimer()
+            setHoveredField(undefined)
+          }
+        }}
+        filter={(value, search, keywords) => {
+          const extendValue = `${value} ${keywords?.join(' ')}`
+          return extendValue.toLowerCase().includes(search.toLowerCase())
+            ? 1
+            : 0
+        }}
+      >
+        <MenuSearch
+          value={value}
+          onValueChange={(nextValue) => {
+            cancelHoverTimer()
+            setHoveredField(undefined)
+            setValue(nextValue)
           }}
-        >
-          <MenuSearch
-            value={value}
-            onValueChange={setValue}
-            ref={inputRef}
-            placeholder={t('search', locale)}
-          />
-          <CommandEmpty>{t('noresults', locale)}</CommandEmpty>
-          <CommandList className={flat ? undefined : 'max-h-fit'}>
-            <CommandGroup>
-              {columns.map((column) => (
-                <FilterableColumn
-                  key={column.id}
-                  column={column}
-                  setProperty={setProperty}
-                />
-              ))}
-              <QuickSearchFilters
-                search={value}
-                filters={filters}
-                columns={columns}
-                actions={actions}
-                strategy={strategy}
-                locale={locale}
+          ref={inputRef}
+          placeholder={t('search', locale)}
+        />
+        <CommandEmpty>{t('noresults', locale)}</CommandEmpty>
+        <CommandList className={flat ? undefined : 'max-h-fit'}>
+          <CommandGroup>
+            {columns.map((column) => (
+              <FilterableColumn
+                key={column.id}
+                column={column}
+                setProperty={selectField}
+                onHover={openSideMenu}
+                onLeave={scheduleCloseSideMenu}
+                showSubmenu={flat}
+                submenuOpen={hoveredField && hoveredField.id === column.id}
               />
-            </CommandGroup>
-          </CommandList>
-        </MenuCommand>
-      ),
-    [
-      property,
-      column,
-      filter,
-      filters,
-      columns,
-      actions,
-      strategy,
-      locale,
-      value,
-      flat,
-      MenuCommand,
-      MenuSearch,
-    ],
-  )
+            ))}
+            <QuickSearchFilters
+              search={value}
+              filters={filters}
+              columns={columns}
+              actions={actions}
+              strategy={strategy}
+              locale={locale}
+            />
+          </CommandGroup>
+        </CommandList>
+      </MenuCommand>
+    )
 
   return (
     <Popover
       open={open}
       onOpenChange={(nextOpen) => {
+        cancelHoverTimer()
+        setHoveredField(undefined)
         if (nextOpen) {
           setValue('')
           setProperty(undefined)
@@ -169,8 +240,77 @@ function __FilterSelector<TData>({
           </Button>
         )}
       </PopoverTrigger>
-      <FilterMenuContent flat={flat} align={align} side="bottom">
+      <FilterMenuContent
+        ref={fieldMenuRef}
+        flat={flat}
+        align={align}
+        side="bottom"
+        onInteractOutside={(event) => {
+          if (
+            event.target instanceof Node &&
+            valueMenuRef.current?.contains(event.target)
+          ) {
+            event.preventDefault()
+          }
+        }}
+      >
         {content}
+        {open && hoveredField && hoveredColumn && (
+          <Popover open onOpenChange={() => setHoveredField(undefined)}>
+            <PopoverAnchor virtualRef={{ current: hoveredField.anchor }} />
+            <FilterMenuContent
+              ref={valueMenuRef}
+              flat
+              aria-label={hoveredColumn.displayName}
+              side={hoveredField.side}
+              align="start"
+              sideOffset={7}
+              onPointerEnter={cancelHoverTimer}
+              onPointerLeave={scheduleCloseSideMenu}
+              onPointerDownCapture={(event) => {
+                if (
+                  event.target instanceof Element &&
+                  event.target.closest('input,button')
+                ) {
+                  allowSideFocus.current = true
+                }
+              }}
+              onFocusCapture={(event) => {
+                // cmdk moves focus to its own input when highlighting a candidate.
+                if (
+                  !allowSideFocus.current &&
+                  event.relatedTarget === inputRef.current
+                ) {
+                  inputRef.current?.focus({ preventScroll: true })
+                }
+              }}
+              onOpenAutoFocus={(event) => event.preventDefault()}
+              onCloseAutoFocus={(event) => event.preventDefault()}
+              onInteractOutside={(event) => {
+                if (
+                  event.target instanceof Node &&
+                  fieldMenuRef.current?.contains(event.target)
+                ) {
+                  event.preventDefault()
+                }
+              }}
+              onEscapeKeyDown={() =>
+                inputRef.current?.focus({ preventScroll: true })
+              }
+            >
+              <FilterMenuAutoFocus value={false}>
+                <FilterValueController
+                  key={hoveredField.id}
+                  filter={hoveredFilter}
+                  column={hoveredColumn as Column<TData, ColumnDataType>}
+                  actions={actions}
+                  strategy={strategy}
+                  locale={locale}
+                />
+              </FilterMenuAutoFocus>
+            </FilterMenuContent>
+          </Popover>
+        )}
       </FilterMenuContent>
     </Popover>
   )
@@ -179,9 +319,17 @@ function __FilterSelector<TData>({
 export function FilterableColumn<TData, TType extends ColumnDataType, TVal>({
   column,
   setProperty,
+  onHover,
+  onLeave,
+  showSubmenu,
+  submenuOpen,
 }: {
   column: Column<TData, TType, TVal>
   setProperty: (value: string) => void
+  onHover: (id: string, event: PointerEvent<HTMLDivElement>) => void
+  onLeave: (event: PointerEvent<HTMLDivElement>) => void
+  showSubmenu: boolean
+  submenuOpen?: boolean
 }) {
   const itemRef = useRef<HTMLDivElement>(null)
 
@@ -224,10 +372,25 @@ export function FilterableColumn<TData, TType extends ColumnDataType, TVal>({
       keywords={[column.displayName]}
       onSelect={() => setProperty(column.id)}
       onMouseEnter={prefetch}
+      onPointerEnter={(event) => onHover(column.id, event)}
+      onPointerLeave={onLeave}
+      aria-haspopup={showSubmenu ? 'dialog' : undefined}
+      data-submenu-open={submenuOpen || undefined}
+      className={cn(
+        showSubmenu && '[&>svg:last-child]:hidden',
+        submenuOpen && 'bg-muted',
+        submenuOpen === false && 'data-selected:bg-transparent',
+      )}
     >
-      <div className="inline-flex items-center gap-1.5">
+      <div className="flex w-full items-center gap-1.5">
         <column.icon strokeWidth={2.25} className="size-4" />
         <span>{column.displayName}</span>
+        {showSubmenu && (
+          <ChevronRightIcon
+            aria-hidden
+            className="ml-auto size-4 text-muted-foreground"
+          />
+        )}
       </div>
     </CommandItem>
   )

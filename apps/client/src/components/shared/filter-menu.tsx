@@ -1,11 +1,14 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { cn } from "cn";
 import { Search } from "lucide-react";
+import { createContext, useContext } from "react";
 import type { ComponentProps } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Command } from "@/components/ui/command";
 import { PopoverContent } from "@/components/ui/popover";
+
+export const FilterMenuAutoFocus = createContext(true);
 
 export function FilterMenuContent({
   flat,
@@ -50,9 +53,11 @@ export function FilterMenuCommand({
 }
 
 export function FilterMenuSearch({
+  autoFocus,
   className,
   ...props
 }: ComponentProps<typeof CommandPrimitive.Input>) {
+  const autoFocusAllowed = useContext(FilterMenuAutoFocus);
   return (
     <div
       data-slot="filter-menu-search"
@@ -64,6 +69,7 @@ export function FilterMenuSearch({
       />
       <CommandPrimitive.Input
         data-slot="command-input"
+        autoFocus={autoFocus && autoFocusAllowed}
         className={cn(
           "h-full min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground",
           className
