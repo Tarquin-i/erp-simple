@@ -20,6 +20,7 @@ import {
   inArray,
   isNull,
   ne,
+  notExists,
   or,
   sql,
 } from "drizzle-orm";
@@ -45,11 +46,16 @@ export interface CustomerWriteInput {
   tagIds?: string[];
 }
 
+type CustomerFilterOperator = "is" | "is not";
+
 interface CustomerFilters {
   search?: string;
   channelCode?: string;
+  channelOperator?: CustomerFilterOperator;
   tagId?: string;
+  tagOperator?: CustomerFilterOperator;
   ownerUserId?: string;
+  ownerOperator?: CustomerFilterOperator;
   page: number;
   pageSize: number;
 }
@@ -147,12 +153,25 @@ export function listCustomers(
   access: BusinessAccess,
   filters: CustomerFilters
 ) {
-  const { page, pageSize, search, channelCode, tagId, ownerUserId } = filters;
+  const {
+    page,
+    pageSize,
+    search,
+    channelCode,
+    channelOperator,
+    tagId,
+    tagOperator,
+    ownerUserId,
+    ownerOperator,
+  } = filters;
+  const channelMatches = channelOperator === "is not" ? notExists : exists;
+  const tagMatches = tagOperator === "is not" ? notExists : exists;
+  const ownerMatches = ownerOperator === "is not" ? ne : eq;
 
   return withBusinessReadSnapshot(access.userId, async (tx, currentAccess) => {
     const filter = and(
       businessScopeWhere(currentAccess, customer),
-      ownerUserId ? eq(customer.ownerUserId, ownerUserId) : undefined,
+      ownerUserId ? ownerMatches(customer.ownerUserId, ownerUserId) : undefined,
       search
         ? or(
             sql`position(lower(${search}::text) in ${customer.normalizedCompanyName}) > 0`,
@@ -160,7 +179,7 @@ export function listCustomers(
           )
         : undefined,
       channelCode
-        ? exists(
+        ? channelMatches(
             tx
               .select({ id: customerChannelAssignment.customerId })
               .from(customerChannelAssignment)
@@ -173,7 +192,7 @@ export function listCustomers(
           )
         : undefined,
       tagId
-        ? exists(
+        ? tagMatches(
             tx
               .select({ id: customerTagAssignment.customerId })
               .from(customerTagAssignment)

@@ -48,6 +48,19 @@ function readSelection(
   return [...new Set(value.map(parse))];
 }
 
+function readFilterOperator(
+  operator: string | undefined,
+  value: string | undefined,
+  label: string
+) {
+  if (operator === undefined) return;
+  if (operator !== "is" && operator !== "is not") {
+    fail(400, `请选择有效的${label}筛选运算符。`);
+  }
+  if (value === undefined) fail(400, `请选择要筛选的${label}。`);
+  return operator;
+}
+
 /**
  * 校验新建或编辑客户的通用字段，规范化备注并去除重复的渠道和标签。
  * @param body 已通过字段白名单校验的 JSON 请求体。
@@ -82,19 +95,43 @@ customerRoutes.route("/", customerContactRoutes);
 customerRoutes.route("/", customerAddressRoutes);
 
 customerRoutes.get("/", async (c) => {
-  const { search, channelCode, tagId, ownerUserId, page, pageSize } =
-    c.req.query();
+  const allQueryValues = c.req.queries();
+  const filterKeys = [
+    "channelCode",
+    "channelOperator",
+    "tagId",
+    "tagOperator",
+    "ownerUserId",
+    "ownerOperator",
+  ];
+  if (filterKeys.some((key) => (allQueryValues[key]?.length ?? 0) > 1)) {
+    fail(400, "渠道、标签和业务员筛选各只接受一个选项和一个运算符。");
+  }
+  const {
+    search,
+    channelCode,
+    channelOperator,
+    tagId,
+    tagOperator,
+    ownerUserId,
+    ownerOperator,
+    page,
+    pageSize,
+  } = c.req.query();
   const result = await listCustomers(c.get("businessAccess"), {
     search: search?.trim() ? readString(search, "搜索词", 256) : undefined,
     channelCode:
       channelCode === undefined
         ? undefined
         : readString(channelCode, "渠道编码", 64),
+    channelOperator: readFilterOperator(channelOperator, channelCode, "渠道"),
     tagId: tagId === undefined ? undefined : readUuid(tagId, "标签 ID"),
+    tagOperator: readFilterOperator(tagOperator, tagId, "标签"),
     ownerUserId:
       ownerUserId === undefined
         ? undefined
         : readString(ownerUserId, "业务员 ID", 128),
+    ownerOperator: readFilterOperator(ownerOperator, ownerUserId, "业务员"),
     page: readPositiveInteger(page, "页码", 1, 1_000_000),
     pageSize: readPositiveInteger(pageSize, "每页条数", 20, 100),
   });
