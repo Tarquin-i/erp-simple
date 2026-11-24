@@ -208,8 +208,6 @@ function __FilterSelector<TData>({
               filters={filters}
               columns={columns}
               actions={actions}
-              strategy={strategy}
-              locale={locale}
             />
           </CommandGroup>
         </CommandList>
@@ -401,8 +399,6 @@ interface QuickSearchFiltersProps<TData> {
   filters: FiltersState
   columns: Column<TData>[]
   actions: DataTableFilterActions
-  strategy: FilterStrategy
-  locale?: Locale
 }
 
 export const QuickSearchFilters = memo(
@@ -414,8 +410,6 @@ function __QuickSearchFilters<TData>({
   filters,
   columns,
   actions,
-  strategy,
-  locale = 'en',
 }: QuickSearchFiltersProps<TData>) {
   if (!search || search.trim().length < 2) return null
 

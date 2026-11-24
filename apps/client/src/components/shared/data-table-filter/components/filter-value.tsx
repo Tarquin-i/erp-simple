@@ -81,7 +81,6 @@ function __FilterValue<TData, TType extends ColumnDataType>({
           <FilterValueDisplay
             filter={filter}
             column={column}
-            actions={actions}
             locale={locale}
           />
         </Button>
@@ -106,14 +105,12 @@ function __FilterValue<TData, TType extends ColumnDataType>({
 interface FilterValueDisplayProps<TData, TType extends ColumnDataType> {
   filter: FilterModel<TType>
   column: Column<TData, TType>
-  actions: DataTableFilterActions
   locale?: Locale
 }
 
 export function FilterValueDisplay<TData, TType extends ColumnDataType>({
   filter,
   column,
-  actions,
   locale = 'en',
 }: FilterValueDisplayProps<TData, TType>) {
   switch (column.type) {
@@ -122,8 +119,6 @@ export function FilterValueDisplay<TData, TType extends ColumnDataType>({
         <FilterValueOptionDisplay
           filter={filter as FilterModel<'option'>}
           column={column as Column<TData, 'option'>}
-          actions={actions}
-          locale={locale}
         />
       )
     case 'multiOption':
@@ -131,34 +126,16 @@ export function FilterValueDisplay<TData, TType extends ColumnDataType>({
         <FilterValueMultiOptionDisplay
           filter={filter as FilterModel<'multiOption'>}
           column={column as Column<TData, 'multiOption'>}
-          actions={actions}
-          locale={locale}
         />
       )
     case 'date':
-      return (
-        <FilterValueDateDisplay
-          filter={filter as FilterModel<'date'>}
-          column={column as Column<TData, 'date'>}
-          actions={actions}
-          locale={locale}
-        />
-      )
+      return <FilterValueDateDisplay filter={filter as FilterModel<'date'>} />
     case 'text':
-      return (
-        <FilterValueTextDisplay
-          filter={filter as FilterModel<'text'>}
-          column={column as Column<TData, 'text'>}
-          actions={actions}
-          locale={locale}
-        />
-      )
+      return <FilterValueTextDisplay filter={filter as FilterModel<'text'>} />
     case 'number':
       return (
         <FilterValueNumberDisplay
           filter={filter as FilterModel<'number'>}
-          column={column as Column<TData, 'number'>}
-          actions={actions}
           locale={locale}
         />
       )
@@ -170,9 +147,7 @@ export function FilterValueDisplay<TData, TType extends ColumnDataType>({
 export function FilterValueOptionDisplay<TData>({
   filter,
   column,
-  actions,
-  locale = 'en',
-}: FilterValueDisplayProps<TData, 'option'>) {
+}: Pick<FilterValueDisplayProps<TData, 'option'>, 'filter' | 'column'>) {
   const options = useMemo(() => column.getOptions(), [column])
   const selected = options.filter((o) => filter?.values.includes(o.value))
   if (column.flatValueOptions && filter.values.length > 1) {
@@ -228,9 +203,7 @@ export function FilterValueOptionDisplay<TData>({
 export function FilterValueMultiOptionDisplay<TData>({
   filter,
   column,
-  actions,
-  locale = 'en',
-}: FilterValueDisplayProps<TData, 'multiOption'>) {
+}: Pick<FilterValueDisplayProps<TData, 'multiOption'>, 'filter' | 'column'>) {
   const options = useMemo(() => column.getOptions(), [column])
   const selected = options.filter((o) => filter.values.includes(o.value))
 
@@ -291,12 +264,11 @@ function formatDateRange(start: Date, end: Date) {
   return `${format(start, 'MMM d, yyyy')} - ${format(end, 'MMM d, yyyy')}`
 }
 
-export function FilterValueDateDisplay<TData>({
+export function FilterValueDateDisplay({
   filter,
-  column,
-  actions,
-  locale = 'en',
-}: FilterValueDisplayProps<TData, 'date'>) {
+}: {
+  filter: FilterModel<'date'>
+}) {
   if (!filter) return null
   if (filter.values.length === 0) return <Ellipsis className="size-4" />
   if (filter.values.length === 1) {
@@ -312,12 +284,11 @@ export function FilterValueDateDisplay<TData>({
   return <span>{formattedRangeStr}</span>
 }
 
-export function FilterValueTextDisplay<TData>({
+export function FilterValueTextDisplay({
   filter,
-  column,
-  actions,
-  locale = 'en',
-}: FilterValueDisplayProps<TData, 'text'>) {
+}: {
+  filter: FilterModel<'text'>
+}) {
   if (!filter) return null
   if (filter.values.length === 0 || filter.values[0].trim() === '')
     return <Ellipsis className="size-4" />
@@ -327,12 +298,13 @@ export function FilterValueTextDisplay<TData>({
   return <span>{value}</span>
 }
 
-export function FilterValueNumberDisplay<TData>({
+export function FilterValueNumberDisplay({
   filter,
-  column,
-  actions,
   locale = 'en',
-}: FilterValueDisplayProps<TData, 'number'>) {
+}: {
+  filter: FilterModel<'number'>
+  locale?: Locale
+}) {
   if (!filter || !filter.values || filter.values.length === 0) return null
 
   if (
@@ -681,9 +653,14 @@ export function FilterValueDateController<TData>({
     <Command>
       <CommandList className="max-h-fit">
         <CommandGroup>
-          <div>
+          <div
+            onKeyDown={(event) => {
+              // 日期按钮使用原生 Enter，避免命令菜单接管。
+              if (event.key === 'Enter') event.stopPropagation()
+            }}
+          >
             <Calendar
-              initialFocus
+              autoFocus
               mode="range"
               defaultMonth={date?.from}
               selected={date}

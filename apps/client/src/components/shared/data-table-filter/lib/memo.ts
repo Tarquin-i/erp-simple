@@ -1,23 +1,17 @@
 export function memo<TDeps extends readonly any[], TResult>(
   getDeps: () => TDeps,
   compute: (deps: TDeps) => TResult,
-  options: { key: string },
 ): () => TResult {
   let prevDeps: TDeps | undefined
   let cachedResult: TResult | undefined
 
   return () => {
-    // console.log(`[memo] Calling memoized function: ${options.key}`)
-
     const deps = getDeps()
 
     // If no previous deps or deps have changed, recompute
     if (!prevDeps || !shallowEqual(prevDeps, deps)) {
-      // console.log(`[memo] Cache MISS - ${options.key}`)
       cachedResult = compute(deps)
       prevDeps = deps
-    } else {
-      // console.log(`[memo] Cache HIT - ${options.key}`)
     }
 
     return cachedResult!
