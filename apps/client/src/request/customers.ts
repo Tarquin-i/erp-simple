@@ -20,10 +20,15 @@ export type Customer = {
 type PageQuery = { search?: string; page?: number; pageSize?: number };
 type PageMetadata = { page: number; pageSize: number; total: number };
 
+export type CustomerFilterOperator = "is" | "is not";
+
 export type CustomerListQuery = PageQuery & {
   channelCode?: string;
+  channelOperator?: CustomerFilterOperator;
   tagId?: string;
+  tagOperator?: CustomerFilterOperator;
   ownerUserId?: string;
+  ownerOperator?: CustomerFilterOperator;
 };
 
 export type CustomerWriteInput = {

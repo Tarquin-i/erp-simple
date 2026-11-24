@@ -12,16 +12,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  ListFilterButton,
-  ListSearchInput,
-  ListToolbar,
-} from "@/components/ui/list-toolbar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { ListFilterToolbar } from "@/components/ui/list-filter-toolbar";
+import { ListSearchInput } from "@/components/ui/list-toolbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -37,7 +29,7 @@ import { listCustomers } from "@/request/customers";
 import type { CustomerListQuery } from "@/request/customers";
 
 import { CustomerPagination } from "../pagination";
-import { CustomerListFilters } from "./filters";
+import { useCustomerListFilters } from "./filters";
 
 type CustomerPage = Awaited<ReturnType<typeof listCustomers>>;
 type QueryUpdater = (previous: CustomerListQuery) => CustomerListQuery;
@@ -67,19 +59,15 @@ export function CustomerList({
 }) {
   const [loadState, setLoadState] = useState<ListState>();
   const [retry, setRetry] = useState(0);
-  const [filterOpen, setFilterOpen] = useState(false);
   const currentLoad = loadState?.query === query ? loadState : undefined;
   const customerPage = currentLoad?.customerPage;
   const pageCount = customerPage
     ? Math.max(1, Math.ceil(customerPage.total / customerPage.pageSize))
     : 1;
-  const filterCount =
-    Number(Boolean(query.channelCode)) +
-    Number(Boolean(query.tagId)) +
-    Number(Boolean(query.ownerUserId));
   const selectedTag = customerPage?.customers
     .flatMap((customer) => customer.tags)
     .find((tag) => tag.id === query.tagId);
+  const filterModel = useCustomerListFilters(query, onQueryChange, selectedTag);
 
   // 查询条件变化时取消上一次请求，避免旧响应覆盖新列表。
   useEffect(() => {
@@ -113,67 +101,35 @@ export function CustomerList({
 
   return (
     <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
-      <ListToolbar title="客户" className="mb-5">
-        <CustomerSearch
-          search={query.search ?? ""}
-          onSearch={(search) =>
-            onQueryChange(
-              (previous) => ({ ...previous, search, page: undefined }),
-              true
-            )
-          }
-        />
-        <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-          <PopoverTrigger asChild>
-            <ListFilterButton count={filterCount} />
-          </PopoverTrigger>
-          <PopoverContent
-            align="end"
-            sideOffset={8}
-            aria-label="客户筛选"
-            className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
-          >
-            {filterOpen && (
-              <CustomerListFilters
-                filters={{
-                  channelCode: query.channelCode,
-                  tagId: query.tagId,
-                  ownerUserId: query.ownerUserId,
-                }}
-                selectedTag={selectedTag}
-                onApply={(filters) => {
-                  setFilterOpen(false);
-                  if (
-                    filters.channelCode === query.channelCode &&
-                    filters.tagId === query.tagId &&
-                    filters.ownerUserId === query.ownerUserId
-                  )
-                    return;
-                  onQueryChange((previous) => ({
-                    ...previous,
-                    channelCode: filters.channelCode,
-                    tagId: filters.tagId,
-                    ownerUserId: filters.ownerUserId,
-                    page: undefined,
-                  }));
-                }}
-              />
-            )}
-          </PopoverContent>
-        </Popover>
-        {canCreate && (
-          <Button asChild size="icon">
-            <Link
-              to="/customers/new"
-              state={{ customerListQuery: query }}
-              aria-label="新建客户"
-              title="新建客户"
-            >
-              <Plus aria-hidden="true" />
-            </Link>
-          </Button>
-        )}
-      </ListToolbar>
+      <ListFilterToolbar
+        title="客户"
+        filterModel={filterModel}
+        search={
+          <CustomerSearch
+            search={query.search ?? ""}
+            onSearch={(search) =>
+              onQueryChange(
+                (previous) => ({ ...previous, search, page: undefined }),
+                true
+              )
+            }
+          />
+        }
+        actions={
+          canCreate && (
+            <Button asChild size="icon">
+              <Link
+                to="/customers/new"
+                state={{ customerListQuery: query }}
+                aria-label="新建客户"
+                title="新建客户"
+              >
+                <Plus aria-hidden="true" />
+              </Link>
+            </Button>
+          )
+        }
+      />
       {currentLoad?.error ? (
         <Empty className="min-h-56 border">
           <EmptyHeader>

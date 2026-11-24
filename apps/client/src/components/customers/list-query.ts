@@ -28,16 +28,25 @@ export function parseListQuery(
       : typeof search.page === "string" && /^\d+$/.test(search.page)
         ? Number(search.page)
         : undefined;
-  const tagId = searchText(search.tagId, 36);
+  const channelCode = searchText(search.channelCode, 64);
+  const tag = searchText(search.tagId, 36);
+  const tagId = tag && uuidPattern.test(tag) ? tag.toLowerCase() : undefined;
+  const ownerUserId = searchText(search.ownerUserId, 128);
 
   return {
     search: searchText(
       typeof search.search === "number" ? String(search.search) : search.search,
       256
     ),
-    channelCode: searchText(search.channelCode, 64),
-    tagId: tagId && uuidPattern.test(tagId) ? tagId.toLowerCase() : undefined,
-    ownerUserId: searchText(search.ownerUserId, 128),
+    channelCode,
+    channelOperator:
+      channelCode && search.channelOperator === "is not" ? "is not" : undefined,
+    tagId,
+    tagOperator:
+      tagId && search.tagOperator === "is not" ? "is not" : undefined,
+    ownerUserId,
+    ownerOperator:
+      ownerUserId && search.ownerOperator === "is not" ? "is not" : undefined,
     page:
       page !== undefined &&
       Number.isInteger(page) &&
