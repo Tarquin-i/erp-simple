@@ -307,16 +307,12 @@ export function AddressCardMenu({
         <AddressFormDialog
           address={editing}
           onClose={() => {
+            trigger.current?.focus({ preventScroll: true });
             setEditing(undefined);
-            restoreFocus();
           }}
           onSaved={async (record) => {
             if (mounted.current) setLatest(record);
             await onChanged(record, "edit");
-            if (mounted.current) {
-              setEditing(undefined);
-              restoreFocus();
-            }
           }}
         />
       )}

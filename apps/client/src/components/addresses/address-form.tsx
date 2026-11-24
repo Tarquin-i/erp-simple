@@ -187,7 +187,7 @@ export function AddressCreateForm({
   onCancel,
   ...props
 }: Omit<AddressFormProps, "address" | "onClose"> & { onCancel: () => void }) {
-  return <AddressForm {...props} onClose={onCancel} layout="page" />;
+  return <AddressForm {...props} onClose={onCancel} />;
 }
 
 /**
@@ -195,8 +195,16 @@ export function AddressCreateForm({
  * @param props 初始地址、可选的所属客户、关闭与保存成功回调。
  * @returns 带默认地址确认及版本冲突处理的表单弹窗。
  */
-export function AddressFormDialog(props: AddressFormProps) {
-  return <AddressForm {...props} layout="dialog" />;
+export function AddressFormDialog({ onClose, ...props }: AddressFormProps) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <AddressForm
+      {...props}
+      dialog={{ open, onClosed: onClose }}
+      onClose={() => setOpen(false)}
+    />
+  );
 }
 
 function AddressForm({
@@ -204,11 +212,11 @@ function AddressForm({
   customer,
   onClose,
   onSaved,
-  layout,
-}: AddressFormProps & { layout: "page" | "dialog" }) {
+  dialog,
+}: AddressFormProps & { dialog?: { open: boolean; onClosed: () => void } }) {
   const id = useId();
   const dialogContent = useRef<HTMLDivElement>(null);
-  const isDialog = layout === "dialog";
+  const isDialog = Boolean(dialog);
   const portalContainer = isDialog ? dialogContent : undefined;
   const [selectedCustomer, setSelectedCustomer] = useState(
     address?.customer ?? customer ?? null
@@ -377,6 +385,7 @@ function AddressForm({
       setSaved(true);
       try {
         await onSaved(result);
+        if (isDialog) onClose();
       } catch {
         setError("地址已保存，但列表刷新失败。关闭弹窗后可重新加载。");
       }
@@ -674,17 +683,23 @@ function AddressForm({
 
   return (
     <>
-      {isDialog ? (
+      {dialog ? (
         <Dialog
-          open
+          open={dialog.open}
           onOpenChange={(open) => {
             if (!open && !submitting.current && !prompt) onClose();
           }}
         >
           <DialogContent
-            className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)] sm:max-w-2xl"
+            className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)] motion-reduce:animate-none! sm:max-w-2xl"
             ref={dialogContent}
+            overlayClassName="motion-reduce:animate-none!"
+            inert={!dialog.open}
             showCloseButton={!pending}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              if (!dialog.open) dialog.onClosed();
+            }}
             onEscapeKeyDown={(event) =>
               keepDialogOpenOnComboboxEscape(event, dialogContent.current)
             }

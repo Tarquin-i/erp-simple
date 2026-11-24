@@ -1,5 +1,11 @@
 import { Ellipsis, Pencil, Plus, Trash2 } from "lucide-react";
-import { type ReactNode, type Ref, type RefObject, useRef } from "react";
+import {
+  type ReactNode,
+  type Ref,
+  type RefObject,
+  useRef,
+  useState,
+} from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -118,17 +124,27 @@ export function ContactManagerDialog({
   onEdit: MethodAction;
   onDelete: MethodAction;
 }) {
+  const [open, setOpen] = useState(true);
+
   return (
     <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !locked) onClose();
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen || locked) return;
+        if (form) onClose();
+        else setOpen(false);
       }}
     >
       <DialogContent
         ref={contentRef}
-        className="flex max-h-[85dvh] min-h-0 flex-col gap-4 sm:max-w-xl sm:p-6"
+        className="flex max-h-[85dvh] min-h-0 flex-col gap-4 motion-reduce:animate-none! sm:max-w-xl sm:p-6"
+        overlayClassName="motion-reduce:animate-none!"
+        inert={!open}
         showCloseButton={!locked}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          if (!open) onClose();
+        }}
         onEscapeKeyDown={(event) =>
           keepDialogOpenOnComboboxEscape(event, contentRef.current)
         }
