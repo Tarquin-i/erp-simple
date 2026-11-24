@@ -26,6 +26,7 @@ import { Route as ProtectedDepartmentApprovalsIndexRouteImport } from './routes/
 import { Route as ProtectedDepartmentManagementIndexRouteImport } from './routes/_protected/department-management/index'
 import { Route as ProtectedOrdersIndexRouteImport } from './routes/_protected/orders/index'
 import { Route as ProtectedPayoutsIndexRouteImport } from './routes/_protected/payouts/index'
+import { Route as ProtectedPayoutsNewRouteImport } from './routes/_protected/payouts/new'
 import { Route as ProtectedProductsIndexRouteImport } from './routes/_protected/products/index'
 import { Route as ProtectedProductsNewRouteImport } from './routes/_protected/products/new'
 import { Route as ProtectedAddressesAddressIdIndexRouteImport } from './routes/_protected/addresses/$addressId/index'
@@ -33,6 +34,7 @@ import { Route as ProtectedCommunicationCommunicationIdIndexRouteImport } from '
 import { Route as ProtectedCommunicationCommunicationIdEditRouteImport } from './routes/_protected/communication/$communicationId/edit'
 import { Route as ProtectedCustomersCustomerIdIndexRouteImport } from './routes/_protected/customers/$customerId/index'
 import { Route as ProtectedCustomersCustomerIdEditRouteImport } from './routes/_protected/customers/$customerId/edit'
+import { Route as ProtectedPayoutsPayoutIdIndexRouteImport } from './routes/_protected/payouts/$payoutId/index'
 import { Route as ProtectedProductsProductIdIndexRouteImport } from './routes/_protected/products/$productId/index'
 import { Route as ProtectedProductsProductIdEditRouteImport } from './routes/_protected/products/$productId/edit'
 
@@ -123,6 +125,11 @@ const ProtectedPayoutsIndexRoute = ProtectedPayoutsIndexRouteImport.update({
   path: '/payouts/',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedPayoutsNewRoute = ProtectedPayoutsNewRouteImport.update({
+  id: '/payouts/new',
+  path: '/payouts/new',
+  getParentRoute: () => ProtectedRoute,
+} as any)
 const ProtectedProductsIndexRoute = ProtectedProductsIndexRouteImport.update({
   id: '/products/',
   path: '/products/',
@@ -163,6 +170,12 @@ const ProtectedCustomersCustomerIdEditRoute =
     path: '/customers/$customerId/edit',
     getParentRoute: () => ProtectedRoute,
   } as any)
+const ProtectedPayoutsPayoutIdIndexRoute =
+  ProtectedPayoutsPayoutIdIndexRouteImport.update({
+    id: '/payouts/$payoutId/',
+    path: '/payouts/$payoutId/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedProductsProductIdIndexRoute =
   ProtectedProductsProductIdIndexRouteImport.update({
     id: '/products/$productId/',
@@ -182,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/addresses/new': typeof ProtectedAddressesNewRoute
   '/communication/new': typeof ProtectedCommunicationNewRoute
   '/customers/new': typeof ProtectedCustomersNewRoute
+  '/payouts/new': typeof ProtectedPayoutsNewRoute
   '/products/new': typeof ProtectedProductsNewRoute
   '/fotgot-password/': typeof AuthFotgotPasswordIndexRoute
   '/login/': typeof AuthLoginIndexRoute
@@ -200,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/addresses/$addressId/': typeof ProtectedAddressesAddressIdIndexRoute
   '/communication/$communicationId/': typeof ProtectedCommunicationCommunicationIdIndexRoute
   '/customers/$customerId/': typeof ProtectedCustomersCustomerIdIndexRoute
+  '/payouts/$payoutId/': typeof ProtectedPayoutsPayoutIdIndexRoute
   '/products/$productId/': typeof ProtectedProductsProductIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -208,6 +223,7 @@ export interface FileRoutesByTo {
   '/addresses/new': typeof ProtectedAddressesNewRoute
   '/communication/new': typeof ProtectedCommunicationNewRoute
   '/customers/new': typeof ProtectedCustomersNewRoute
+  '/payouts/new': typeof ProtectedPayoutsNewRoute
   '/products/new': typeof ProtectedProductsNewRoute
   '/fotgot-password': typeof AuthFotgotPasswordIndexRoute
   '/login': typeof AuthLoginIndexRoute
@@ -226,6 +242,7 @@ export interface FileRoutesByTo {
   '/addresses/$addressId': typeof ProtectedAddressesAddressIdIndexRoute
   '/communication/$communicationId': typeof ProtectedCommunicationCommunicationIdIndexRoute
   '/customers/$customerId': typeof ProtectedCustomersCustomerIdIndexRoute
+  '/payouts/$payoutId': typeof ProtectedPayoutsPayoutIdIndexRoute
   '/products/$productId': typeof ProtectedProductsProductIdIndexRoute
 }
 export interface FileRoutesById {
@@ -237,6 +254,7 @@ export interface FileRoutesById {
   '/_protected/addresses/new': typeof ProtectedAddressesNewRoute
   '/_protected/communication/new': typeof ProtectedCommunicationNewRoute
   '/_protected/customers/new': typeof ProtectedCustomersNewRoute
+  '/_protected/payouts/new': typeof ProtectedPayoutsNewRoute
   '/_protected/products/new': typeof ProtectedProductsNewRoute
   '/_auth/fotgot-password/': typeof AuthFotgotPasswordIndexRoute
   '/_auth/login/': typeof AuthLoginIndexRoute
@@ -255,6 +273,7 @@ export interface FileRoutesById {
   '/_protected/addresses/$addressId/': typeof ProtectedAddressesAddressIdIndexRoute
   '/_protected/communication/$communicationId/': typeof ProtectedCommunicationCommunicationIdIndexRoute
   '/_protected/customers/$customerId/': typeof ProtectedCustomersCustomerIdIndexRoute
+  '/_protected/payouts/$payoutId/': typeof ProtectedPayoutsPayoutIdIndexRoute
   '/_protected/products/$productId/': typeof ProtectedProductsProductIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -265,6 +284,7 @@ export interface FileRouteTypes {
     | '/addresses/new'
     | '/communication/new'
     | '/customers/new'
+    | '/payouts/new'
     | '/products/new'
     | '/fotgot-password/'
     | '/login/'
@@ -283,6 +303,7 @@ export interface FileRouteTypes {
     | '/addresses/$addressId/'
     | '/communication/$communicationId/'
     | '/customers/$customerId/'
+    | '/payouts/$payoutId/'
     | '/products/$productId/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -291,6 +312,7 @@ export interface FileRouteTypes {
     | '/addresses/new'
     | '/communication/new'
     | '/customers/new'
+    | '/payouts/new'
     | '/products/new'
     | '/fotgot-password'
     | '/login'
@@ -309,6 +331,7 @@ export interface FileRouteTypes {
     | '/addresses/$addressId'
     | '/communication/$communicationId'
     | '/customers/$customerId'
+    | '/payouts/$payoutId'
     | '/products/$productId'
   id:
     | '__root__'
@@ -319,6 +342,7 @@ export interface FileRouteTypes {
     | '/_protected/addresses/new'
     | '/_protected/communication/new'
     | '/_protected/customers/new'
+    | '/_protected/payouts/new'
     | '/_protected/products/new'
     | '/_auth/fotgot-password/'
     | '/_auth/login/'
@@ -337,6 +361,7 @@ export interface FileRouteTypes {
     | '/_protected/addresses/$addressId/'
     | '/_protected/communication/$communicationId/'
     | '/_protected/customers/$customerId/'
+    | '/_protected/payouts/$payoutId/'
     | '/_protected/products/$productId/'
   fileRoutesById: FileRoutesById
 }
@@ -467,6 +492,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedPayoutsIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/payouts/new': {
+      id: '/_protected/payouts/new'
+      path: '/payouts/new'
+      fullPath: '/payouts/new'
+      preLoaderRoute: typeof ProtectedPayoutsNewRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/products/': {
       id: '/_protected/products/'
       path: '/products'
@@ -516,6 +548,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedCustomersCustomerIdEditRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/payouts/$payoutId/': {
+      id: '/_protected/payouts/$payoutId/'
+      path: '/payouts/$payoutId'
+      fullPath: '/payouts/$payoutId/'
+      preLoaderRoute: typeof ProtectedPayoutsPayoutIdIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/products/$productId/': {
       id: '/_protected/products/$productId/'
       path: '/products/$productId'
@@ -552,6 +591,7 @@ interface ProtectedRouteChildren {
   ProtectedAddressesNewRoute: typeof ProtectedAddressesNewRoute
   ProtectedCommunicationNewRoute: typeof ProtectedCommunicationNewRoute
   ProtectedCustomersNewRoute: typeof ProtectedCustomersNewRoute
+  ProtectedPayoutsNewRoute: typeof ProtectedPayoutsNewRoute
   ProtectedProductsNewRoute: typeof ProtectedProductsNewRoute
   ProtectedAddressesIndexRoute: typeof ProtectedAddressesIndexRoute
   ProtectedCommunicationIndexRoute: typeof ProtectedCommunicationIndexRoute
@@ -567,6 +607,7 @@ interface ProtectedRouteChildren {
   ProtectedAddressesAddressIdIndexRoute: typeof ProtectedAddressesAddressIdIndexRoute
   ProtectedCommunicationCommunicationIdIndexRoute: typeof ProtectedCommunicationCommunicationIdIndexRoute
   ProtectedCustomersCustomerIdIndexRoute: typeof ProtectedCustomersCustomerIdIndexRoute
+  ProtectedPayoutsPayoutIdIndexRoute: typeof ProtectedPayoutsPayoutIdIndexRoute
   ProtectedProductsProductIdIndexRoute: typeof ProtectedProductsProductIdIndexRoute
 }
 
@@ -575,6 +616,7 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedAddressesNewRoute: ProtectedAddressesNewRoute,
   ProtectedCommunicationNewRoute: ProtectedCommunicationNewRoute,
   ProtectedCustomersNewRoute: ProtectedCustomersNewRoute,
+  ProtectedPayoutsNewRoute: ProtectedPayoutsNewRoute,
   ProtectedProductsNewRoute: ProtectedProductsNewRoute,
   ProtectedAddressesIndexRoute: ProtectedAddressesIndexRoute,
   ProtectedCommunicationIndexRoute: ProtectedCommunicationIndexRoute,
@@ -595,6 +637,7 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
     ProtectedCommunicationCommunicationIdIndexRoute,
   ProtectedCustomersCustomerIdIndexRoute:
     ProtectedCustomersCustomerIdIndexRoute,
+  ProtectedPayoutsPayoutIdIndexRoute: ProtectedPayoutsPayoutIdIndexRoute,
   ProtectedProductsProductIdIndexRoute: ProtectedProductsProductIdIndexRoute,
 }
 

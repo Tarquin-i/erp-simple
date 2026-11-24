@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AddressBreadcrumbs } from "@/components/addresses/breadcrumbs";
 import { CommunicationBreadcrumbs } from "@/components/communication/breadcrumbs";
 import { CustomerBreadcrumbs } from "@/components/customers/breadcrumbs";
+import { PayoutBreadcrumbs } from "@/components/payouts/breadcrumbs";
 import { ProductBreadcrumbs } from "@/components/products/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,6 +53,7 @@ function WorkspaceLayout() {
             <CommunicationBreadcrumbs />
             <AddressBreadcrumbs />
             <ProductBreadcrumbs />
+            <PayoutBreadcrumbs />
           </header>
           <Outlet />
         </SidebarInset>
