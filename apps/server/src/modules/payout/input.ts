@@ -3,7 +3,7 @@ import type { PayoutDefinition } from "@repo/db/schema";
 import { readString, readUuid } from "../customer/input";
 import { fail } from "../organization/errors";
 
-export const maxPayoutNameLength = 128;
+const maxPayoutNameLength = 128;
 const maxRemarkLength = 2000;
 const maxTicketCount = 1_000_000;
 const maxGroupCount = 1000;
@@ -25,8 +25,6 @@ export const payoutPatchFields = [
   "definition",
 ] as const;
 
-export const payoutCopyFields = ["name", "ticketCount"] as const;
-
 export interface PayoutCreateInput {
   productId: string;
   name: string;
@@ -40,18 +38,6 @@ export interface PayoutPatch {
   unitPrice?: string;
   remark?: string;
   definition?: PayoutDefinition;
-}
-
-export interface PayoutCopyInput {
-  name?: string;
-  ticketCount: number;
-}
-
-function readOptionalName(value: unknown) {
-  if (value === undefined || (typeof value === "string" && !value.trim())) {
-    return undefined;
-  }
-  return readString(value, "Payout 名称", maxPayoutNameLength);
 }
 
 function readTicketQuantity(value: unknown, label: string) {
@@ -216,16 +202,7 @@ export function readPayoutPatch(body: Record<string, unknown>): PayoutPatch {
   return patch;
 }
 
-export function readPayoutCopyInput(
-  body: Record<string, unknown>
-): PayoutCopyInput {
-  return {
-    name: readOptionalName(body.name),
-    ticketCount: readTicketQuantity(body.ticketCount, "总张数"),
-  };
-}
-
-/** 基于当前发行张数检查奖项定义，也用于检查副本的新发行张数。 */
+/** 基于当前发行张数检查奖项定义。 */
 export function assertPayoutTicketCapacity(
   definition: PayoutDefinition,
   ticketCount: number

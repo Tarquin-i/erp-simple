@@ -11,20 +11,13 @@ import {
 } from "../customer/input";
 
 import {
-  payoutCopyFields,
   payoutCreateFields,
   payoutPatchFields,
-  readPayoutCopyInput,
   readPayoutCreateInput,
   readPayoutPatch,
 } from "./input";
 import { getPayout, listPayouts } from "./queries";
-import {
-  archivePayout,
-  copyPayout,
-  createPayout,
-  updatePayout,
-} from "./records";
+import { archivePayout, createPayout, updatePayout } from "./records";
 
 export const payoutRoutes = new Hono<BusinessAccessEnv>();
 
@@ -74,18 +67,6 @@ payoutRoutes.patch("/:payoutId", async (c) => {
     readExpectedVersion(body.expectedVersion)
   );
   return c.json({ payout: record });
-});
-
-payoutRoutes.post("/:payoutId/copy", async (c) => {
-  const id = readUuid(c.req.param("payoutId"), "Payout ID");
-  const body = await readObject(c, payoutCopyFields);
-  const record = await copyPayout(
-    c.get("businessAccess"),
-    id,
-    readPayoutCopyInput(body),
-    readUuid(c.req.header("Idempotency-Key"), "提交 ID")
-  );
-  return c.json({ payout: record }, 201);
 });
 
 payoutRoutes.delete("/:payoutId", async (c) => {

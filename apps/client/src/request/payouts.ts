@@ -42,7 +42,6 @@ export interface PayoutListItem {
   remark: string;
   status: "active" | "archived";
   version: number;
-  copiedFromPayoutId: string | null;
   createdByUserId: string;
   updatedByUserId: string;
   createdAt: string;

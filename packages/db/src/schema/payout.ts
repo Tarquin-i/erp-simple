@@ -14,7 +14,6 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 import { product } from "./product";
@@ -67,10 +66,6 @@ export const payout = pgTable(
     remark: text("remark").default("").notNull(),
     status: payoutStatus("status").default("active").notNull(),
     version: integer("version").default(1).notNull(),
-    copiedFromPayoutId: uuid("copied_from_payout_id").references(
-      (): AnyPgColumn => payout.id,
-      { onDelete: "restrict" }
-    ),
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
@@ -124,10 +119,6 @@ export const payout = pgTable(
       sql`char_length(${table.remark}) <= 2000`
     ),
     check("payout_version_positive", sql`${table.version} > 0`),
-    check(
-      "payout_copy_source_check",
-      sql`${table.copiedFromPayoutId} is distinct from ${table.id}`
-    ),
     check(
       "payout_creation_request_check",
       sql`(${table.creationRequestId} is null and ${table.creationRequestHash} is null)

@@ -12,8 +12,8 @@ import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
 
-import { assertPayoutTicketCapacity, maxPayoutNameLength } from "./input";
-import type { PayoutCopyInput, PayoutCreateInput, PayoutPatch } from "./input";
+import { assertPayoutTicketCapacity } from "./input";
+import type { PayoutCreateInput, PayoutPatch } from "./input";
 import { payoutView } from "./queries";
 import type { PayoutSource } from "./queries";
 
@@ -108,7 +108,7 @@ async function lockPayoutForWrite(
   tx: DatabaseTransaction,
   access: BusinessAccess,
   id: string,
-  operation: "copy" | "update" | "archive"
+  operation: "replay" | "update" | "archive"
 ) {
   const [target] = await tx
     .select({ productId: payout.productId })
@@ -128,76 +128,22 @@ async function lockPayoutForWrite(
     .select()
     .from(payout)
     .where(and(eq(payout.id, id), eq(payout.productId, source.id)))
-    .for(operation === "copy" ? "share" : "update");
+    .for(operation === "replay" ? "share" : "update");
   if (!record || (!archiving && record.status !== "active")) {
     fail(404, payoutNotFound);
   }
   return { record, source };
 }
 
-type PayoutCreation =
-  | { kind: "create"; input: PayoutCreateInput }
-  | { kind: "copy"; fromId: string; input: PayoutCopyInput };
-
-async function preparePayoutCreation(
-  tx: DatabaseTransaction,
-  access: BusinessAccess,
-  creation: PayoutCreation
-) {
-  const { input } = creation;
-  const id = crypto.randomUUID();
-  if (creation.kind === "create") {
-    const source = await lockPayoutProduct(
-      tx,
-      access,
-      creation.input.productId,
-      productNotFound
-    );
-    return {
-      source,
-      values: {
-        ...creation.input,
-        id,
-        currencyCode: source.currencyCode,
-      },
-    };
-  }
-
-  const { record, source } = await lockPayoutForWrite(
-    tx,
-    access,
-    creation.fromId,
-    "copy"
-  );
-  assertPayoutTicketCapacity(record.definition, input.ticketCount);
-  const suffix = ` 副本 ${id.slice(0, 8)}`;
-  const copyName = record.name
-    .slice(0, maxPayoutNameLength - suffix.length)
-    .replace(/[\uD800-\uDBFF]$/u, "");
-  return {
-    source,
-    values: {
-      id,
-      productId: record.productId,
-      name: input.name ?? `${copyName}${suffix}`,
-      ticketCount: input.ticketCount,
-      currencyCode: record.currencyCode,
-      unitPrice: record.unitPrice,
-      definition: record.definition,
-      remark: record.remark,
-      copiedFromPayoutId: record.id,
-    },
-  };
-}
-
 /** 同一账号用同一提交 ID 重试，只会得到第一次保存的记录。 */
-function saveNewPayout(
+export function createPayout(
   access: BusinessAccess,
-  creation: PayoutCreation,
+  input: PayoutCreateInput,
   requestId: string
 ) {
+  // 保留已有的新建请求指纹格式，发布前发出的提交仍可重试。
   const requestHash = createHash("sha256")
-    .update(JSON.stringify(creation))
+    .update(JSON.stringify({ kind: "create", input }))
     .digest("hex");
   return writePayout(async (tx) => {
     const lockKey = JSON.stringify(["payout-create", access.userId, requestId]);
@@ -219,7 +165,7 @@ function saveNewPayout(
         tx,
         access,
         existing.id,
-        "copy"
+        "replay"
       );
       if (record.creationRequestHash !== requestHash) {
         conflict(
@@ -230,15 +176,17 @@ function saveNewPayout(
       return payoutView(record, source);
     }
 
-    const { source, values } = await preparePayoutCreation(
+    const source = await lockPayoutProduct(
       tx,
       access,
-      creation
+      input.productId,
+      productNotFound
     );
     const [record] = await tx
       .insert(payout)
       .values({
-        ...values,
+        ...input,
+        currencyCode: source.currencyCode,
         createdByUserId: access.userId,
         updatedByUserId: access.userId,
         creationRequestId: requestId,
@@ -247,23 +195,6 @@ function saveNewPayout(
       .returning();
     return payoutView(record, source);
   });
-}
-
-export function createPayout(
-  access: BusinessAccess,
-  input: PayoutCreateInput,
-  requestId: string
-) {
-  return saveNewPayout(access, { kind: "create", input }, requestId);
-}
-
-export function copyPayout(
-  access: BusinessAccess,
-  fromId: string,
-  input: PayoutCopyInput,
-  requestId: string
-) {
-  return saveNewPayout(access, { kind: "copy", fromId, input }, requestId);
 }
 
 function payoutRevision(userId: string) {
