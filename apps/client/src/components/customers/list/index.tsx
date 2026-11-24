@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ContactRound, Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
@@ -64,10 +64,17 @@ export function CustomerList({
   const pageCount = customerPage
     ? Math.max(1, Math.ceil(customerPage.total / customerPage.pageSize))
     : 1;
-  const selectedTag = customerPage?.customers
-    .flatMap((customer) => customer.tags)
-    .find((tag) => tag.id === query.tagId);
-  const filterModel = useCustomerListFilters(query, onQueryChange, selectedTag);
+  const lastPage = loadState?.customerPage;
+  const pageTags = useMemo(
+    () =>
+      new Map(
+        lastPage?.customers.flatMap(({ tags }) =>
+          tags.map((tag) => [tag.id, tag] as const)
+        )
+      ),
+    [lastPage]
+  );
+  const filterModel = useCustomerListFilters(query, onQueryChange, pageTags);
 
   // 查询条件变化时取消上一次请求，避免旧响应覆盖新列表。
   useEffect(() => {

@@ -1,4 +1,8 @@
-import type { CustomerListQuery } from "@/request/customers";
+import type {
+  CustomerFilterOperator,
+  CustomerFilterValue,
+  CustomerListQuery,
+} from "@/request/customers";
 
 declare module "@tanstack/react-router" {
   interface HistoryState {
@@ -8,10 +12,44 @@ declare module "@tanstack/react-router" {
 }
 
 const uuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+export const customerFilterLimit = 100;
 
 function searchText(value: unknown, maximum: number) {
   if (typeof value !== "string") return undefined;
   return value.trim().replaceAll("\0", "").slice(0, maximum) || undefined;
+}
+
+export function customerFilterValues(value: CustomerFilterValue | undefined) {
+  return Array.isArray(value) ? value : value ? [value] : [];
+}
+
+export function customerFilterValue(values: string[]) {
+  return values.length > 1 ? values : values[0];
+}
+
+export function customerFilterOperator(
+  count: number,
+  operator: unknown
+): CustomerFilterOperator | undefined {
+  if (!count) return undefined;
+  const excluded = operator === "is not" || operator === "is none of";
+  if (count === 1) return excluded ? "is not" : undefined;
+  return excluded ? "is none of" : "is any of";
+}
+
+function readFilterValues(
+  value: unknown,
+  parse: (entry: unknown) => string | undefined
+) {
+  const values = Array.isArray(value) ? value : [value];
+  return [
+    ...new Set(
+      values.flatMap((entry) => {
+        const parsed = parse(typeof entry === "number" ? String(entry) : entry);
+        return parsed === undefined ? [] : [parsed];
+      })
+    ),
+  ].slice(0, customerFilterLimit);
 }
 
 /**
@@ -28,25 +66,31 @@ export function parseListQuery(
       : typeof search.page === "string" && /^\d+$/.test(search.page)
         ? Number(search.page)
         : undefined;
-  const channelCode = searchText(search.channelCode, 64);
-  const tag = searchText(search.tagId, 36);
-  const tagId = tag && uuidPattern.test(tag) ? tag.toLowerCase() : undefined;
-  const ownerUserId = searchText(search.ownerUserId, 128);
+  const channels = readFilterValues(search.channelCode, (value) =>
+    searchText(value, 64)
+  );
+  const tags = readFilterValues(search.tagId, (value) => {
+    const tag = searchText(value, 36);
+    return tag && uuidPattern.test(tag) ? tag.toLowerCase() : undefined;
+  });
+  const owners = readFilterValues(search.ownerUserId, (value) =>
+    searchText(value, 128)
+  );
 
   return {
     search: searchText(
       typeof search.search === "number" ? String(search.search) : search.search,
       256
     ),
-    channelCode,
-    channelOperator:
-      channelCode && search.channelOperator === "is not" ? "is not" : undefined,
-    tagId,
-    tagOperator:
-      tagId && search.tagOperator === "is not" ? "is not" : undefined,
-    ownerUserId,
-    ownerOperator:
-      ownerUserId && search.ownerOperator === "is not" ? "is not" : undefined,
+    channelCode: customerFilterValue(channels),
+    channelOperator: customerFilterOperator(
+      channels.length,
+      search.channelOperator
+    ),
+    tagId: customerFilterValue(tags),
+    tagOperator: customerFilterOperator(tags.length, search.tagOperator),
+    ownerUserId: customerFilterValue(owners),
+    ownerOperator: customerFilterOperator(owners.length, search.ownerOperator),
     page:
       page !== undefined &&
       Number.isInteger(page) &&

@@ -1,18 +1,15 @@
+import { cn } from "cn";
 import type { ReactNode } from "react";
 
-import {
-  ActiveFilters,
-  ActiveFiltersMobileContainer,
-} from "@/components/data-table-filter/components/active-filters";
-import { FilterActions } from "@/components/data-table-filter/components/filter-actions";
-import { FilterSelector } from "@/components/data-table-filter/components/filter-selector";
+import { ActiveFilters } from "./data-table-filter/components/active-filters";
+import { FilterActions } from "./data-table-filter/components/filter-actions";
+import { FilterSelector } from "./data-table-filter/components/filter-selector";
 import type {
   Column,
   DataTableFilterActions,
   FilterStrategy,
   FiltersState,
-} from "@/components/data-table-filter/core/types";
-
+} from "./data-table-filter/core/types";
 import { ListFilterButton, ListToolbar } from "./list-toolbar";
 
 export function ListFilterToolbar<TData>({
@@ -35,7 +32,7 @@ export function ListFilterToolbar<TData>({
 
   return (
     <>
-      <ListToolbar title={title} className="mb-5">
+      <ListToolbar title={title} className={filterCount > 0 ? "mb-3" : "mb-5"}>
         {search}
         <FilterSelector
           {...filterModel}
@@ -48,12 +45,18 @@ export function ListFilterToolbar<TData>({
         <div
           role="group"
           aria-label={`已应用的${title}筛选`}
-          className="mb-4 flex min-w-0 items-center gap-2"
+          className="mb-3 flex min-w-0 items-start gap-2"
         >
-          <ActiveFiltersMobileContainer>
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 flex-wrap gap-2 *:h-8 *:max-w-full",
+              "[&_[data-filter-part=value]]:min-w-0 [&_[data-filter-part=value]]:max-w-49 [&_[data-filter-part=value]]:shrink [&_[data-filter-part=value]]:justify-start [&_[data-filter-part=value]]:overflow-hidden",
+              "[&_[data-filter-part=value]>*]:min-w-0 [&_[data-filter-part=value-label]]:truncate"
+            )}
+          >
             <ActiveFilters {...filterModel} />
-          </ActiveFiltersMobileContainer>
-          <div className="ml-auto shrink-0 [&>button]:bg-destructive [&>button]:text-white [&>button:hover]:bg-destructive/90">
+          </div>
+          <div className="flex shrink-0 [&>button]:size-8 [&>button]:bg-destructive [&>button]:text-white [&>button:hover]:bg-destructive/90 md:[&>button]:w-auto">
             <FilterActions hasFilters actions={filterModel.actions} />
           </div>
         </div>

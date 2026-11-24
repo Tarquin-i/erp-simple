@@ -112,6 +112,7 @@ export type ColumnConfig<
   icon: LucideIcon
   type: TType
   options?: TType extends OptionBasedColumnDataType ? ColumnOption[] : never
+  flatValueOptions?: boolean
   renderFilterValue?: TType extends 'option'
     ? (
         filter: FilterModel<'option'> | undefined,

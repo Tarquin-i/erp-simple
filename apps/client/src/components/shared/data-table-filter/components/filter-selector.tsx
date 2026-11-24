@@ -1,3 +1,9 @@
+import {
+  FilterMenuCheckbox,
+  FilterMenuCommand,
+  FilterMenuContent,
+  FilterMenuSearch,
+} from '@/components/shared/filter-menu'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -8,11 +14,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+import { Popover, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { ArrowRightIcon, ChevronRightIcon, FilterIcon } from 'lucide-react'
 import {
@@ -69,6 +71,9 @@ function __FilterSelector<TData>({
     : undefined
 
   const hasFilters = filters.length > 0
+  const flat = columns.some((column) => column.flatValueOptions)
+  const MenuCommand = flat ? FilterMenuCommand : Command
+  const MenuSearch = flat ? FilterMenuSearch : CommandInput
 
   useEffect(() => {
     if (property && inputRef) {
@@ -76,10 +81,6 @@ function __FilterSelector<TData>({
       setValue('')
     }
   }, [property])
-
-  useEffect(() => {
-    if (!open) setTimeout(() => setValue(''), 150)
-  }, [open])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: need filters to be updated
   const content = useMemo(
@@ -93,7 +94,7 @@ function __FilterSelector<TData>({
           locale={locale}
         />
       ) : (
-        <Command
+        <MenuCommand
           loop
           filter={(value, search, keywords) => {
             const extendValue = `${value} ${keywords?.join(' ')}`
@@ -102,14 +103,14 @@ function __FilterSelector<TData>({
               : 0
           }}
         >
-          <CommandInput
+          <MenuSearch
             value={value}
             onValueChange={setValue}
             ref={inputRef}
             placeholder={t('search', locale)}
           />
           <CommandEmpty>{t('noresults', locale)}</CommandEmpty>
-          <CommandList className="max-h-fit">
+          <CommandList className={flat ? undefined : 'max-h-fit'}>
             <CommandGroup>
               {columns.map((column) => (
                 <FilterableColumn
@@ -128,17 +129,33 @@ function __FilterSelector<TData>({
               />
             </CommandGroup>
           </CommandList>
-        </Command>
+        </MenuCommand>
       ),
-    [property, column, filter, filters, columns, actions, value],
+    [
+      property,
+      column,
+      filter,
+      filters,
+      columns,
+      actions,
+      strategy,
+      locale,
+      value,
+      flat,
+      MenuCommand,
+      MenuSearch,
+    ],
   )
 
   return (
     <Popover
       open={open}
-      onOpenChange={async (value) => {
-        setOpen(value)
-        if (!value) setTimeout(() => setProperty(undefined), 100)
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) {
+          setValue('')
+          setProperty(undefined)
+        }
+        setOpen(nextOpen)
       }}
     >
       <PopoverTrigger asChild>
@@ -152,13 +169,9 @@ function __FilterSelector<TData>({
           </Button>
         )}
       </PopoverTrigger>
-      <PopoverContent
-        align={align}
-        side="bottom"
-        className="w-fit p-0 origin-(--radix-popover-content-transform-origin)"
-      >
+      <FilterMenuContent flat={flat} align={align} side="bottom">
         {content}
-      </PopoverContent>
+      </FilterMenuContent>
     </Popover>
   )
 }
@@ -278,12 +291,17 @@ function __QuickSearchFilters<TData>({
                     handleOptionSelect(v.value, !checked)
                   }}
                   className="group"
+                  aria-checked={column.flatValueOptions ? checked : undefined}
                 >
                   <div className="flex items-center gap-1.5 group">
-                    <Checkbox
-                      checked={checked}
-                      className="opacity-0 data-[state=checked]:opacity-100 group-data-[selected=true]:opacity-100 dark:border-ring mr-1"
-                    />
+                    {column.flatValueOptions ? (
+                      <FilterMenuCheckbox checked={checked} />
+                    ) : (
+                      <Checkbox
+                        checked={checked}
+                        className="opacity-0 data-[state=checked]:opacity-100 group-data-[selected=true]:opacity-100 dark:border-ring mr-1"
+                      />
+                    )}
                     <div className="flex items-center w-4 justify-center">
                       {v.icon &&
                         (isValidElement(v.icon) ? (

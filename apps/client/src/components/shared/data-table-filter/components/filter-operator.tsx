@@ -1,3 +1,8 @@
+import {
+  FilterMenuCommand,
+  FilterMenuContent,
+  FilterMenuSearch,
+} from '@/components/shared/filter-menu'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -7,11 +12,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+import { Popover, PopoverTrigger } from '@/components/ui/popover'
 import { useState } from 'react'
 import {
   dateFilterOperators,
@@ -47,6 +48,9 @@ export function FilterOperator<TData, TType extends ColumnDataType>({
   locale = 'en',
 }: FilterOperatorProps<TData, TType>) {
   const [open, setOpen] = useState<boolean>(false)
+  const flat = column.flatValueOptions
+  const MenuCommand = flat ? FilterMenuCommand : Command
+  const MenuSearch = flat ? FilterMenuSearch : CommandInput
 
   const close = () => setOpen(false)
 
@@ -64,12 +68,9 @@ export function FilterOperator<TData, TType extends ColumnDataType>({
           />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-fit p-0 origin-(--radix-popover-content-transform-origin)"
-      >
-        <Command loop>
-          <CommandInput placeholder={t('search', locale)} />
+      <FilterMenuContent flat={flat} align="start">
+        <MenuCommand loop defaultValue={flat ? filter.operator : undefined}>
+          <MenuSearch placeholder={t('search', locale)} />
           <CommandEmpty>{t('noresults', locale)}</CommandEmpty>
           <CommandList className="max-h-fit">
             <FilterOperatorController
@@ -80,8 +81,8 @@ export function FilterOperator<TData, TType extends ColumnDataType>({
               locale={locale}
             />
           </CommandList>
-        </Command>
-      </PopoverContent>
+        </MenuCommand>
+      </FilterMenuContent>
     </Popover>
   )
 }

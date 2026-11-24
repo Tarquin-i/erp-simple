@@ -1,14 +1,13 @@
 import { Route, Tag, UserRound } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import type { ComponentProps, SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { SetStateAction } from "react";
 
 import type {
   ColumnConfig,
   ColumnOption,
   FiltersState,
-} from "@/components/data-table-filter/core/types";
-import { useDataTableFilters } from "@/components/data-table-filter";
-import { TagSelector } from "@/components/shared/tag-selector";
+} from "@/components/shared/data-table-filter/core/types";
+import { useDataTableFilters } from "@/components/shared/data-table-filter";
 import { Button } from "@/components/ui/button";
 import {
   CustomerApiError,
@@ -22,9 +21,18 @@ import type {
   CustomerTag,
 } from "@/request/customers";
 
+import {
+  customerFilterLimit,
+  customerFilterOperator,
+  customerFilterValue,
+  customerFilterValues,
+} from "../list-query";
+import { CustomerTagFilter } from "./tag-filter";
+
 type QueryUpdater = (previous: CustomerListQuery) => CustomerListQuery;
 type CustomerOptionColumn = ColumnConfig<Customer, "option">;
 type DictionaryOptions = { channels: ColumnOption[]; owners: ColumnOption[] };
+type TagLabel = { label: string; retryable?: boolean };
 
 const channelField = {
   id: "channelCode",
@@ -32,6 +40,7 @@ const channelField = {
   displayName: "渠道",
   icon: Route,
   type: "option",
+  flatValueOptions: true,
 } as const;
 const tagField = {
   id: "tagId",
@@ -39,6 +48,7 @@ const tagField = {
   displayName: "标签",
   icon: Tag,
   type: "option",
+  flatValueOptions: true,
 } as const;
 const ownerField = {
   id: "ownerUserId",
@@ -46,20 +56,22 @@ const ownerField = {
   displayName: "业务员",
   icon: UserRound,
   type: "option",
+  flatValueOptions: true,
 } as const;
 const filterFields = [channelField, tagField, ownerField];
 const serverRows: Customer[] = [];
 
 function readFilters(query: CustomerListQuery): FiltersState {
   return filterFields.flatMap(({ id, type, operatorKey }) => {
-    const value = query[id];
-    return value
+    const values = customerFilterValues(query[id]);
+    return values.length
       ? [
           {
             columnId: id,
             type,
-            operator: query[operatorKey] ?? "is",
-            values: [value],
+            operator:
+              customerFilterOperator(values.length, query[operatorKey]) ?? "is",
+            values,
           },
         ]
       : [];
@@ -77,61 +89,54 @@ function applyFilters(
 
   for (const { id, operatorKey } of filterFields) {
     const filter = filters.find((entry) => entry.columnId === id);
-    // 组件会把新选项追加到末尾，客户接口每个字段只接受一个值。
-    const value = filter?.values.at(-1);
-    const selected = typeof value === "string" ? value : undefined;
-    const excluded =
-      filter?.operator === "is not" || filter?.operator === "is none of";
-    const operator = selected && excluded ? "is not" : undefined;
-    if (query[id] !== selected || query[operatorKey] !== operator)
-      changed = true;
-    next[id] = selected;
+    const values = filter?.values.filter(
+      (value: unknown): value is string => typeof value === "string"
+    );
+    const selected = [...new Set(values)];
+    if (selected.length > customerFilterLimit) continue;
+    const previous = customerFilterValues(query[id]);
+    const operator = customerFilterOperator(selected.length, filter?.operator);
+    if (
+      query[operatorKey] === operator &&
+      previous.length === selected.length &&
+      previous.every((value, index) => value === selected[index])
+    )
+      continue;
+    changed = true;
+    next[id] = customerFilterValue(selected);
     next[operatorKey] = operator;
   }
 
   return changed ? { ...next, page: undefined } : query;
 }
 
-function withSelectedOption(
+function withSelectedOptions(
   options: ColumnOption[],
-  value: string | undefined,
+  selected: string[],
   label: string
 ) {
-  if (!value || options.some((option) => option.value === value))
-    return options;
-  return [...options, { value, label }];
-}
-
-function CustomerTagOptions(props: ComponentProps<typeof TagSelector>) {
-  const id = useId();
-  return (
-    <div className="w-56 max-w-full p-2.5">
-      <TagSelector {...props} inputId={id} />
-    </div>
+  const missing = selected.filter(
+    (value) => !options.some((option) => option.value === value)
   );
+  return [...options, ...missing.map((value) => ({ value, label }))];
 }
 
 /** 将客户列表的 URL 参数适配给公共筛选组件。 */
 export function useCustomerListFilters(
   query: CustomerListQuery,
   onQueryChange: (update: QueryUpdater) => void,
-  selectedTag?: CustomerTag
+  pageTags: ReadonlyMap<string, CustomerTag>
 ) {
   const [dictionaries, setDictionaries] = useState<DictionaryOptions>();
   const [dictionaryError, setDictionaryError] = useState(false);
   const [dictionaryRetry, setDictionaryRetry] = useState(0);
-  const [tagLookup, setTagLookup] = useState<{
-    id: string;
-    tag?: CustomerTag;
-    message?: string;
-  }>();
-  const tagId = query.tagId;
-  const knownTag =
-    selectedTag?.id === tagId
-      ? selectedTag
-      : tagLookup?.id === tagId
-        ? tagLookup?.tag
-        : undefined;
+  const [tagLabels, setTagLabels] = useState<ReadonlyMap<string, TagLabel>>(
+    () => new Map()
+  );
+  const tagIds = useMemo(
+    () => customerFilterValues(query.tagId),
+    [query.tagId]
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -157,46 +162,70 @@ export function useCustomerListFilters(
     return () => controller.abort();
   }, [dictionaryRetry]);
 
-  const loadTag = useCallback(async (id: string, signal?: AbortSignal) => {
-    const result = await getCustomerTag(id, signal);
-    if (!signal?.aborted) setTagLookup({ id, tag: result.tag });
-    return result;
-  }, []);
-
   useEffect(() => {
-    if (!tagId || knownTag) return;
+    const missingIds = tagIds.filter(
+      (id) => !pageTags.has(id) && !tagLabels.has(id)
+    );
+    if (!missingIds.length) return;
     const controller = new AbortController();
-    void loadTag(tagId, controller.signal).catch((error: unknown) => {
-      if (!controller.signal.aborted) {
-        // 没有命中或所选标签被删除时，保留仍可移除的条件。
-        const unavailable =
-          error instanceof CustomerApiError && error.status === 404;
-        setTagLookup({
-          id: tagId,
-          message: unavailable ? "所选标签不可用" : "所选标签加载失败",
-        });
-      }
+    void Promise.all(
+      missingIds.map(async (id): Promise<[string, TagLabel]> => {
+        try {
+          const { tag } = await getCustomerTag(id, controller.signal);
+          return [id, { label: tag.name }];
+        } catch (error) {
+          const unavailable =
+            error instanceof CustomerApiError && error.status === 404;
+          return [
+            id,
+            {
+              label: unavailable ? "所选标签不可用" : "所选标签加载失败",
+              retryable: !unavailable,
+            },
+          ];
+        }
+      })
+    ).then((labels) => {
+      if (controller.signal.aborted) return;
+      setTagLabels((previous) => new Map([...previous, ...labels]));
     });
     return () => controller.abort();
-  }, [knownTag, loadTag, tagId]);
+  }, [pageTags, tagIds, tagLabels]);
+
+  const retryTagLabels = useCallback(() => {
+    setTagLabels(
+      (previous) => new Map([...previous].filter(([, tag]) => !tag.retryable))
+    );
+  }, []);
 
   const onFiltersChange = useCallback(
     (update: SetStateAction<FiltersState>) =>
       onQueryChange((previous) => applyFilters(previous, update)),
     [onQueryChange]
   );
-  const selectTag = useCallback(
-    (nextTagId: string | undefined) => {
-      onQueryChange((previous) =>
-        previous.tagId === nextTagId
+  const toggleTag = useCallback(
+    (tag: CustomerTag) => {
+      setTagLabels((previous) =>
+        previous.get(tag.id)?.label === tag.name
           ? previous
-          : {
-              ...previous,
-              tagId: nextTagId,
-              tagOperator: nextTagId ? previous.tagOperator : undefined,
-              page: undefined,
-            }
+          : new Map(previous).set(tag.id, { label: tag.name })
       );
+      onQueryChange((previous) => {
+        const selected = customerFilterValues(previous.tagId);
+        const next = selected.includes(tag.id)
+          ? selected.filter((id) => id !== tag.id)
+          : [...selected, tag.id];
+        if (next.length > customerFilterLimit) return previous;
+        return {
+          ...previous,
+          tagId: customerFilterValue(next),
+          tagOperator: customerFilterOperator(
+            next.length,
+            previous.tagOperator
+          ),
+          page: undefined,
+        };
+      });
     },
     [onQueryChange]
   );
@@ -236,9 +265,9 @@ export function useCustomerListFilters(
       {
         ...channelField,
         accessor: (customer) => customer.channels.map(({ code }) => code),
-        options: withSelectedOption(
+        options: withSelectedOptions(
           dictionaries?.channels ?? [],
-          query.channelCode,
+          customerFilterValues(query.channelCode),
           dictionaries || dictionaryError ? "所选渠道不可用" : pending
         ),
         renderFilterValue: dictionaryState,
@@ -246,28 +275,30 @@ export function useCustomerListFilters(
       {
         ...tagField,
         accessor: (customer) => customer.tags.map(({ id }) => id),
-        options: withSelectedOption(
-          [],
-          tagId,
-          knownTag?.name ??
-            (tagLookup?.id === tagId ? tagLookup?.message : undefined) ??
-            "正在读取标签…"
-        ),
+        options: tagIds.map((id) => ({
+          value: id,
+          label:
+            pageTags.get(id)?.name ??
+            tagLabels.get(id)?.label ??
+            "正在读取标签…",
+        })),
         renderFilterValue: (filter) => (
-          <CustomerTagOptions
-            tagId={filter?.values[0]}
-            selectedTag={knownTag}
-            loadTag={loadTag}
-            onChange={selectTag}
+          <CustomerTagFilter
+            selected={filter?.values ?? []}
+            labelLookupFailed={tagIds.some(
+              (id) => !pageTags.has(id) && tagLabels.get(id)?.retryable
+            )}
+            onRetryLabels={retryTagLabels}
+            onToggle={toggleTag}
           />
         ),
       },
       {
         ...ownerField,
         accessor: (customer) => customer.ownerUserId,
-        options: withSelectedOption(
+        options: withSelectedOptions(
           dictionaries?.owners ?? [],
-          query.ownerUserId,
+          customerFilterValues(query.ownerUserId),
           dictionaries || dictionaryError ? "所选业务员不可用" : pending
         ),
         renderFilterValue: dictionaryState,
@@ -276,14 +307,13 @@ export function useCustomerListFilters(
   }, [
     dictionaries,
     dictionaryError,
-    knownTag,
-    loadTag,
+    pageTags,
     query.channelCode,
     query.ownerUserId,
-    selectTag,
-    tagId,
-    tagLookup?.id,
-    tagLookup?.message,
+    retryTagLabels,
+    tagIds,
+    tagLabels,
+    toggleTag,
   ]);
 
   const filters = useMemo(() => readFilters(query), [query]);

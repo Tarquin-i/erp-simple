@@ -20,14 +20,19 @@ export type Customer = {
 type PageQuery = { search?: string; page?: number; pageSize?: number };
 type PageMetadata = { page: number; pageSize: number; total: number };
 
-export type CustomerFilterOperator = "is" | "is not";
+export type CustomerFilterOperator =
+  | "is"
+  | "is not"
+  | "is any of"
+  | "is none of";
+export type CustomerFilterValue = string | string[];
 
 export type CustomerListQuery = PageQuery & {
-  channelCode?: string;
+  channelCode?: CustomerFilterValue;
   channelOperator?: CustomerFilterOperator;
-  tagId?: string;
+  tagId?: CustomerFilterValue;
   tagOperator?: CustomerFilterOperator;
-  ownerUserId?: string;
+  ownerUserId?: CustomerFilterValue;
   ownerOperator?: CustomerFilterOperator;
 };
 
@@ -107,10 +112,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   );
 }
 
-function queryString(query: Record<string, string | number | undefined>) {
+function queryString(
+  query: Record<string, CustomerFilterValue | number | undefined>
+) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined && value !== "") params.set(key, String(value));
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(key, item);
+    } else if (value !== undefined && value !== "") {
+      params.set(key, String(value));
+    }
   }
   return params.size ? `?${params}` : "";
 }

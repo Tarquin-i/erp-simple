@@ -1,3 +1,9 @@
+import {
+  FilterMenuCheckbox,
+  FilterMenuCommand,
+  FilterMenuContent,
+  FilterMenuSearch,
+} from '@/components/shared/filter-menu'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -13,7 +19,6 @@ import {
 import {
   Popover,
   PopoverAnchor,
-  PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Slider } from '@/components/ui/slider'
@@ -66,10 +71,11 @@ function __FilterValue<TData, TType extends ColumnDataType>({
 }: FilterValueProps<TData, TType>) {
   return (
     <Popover>
-      <PopoverAnchor className="h-full" />
+      {!column.flatValueOptions && <PopoverAnchor className="h-full" />}
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
+          data-filter-part="value"
           className="m-0 h-full w-fit whitespace-nowrap rounded-none p-0 px-2 text-xs"
         >
           <FilterValueDisplay
@@ -80,10 +86,10 @@ function __FilterValue<TData, TType extends ColumnDataType>({
           />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
+      <FilterMenuContent
+        flat={column.flatValueOptions}
         align="start"
         side="bottom"
-        className="w-fit p-0 origin-(--radix-popover-content-transform-origin)"
       >
         <FilterValueController
           filter={filter}
@@ -92,7 +98,7 @@ function __FilterValue<TData, TType extends ColumnDataType>({
           strategy={strategy}
           locale={locale}
         />
-      </PopoverContent>
+      </FilterMenuContent>
     </Popover>
   )
 }
@@ -169,6 +175,9 @@ export function FilterValueOptionDisplay<TData>({
 }: FilterValueDisplayProps<TData, 'option'>) {
   const options = useMemo(() => column.getOptions(), [column])
   const selected = options.filter((o) => filter?.values.includes(o.value))
+  if (column.flatValueOptions && filter.values.length > 1) {
+    return <span>{filter.values.length} 项</span>
+  }
 
   // We display the selected options based on how many are selected
   //
@@ -188,7 +197,7 @@ export function FilterValueOptionDisplay<TData>({
           ) : (
             <Icon className="size-4 text-primary" />
           ))}
-        <span>{label}</span>
+        <span data-filter-part="value-label">{label}</span>
       </span>
     )
   }
@@ -430,12 +439,14 @@ function __FilterValueController<TData, TType extends ColumnDataType>({
 interface OptionItemProps {
   option: ColumnOptionExtended
   onToggle: (value: string, checked: boolean) => void
+  flat?: boolean
 }
 
 // Memoized option item to prevent re-renders unless its own props change
 const OptionItem = memo(function OptionItem({
   option,
   onToggle,
+  flat,
 }: OptionItemProps) {
   const { value, label, icon: Icon, selected, count } = option
   const handleSelect = useCallback(() => {
@@ -445,14 +456,21 @@ const OptionItem = memo(function OptionItem({
   return (
     <CommandItem
       key={value}
+      value={flat ? value : undefined}
+      keywords={flat ? [label] : undefined}
+      aria-checked={flat ? Boolean(selected) : undefined}
       onSelect={handleSelect}
       className="group flex items-center justify-between gap-1.5"
     >
       <div className="flex items-center gap-1.5">
-        <Checkbox
-          checked={Boolean(selected)}
-          className="opacity-0 data-[state=checked]:opacity-100 group-data-[selected=true]:opacity-100 dark:border-ring mr-1"
-        />
+        {flat ? (
+          <FilterMenuCheckbox checked={Boolean(selected)} />
+        ) : (
+          <Checkbox
+            checked={Boolean(selected)}
+            className="opacity-0 data-[state=checked]:opacity-100 group-data-[selected=true]:opacity-100 dark:border-ring mr-1"
+          />
+        )}
         {Icon &&
           (isValidElement(Icon) ? (
             Icon
@@ -499,6 +517,27 @@ export function FilterValueOptionController<TData>({
     },
     [actions, column],
   )
+
+  if (column.flatValueOptions) {
+    return (
+      <FilterMenuCommand loop>
+        <FilterMenuSearch autoFocus placeholder={t('search', locale)} />
+        <CommandEmpty>{t('noresults', locale)}</CommandEmpty>
+        <CommandList aria-multiselectable>
+          <CommandGroup>
+            {options.map((option) => (
+              <OptionItem
+                key={option.value}
+                option={option}
+                onToggle={handleToggle}
+                flat
+              />
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </FilterMenuCommand>
+    )
+  }
 
   const selectedOptions = options.filter((option) => option.initialSelected)
   const unselectedOptions = options.filter((option) => !option.initialSelected)
