@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { customer, product } from "@repo/db/schema";
+import { customer, payout, product } from "@repo/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 
@@ -227,6 +227,16 @@ export function archiveProduct(
       "archive"
     );
     if (current.status === "archived") return productView(current, owner);
+
+    // Payout 新建会共享锁定产品。等待它提交后，在当前写锁内核对有效奖表。
+    const [activePayout] = await tx
+      .select({ id: payout.id })
+      .from(payout)
+      .where(and(eq(payout.productId, id), eq(payout.status, "active")))
+      .limit(1);
+    if (activePayout) {
+      conflict("product_payout_conflict", "请先归档该产品的有效 Payout。");
+    }
 
     const [archived] = await tx
       .update(product)

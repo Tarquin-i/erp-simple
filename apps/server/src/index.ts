@@ -7,6 +7,7 @@ import { auth, database } from "./modules/identity/auth/better-auth";
 import { departmentAdminRoutes } from "./modules/organization/admin-routes";
 import { departmentApplicationRoutes } from "./modules/organization/application-routes";
 import { organizationReadRoutes } from "./modules/organization/read-routes";
+import { payoutRoutes } from "./modules/payout/routes";
 import { productRoutes } from "./modules/product/routes";
 
 const app = new Hono();
@@ -20,6 +21,7 @@ app.route("/api/customers", customerRoutes);
 app.route("/api/addresses", addressRoutes);
 app.route("/api/communications", communicationRoutes);
 app.route("/api/products", productRoutes);
+app.route("/api/payouts", payoutRoutes);
 
 // 接收请求前检查数据库连通性。检查失败时先关闭连接池，再中止启动。
 try {
