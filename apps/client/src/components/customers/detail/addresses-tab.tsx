@@ -22,15 +22,16 @@ export default function CustomerAddressesTab({
     <>
       {createActionSlot &&
         createPortal(
-          <Button asChild>
+          <Button asChild size="icon">
             <Link
               to="/addresses/new"
               search={{ customerId: customer.id }}
               state={{ customerListQuery: readListQueryFromState(state) }}
+              aria-label="新建地址"
+              title="新建地址"
               preload={false}
             >
               <Plus aria-hidden="true" />
-              新建地址
             </Link>
           </Button>,
           createActionSlot

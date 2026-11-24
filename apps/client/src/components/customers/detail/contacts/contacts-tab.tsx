@@ -453,14 +453,15 @@ export function CustomerContacts({
         createPortal(
           <Button
             ref={addButton}
+            type="button"
+            size="icon"
             aria-label="新建联系人"
-            className="h-8 px-3"
+            title="新建联系人"
             onClick={(event) =>
               openEditor({ kind: "create" }, event.currentTarget)
             }
           >
-            <Plus data-icon="inline-start" />
-            新建
+            <Plus aria-hidden="true" />
           </Button>,
           addButtonSlot
         )}

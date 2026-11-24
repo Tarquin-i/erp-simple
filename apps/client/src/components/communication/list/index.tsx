@@ -302,20 +302,15 @@ export function CommunicationList({
         {opening ? "正在等待保存结果…" : pendingCreationLabel}
       </Button>
     ) : (
-      <Button
-        asChild
-        className={customerId ? "px-3" : undefined}
-        size={customerId ? "default" : "icon"}
-      >
+      <Button asChild size="icon">
         <Link
           aria-label="新建沟通"
-          title={customerId ? undefined : "新建沟通"}
+          title="新建沟通"
           to="/communication/new"
           search={origin}
           state={navigationState}
         >
-          <Plus data-icon="inline-start" />
-          {customerId && "新建"}
+          <Plus aria-hidden="true" />
         </Link>
       </Button>
     ));
