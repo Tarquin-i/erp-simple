@@ -3,6 +3,7 @@ import { Hono } from "hono";
 
 import { requireBusinessAccess } from "../business/access";
 import type { BusinessAccessEnv } from "../business/access";
+import { readListOptionFilter } from "../business/list-option-filter";
 import {
   readExpectedVersion,
   readObject,
@@ -31,13 +32,12 @@ const createFields = [
 const editableFields = ["title", "summary", "ownerUserId", "status", "tagIds"];
 
 /**
- * 校验沟通状态，省略时沿用当前值或不应用状态筛选。
+ * 校验单个沟通状态。
  * @param value 请求中的状态值。
- * @returns 沟通状态或 `undefined`。
+ * @returns 沟通状态。
  * @throws 状态不在数据库枚举中时抛出 HTTP 400。
  */
 function readStatus(value: unknown) {
-  if (value === undefined) return undefined;
   const status = communicationStatus.enumValues.find((item) => item === value);
   if (status === undefined) fail(400, "沟通状态不正确。");
   return status;
@@ -88,18 +88,30 @@ communicationRoutes.route("/", communicationDictionaryRoutes);
 communicationRoutes.route("/", communicationAttachmentRoutes);
 
 communicationRoutes.get("/", async (c) => {
-  const { search, customerId, status, tagId, ownerUserId, page, pageSize } =
-    c.req.query();
+  const query = c.req.queries();
+  const { search, customerId, page, pageSize } = c.req.query();
   const result = await listCommunications(c.get("businessAccess"), {
     search: search?.trim() ? readString(search, "搜索词", 256) : undefined,
     customerId:
       customerId === undefined ? undefined : readUuid(customerId, "客户 ID"),
-    status: readStatus(status),
-    tagId: tagId === undefined ? undefined : readUuid(tagId, "标签 ID"),
-    ownerUserId:
-      ownerUserId === undefined
-        ? undefined
-        : readString(ownerUserId, "业务员 ID", 128),
+    statuses: readListOptionFilter(
+      query.status,
+      query.statusOperator,
+      "状态",
+      readStatus
+    ),
+    tags: readListOptionFilter(
+      query.tagId,
+      query.tagOperator,
+      "标签",
+      (value) => readUuid(value, "标签 ID")
+    ),
+    owners: readListOptionFilter(
+      query.ownerUserId,
+      query.ownerOperator,
+      "业务员",
+      (value) => readString(value, "业务员 ID", 128)
+    ),
     page: readPositiveInteger(page, "页码", 1, 1_000_000),
     pageSize: readPositiveInteger(pageSize, "每页条数", 20, 100),
   });
@@ -151,7 +163,10 @@ communicationRoutes.patch("/:communicationId", async (c) => {
   const communication = await updateCommunication(
     c.get("businessAccess"),
     id,
-    { ...readCommunicationWrite(body), status: readStatus(body.status) },
+    {
+      ...readCommunicationWrite(body),
+      status: body.status === undefined ? undefined : readStatus(body.status),
+    },
     readExpectedVersion(body.expectedVersion)
   );
   return c.json({ communication });

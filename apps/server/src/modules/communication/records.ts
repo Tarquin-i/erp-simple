@@ -14,6 +14,8 @@ import {
   eq,
   exists,
   inArray,
+  notExists,
+  notInArray,
   or,
   sql,
 } from "drizzle-orm";
@@ -27,6 +29,7 @@ import {
   withBusinessReadSnapshot,
 } from "../business/access";
 import type { BusinessAccess } from "../business/access";
+import type { ListOptionFilter } from "../business/list-option-filter";
 import { failVersionConflict, isConstraintError } from "../customer/input";
 import {
   lockCustomerForWrite,
@@ -42,9 +45,9 @@ type CommunicationStatus = typeof communication.$inferSelect.status;
 interface CommunicationFilters {
   search?: string;
   customerId?: string;
-  status?: CommunicationStatus;
-  tagId?: string;
-  ownerUserId?: string;
+  statuses?: ListOptionFilter<CommunicationStatus>;
+  tags?: ListOptionFilter;
+  owners?: ListOptionFilter;
   page: number;
   pageSize: number;
 }
@@ -128,8 +131,11 @@ export function listCommunications(
   access: BusinessAccess,
   filters: CommunicationFilters
 ) {
-  const { page, pageSize, search, customerId, status, tagId, ownerUserId } =
+  const { page, pageSize, search, customerId, statuses, tags, owners } =
     filters;
+  const statusMatches = statuses?.excluded ? notInArray : inArray;
+  const tagMatches = tags?.excluded ? notExists : exists;
+  const ownerMatches = owners?.excluded ? notInArray : inArray;
   return withBusinessReadSnapshot(access.userId, async (tx, freshAccess) => {
     if (customerId !== undefined) {
       const [visibleCustomer] = await tx
@@ -149,13 +155,15 @@ export function listCommunications(
       customerId === undefined
         ? undefined
         : eq(communication.customerId, customerId),
-      status === undefined ? undefined : eq(communication.status, status),
-      ownerUserId === undefined
+      statuses
+        ? statusMatches(communication.status, statuses.values)
+        : undefined,
+      owners
+        ? ownerMatches(communication.ownerUserId, owners.values)
+        : undefined,
+      tags === undefined
         ? undefined
-        : eq(communication.ownerUserId, ownerUserId),
-      tagId === undefined
-        ? undefined
-        : exists(
+        : tagMatches(
             tx
               .select({ id: communicationTagAssignment.tagId })
               .from(communicationTagAssignment)
@@ -165,7 +173,7 @@ export function listCommunications(
                     communicationTagAssignment.communicationId,
                     communication.id
                   ),
-                  eq(communicationTagAssignment.tagId, tagId)
+                  inArray(communicationTagAssignment.tagId, tags.values)
                 )
               )
           ),
