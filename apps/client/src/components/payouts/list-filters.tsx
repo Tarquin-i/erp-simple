@@ -90,7 +90,12 @@ function updateProductFilter(
     return query;
   }
 
-  return { productId: listOptionValue(values), productOperator: nextOperator };
+  return {
+    ...query,
+    productId: listOptionValue(values),
+    productOperator: nextOperator,
+    page: undefined,
+  };
 }
 
 export function usePayoutListFilters(

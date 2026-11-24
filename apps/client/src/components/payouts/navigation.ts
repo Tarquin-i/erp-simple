@@ -4,20 +4,14 @@ import {
   listOptionValue,
   readListOptionValues,
 } from "@/lib/list-option-query";
-import type {
-  ListOptionOperator,
-  ListOptionValue,
-} from "@/lib/list-option-query";
+import type { PayoutListQuery } from "@/request/payouts";
 
 const uuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu;
 
-export type PayoutListSearch = {
-  productId?: ListOptionValue;
-  productOperator?: ListOptionOperator;
-  page?: number;
-};
+export type PayoutListSearch = Omit<PayoutListQuery, "pageSize">;
 
 export function readPayoutListSearch({
+  search,
   productId,
   productOperator,
   page,
@@ -27,7 +21,9 @@ export function readPayoutListSearch({
       ? value.toLowerCase()
       : undefined
   );
+  const term = typeof search === "string" ? search.trim().slice(0, 256) : "";
   return {
+    search: term || undefined,
     productId: listOptionValue(products),
     productOperator: listOptionOperator(products.length, productOperator),
     page: readProductPage(page),
@@ -36,6 +32,7 @@ export function readPayoutListSearch({
 
 export function payoutListOrigin(query: PayoutListSearch) {
   return {
+    listSearch: query.search,
     listProductId: query.productId,
     listProductOperator: query.productOperator,
     listPage: query.page,
@@ -44,6 +41,7 @@ export function payoutListOrigin(query: PayoutListSearch) {
 
 export function payoutListSearchFromOrigin(search: Record<string, unknown>) {
   return readPayoutListSearch({
+    search: search.listSearch,
     productId: search.listProductId,
     productOperator: search.listProductOperator,
     page: search.listPage,

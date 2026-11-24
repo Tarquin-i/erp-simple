@@ -53,6 +53,7 @@ export interface PayoutDetailRecord extends PayoutListItem {
 }
 
 export type PayoutListQuery = {
+  search?: string;
   productId?: ListOptionValue;
   productOperator?: ListOptionOperator;
   page?: number;

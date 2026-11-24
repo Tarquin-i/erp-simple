@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { CircleDollarSign, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
+import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { CustomerPagination } from "@/components/shared/pagination";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,9 +72,13 @@ export function PayoutList({
 }) {
   const [load, setLoad] = useState<ListState>();
   const [retry, setRetry] = useState(0);
-  const { productId, productOperator, page = 1 } = query;
-  const key = JSON.stringify([productId, productOperator, page, retry]);
-  const activeLoad = load?.key === key ? load : undefined;
+  const { search = "", productId, productOperator, page = 1 } = query;
+  const [searchDraft, setSearchDraft] = useState(search);
+  const lastSubmittedSearch = useRef<string | undefined>(undefined);
+  const trimmedSearch = searchDraft.trim();
+  const key = JSON.stringify([search, productId, productOperator, page, retry]);
+  const activeLoad =
+    load?.key === key && trimmedSearch === search ? load : undefined;
   const result = activeLoad?.result;
   const pageCount = result
     ? Math.max(1, Math.ceil(result.total / result.pageSize))
@@ -86,9 +91,34 @@ export function PayoutList({
   );
 
   useEffect(() => {
+    const submitted = lastSubmittedSearch.current;
+    lastSubmittedSearch.current = undefined;
+    if (submitted !== search) setSearchDraft(search);
+  }, [search]);
+
+  useEffect(() => {
+    if (trimmedSearch === search) return;
+    const timer = window.setTimeout(() => {
+      lastSubmittedSearch.current = trimmedSearch;
+      onChangeQuery(
+        (previous) => ({
+          ...previous,
+          search: trimmedSearch || undefined,
+          page: undefined,
+        }),
+        true
+      );
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [trimmedSearch, search, onChangeQuery]);
+
+  useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
-    void listPayouts({ productId, productOperator, page }, signal).then(
+    void listPayouts(
+      { search: search || undefined, productId, productOperator, page },
+      signal
+    ).then(
       (result) => {
         if (!signal.aborted) setLoad({ key, result });
       },
@@ -105,7 +135,7 @@ export function PayoutList({
       }
     );
     return () => controller.abort();
-  }, [key, page, productId, productOperator]);
+  }, [key, page, productId, productOperator, search]);
 
   useEffect(() => {
     if (result && result.page > pageCount)
@@ -123,6 +153,15 @@ export function PayoutList({
       <ListFilterToolbar
         title="Payout"
         filterModel={filterModel}
+        search={
+          <ListSearchInput
+            aria-label="搜索 Payout"
+            placeholder="奖表或产品名称"
+            maxLength={256}
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
+          />
+        }
         actions={
           <Button asChild size="icon">
             <Link
@@ -174,8 +213,8 @@ export function PayoutList({
               <CircleDollarSign aria-hidden="true" />
             </EmptyMedia>
             <EmptyTitle>
-              {filterModel.filters.length
-                ? "没有符合筛选条件的 Payout"
+              {search || filterModel.filters.length
+                ? "没有找到符合条件的 Payout"
                 : "暂无 Payout"}
             </EmptyTitle>
           </EmptyHeader>
