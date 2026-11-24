@@ -5,6 +5,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
 import { useCallback } from "react";
 
 import { readCommunicationPage } from "@/components/communication/navigation";
@@ -111,6 +112,20 @@ function CustomerDetailRoute() {
       key={customer.id}
       customer={customer}
       activeTab={tab ?? "contacts"}
+      createProductAction={
+        <Button asChild size="icon">
+          <Link
+            to="/products/new"
+            search={{ customerId: customer.id, productPage }}
+            state={productLinkState}
+            aria-label="新建产品"
+            title="新建产品"
+            preload={false}
+          >
+            <Plus aria-hidden="true" />
+          </Link>
+        </Button>
+      }
       productsTab={
         <CustomerProductsTab
           customerId={customer.id}

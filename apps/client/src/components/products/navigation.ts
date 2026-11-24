@@ -84,6 +84,20 @@ export function readProductPage(value: unknown) {
   return page === 1 ? undefined : page;
 }
 
+function readProductCustomerId(value: unknown) {
+  return typeof value === "string" && uuidPattern.test(value)
+    ? value.toLowerCase()
+    : undefined;
+}
+
+export function readNewProductSearch(search: Record<string, unknown>) {
+  const customerId = readProductCustomerId(search.customerId);
+  return {
+    customerId,
+    productPage: customerId ? readProductPage(search.productPage) : undefined,
+  };
+}
+
 export function readProductListQuery(
   search: Record<string, unknown>
 ): ProductListQuery {
@@ -91,12 +105,8 @@ export function readProductListQuery(
   const term =
     typeof search.search === "string" ? search.search.trim().slice(0, 256) : "";
   if (term) query.search = term;
-  if (
-    typeof search.customerId === "string" &&
-    uuidPattern.test(search.customerId)
-  ) {
-    query.customerId = search.customerId.toLowerCase();
-  }
+  const customerId = readProductCustomerId(search.customerId);
+  if (customerId) query.customerId = customerId;
   const values = Array.isArray(search.productTypes)
     ? search.productTypes
     : typeof search.productTypes === "string"

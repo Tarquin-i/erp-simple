@@ -5,19 +5,34 @@ import {
 } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 
+import type { CustomerChoice } from "@/components/communication/form/customer-field";
 import { ProductForm, readProductDraft } from "@/components/products/form";
 import {
+  ProductFormPending,
+  ProductPageError,
+} from "@/components/products/load-state";
+import {
   isSameProductEntry,
+  productListDestination,
   productListOrigin,
+  readNewProductSearch,
+  replaceProductEntryAndGoBack,
 } from "@/components/products/navigation";
 import { productFormIssue } from "@/components/products/save-state";
 import type { ProductFormIssue } from "@/components/products/save-state";
 import { toastManager } from "@/components/ui/toast";
 import { createUuid } from "@/lib/uuid";
+import { getCustomer } from "@/request/customers";
 import { createProduct, ProductApiError } from "@/request/products";
 import type { ProductCreateInput } from "@/request/products";
 
 export const Route = createFileRoute("/_protected/products/new")({
+  validateSearch: readNewProductSearch,
+  loaderDeps: ({ search: { customerId } }) => ({ customerId }),
+  loader: ({ deps: { customerId }, abortController }) =>
+    customerId ? getCustomer(customerId, abortController.signal) : undefined,
+  pendingComponent: ProductFormPending,
+  errorComponent: ProductPageError,
   component: NewProductPage,
 });
 
@@ -25,19 +40,55 @@ type Submission = { id: string; input: ProductCreateInput };
 
 function NewProductPage() {
   const { viewer } = Route.useRouteContext();
-  return <NewProductSession key={viewer.account.id} />;
+  const customer = Route.useLoaderData()?.customer;
+  return (
+    <NewProductSession
+      key={JSON.stringify([viewer.account.id, customer?.id])}
+      customer={customer}
+    />
+  );
 }
 
-function NewProductSession() {
+function NewProductSession({ customer }: { customer?: CustomerChoice }) {
+  const { productPage } = Route.useSearch();
   const { state } = useLocation();
   const navigate = Route.useNavigate();
   const router = useRouter();
-  const [draft, setDraft] = useState(readProductDraft);
+  const [draft, setDraft] = useState(() => ({
+    ...readProductDraft(),
+    customer: customer ?? null,
+  }));
   const [issue, setIssue] = useState<ProductFormIssue>();
   const [retry, setRetry] = useState<Submission>();
   const [pending, setPending] = useState(false);
   const submitting = useRef(false);
-  const productListQuery = state.productListQuery;
+  const customerOrigin = customer
+    ? { customerId: customer.id, page: productPage }
+    : undefined;
+  const canUseCustomerListEntry =
+    state.productCustomerList?.customerId === customerOrigin?.customerId &&
+    state.productCustomerList?.page === customerOrigin?.page;
+  const listOrigin = productListOrigin({
+    ...state,
+    productCustomerList: customerOrigin,
+    productListEntryIndex: canUseCustomerListEntry
+      ? state.productListEntryIndex
+      : undefined,
+  });
+
+  function cancel() {
+    const destination = productListDestination(listOrigin);
+    if (
+      customerOrigin &&
+      listOrigin.productListEntryIndex === state.__TSR_index - 1 &&
+      router.history.canGoBack()
+    ) {
+      const { publicHref } = router.buildLocation(destination);
+      replaceProductEntryAndGoBack(router.history, publicHref);
+      return;
+    }
+    void navigate({ ...destination, replace: true });
+  }
 
   async function save(input: ProductCreateInput) {
     if (submitting.current) return;
@@ -54,7 +105,7 @@ function NewProductSession() {
       await navigate({
         to: "/products/$productId",
         params: { productId: product.id },
-        state: productListOrigin(state),
+        state: listOrigin,
         replace: true,
       });
     } catch (failure) {
@@ -81,6 +132,7 @@ function NewProductSession() {
     <ProductForm
       title="新建产品"
       draft={draft}
+      customerLocked={Boolean(customer)}
       fieldsLocked={Boolean(retry)}
       saveLabel={retry ? "重试保存" : undefined}
       pending={pending}
@@ -91,13 +143,7 @@ function NewProductSession() {
         setIssue(undefined);
       }}
       onSubmit={(input) => void save(input)}
-      onCancel={() =>
-        void navigate({
-          to: "/products",
-          search: productListQuery ?? {},
-          replace: true,
-        })
-      }
+      onCancel={cancel}
     />
   );
 }

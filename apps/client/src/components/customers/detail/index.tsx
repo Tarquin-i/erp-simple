@@ -92,11 +92,13 @@ export function CustomerDetail({
   customer,
   activeTab,
   productsTab,
+  createProductAction,
   onTabChange,
 }: {
   customer: Customer;
   activeTab: CustomerDetailTab;
   productsTab: ReactNode;
+  createProductAction: ReactNode;
   onTabChange: (tab: CustomerDetailTab) => void;
 }) {
   // 客户关联页签共用页签栏右侧的新建位置。
@@ -232,7 +234,9 @@ export function CustomerDetail({
           <div
             ref={setTabActionsSlot}
             className="ml-auto shrink-0 empty:hidden"
-          />
+          >
+            {activeTab === "products" && createProductAction}
+          </div>
         </div>
         <TabsContent value="contacts">
           <CustomerContacts
