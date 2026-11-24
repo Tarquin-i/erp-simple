@@ -90,7 +90,10 @@ function readProductCustomerId(value: unknown) {
     : undefined;
 }
 
-export function readNewProductSearch(search: Record<string, unknown>) {
+export function readNewProductSearch(search: Record<string, unknown>): {
+  customerId?: string;
+  productPage?: number;
+} {
   const customerId = readProductCustomerId(search.customerId);
   return {
     customerId,

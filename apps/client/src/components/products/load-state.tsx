@@ -8,6 +8,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CustomerApiError } from "@/request/customers";
 import { ProductApiError } from "@/request/products";
 
 import { productListDestination } from "./navigation";
@@ -66,14 +67,16 @@ export function ProductPageError({
 }) {
   const router = useRouter();
   const { state } = useLocation();
+  const resource = error instanceof CustomerApiError ? "客户" : "产品";
   const unavailable =
-    error instanceof ProductApiError && [403, 404].includes(error.status);
+    (error instanceof ProductApiError || error instanceof CustomerApiError) &&
+    [403, 404].includes(error.status);
   return (
     <main className="min-w-0 flex-1 bg-background p-5 sm:p-6">
       <Empty className="min-h-56 border">
         <EmptyHeader>
           <EmptyTitle>
-            {unavailable ? "无法查看此产品" : "暂时无法加载产品"}
+            {unavailable ? `无法查看此${resource}` : `暂时无法加载${resource}`}
           </EmptyTitle>
           <EmptyDescription>
             {error instanceof Error ? error.message : "请稍后重试。"}
