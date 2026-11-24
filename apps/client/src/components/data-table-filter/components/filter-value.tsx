@@ -347,7 +347,7 @@ export function FilterValueNumberDisplay<TData>({
 /****** Property Filter Value Controller ******/
 
 interface FilterValueControllerProps<TData, TType extends ColumnDataType> {
-  filter: FilterModel<TType>
+  filter?: FilterModel<TType>
   column: Column<TData, TType>
   actions: DataTableFilterActions
   strategy: FilterStrategy
@@ -366,16 +366,22 @@ function __FilterValueController<TData, TType extends ColumnDataType>({
   locale = 'en',
 }: FilterValueControllerProps<TData, TType>) {
   switch (column.type) {
-    case 'option':
+    case 'option': {
+      const optionColumn = column as Column<TData, 'option'>
+      const optionFilter = filter as FilterModel<'option'> | undefined
+      if (optionColumn.renderFilterValue)
+        return optionColumn.renderFilterValue(optionFilter, actions)
+
       return (
         <FilterValueOptionController
-          filter={filter as FilterModel<'option'>}
-          column={column as Column<TData, 'option'>}
+          filter={optionFilter}
+          column={optionColumn}
           actions={actions}
           strategy={strategy}
           locale={locale}
         />
       )
+    }
     case 'multiOption':
       return (
         <FilterValueMultiOptionController
@@ -422,7 +428,7 @@ function __FilterValueController<TData, TType extends ColumnDataType>({
 }
 
 interface OptionItemProps {
-  option: ColumnOptionExtended & { initialSelected: boolean }
+  option: ColumnOptionExtended
   onToggle: (value: string, checked: boolean) => void
 }
 
@@ -444,7 +450,7 @@ const OptionItem = memo(function OptionItem({
     >
       <div className="flex items-center gap-1.5">
         <Checkbox
-          checked={selected}
+          checked={Boolean(selected)}
           className="opacity-0 data-[state=checked]:opacity-100 group-data-[selected=true]:opacity-100 dark:border-ring mr-1"
         />
         {Icon &&
@@ -476,25 +482,15 @@ export function FilterValueOptionController<TData>({
   actions,
   locale = 'en',
 }: FilterValueControllerProps<TData, 'option'>) {
-  // Compute initial options once per mount
-  const initialOptions = useMemo(() => {
-    const counts = column.getFacetedUniqueValues()
-    return column.getOptions().map((o) => ({
-      ...o,
-      selected: filter?.values.includes(o.value),
-      initialSelected: filter?.values.includes(o.value),
-      count: counts?.get(o.value) ?? 0,
-    }))
-  }, [])
-
-  const [options, setOptions] = useState(initialOptions)
-
-  // Update selected state when filter values change
-  useEffect(() => {
-    setOptions((prev) =>
-      prev.map((o) => ({ ...o, selected: filter?.values.includes(o.value) })),
-    )
-  }, [filter?.values])
+  // Keep the grouping stable while the menu is open, even as options arrive.
+  const [initialSelection] = useState(() => new Set(filter?.values))
+  const counts = column.getFacetedUniqueValues()
+  const options = column.getOptions().map((option) => ({
+    ...option,
+    selected: filter?.values.includes(option.value) ?? false,
+    initialSelected: initialSelection.has(option.value),
+    count: counts?.get(option.value),
+  }))
 
   const handleToggle = useCallback(
     (value: string, checked: boolean) => {
@@ -504,16 +500,8 @@ export function FilterValueOptionController<TData>({
     [actions, column],
   )
 
-  // Derive groups based on `initialSelected` only
-  const { selectedOptions, unselectedOptions } = useMemo(() => {
-    const sel: typeof options = []
-    const unsel: typeof options = []
-    for (const o of options) {
-      if (o.initialSelected) sel.push(o)
-      else unsel.push(o)
-    }
-    return { selectedOptions: sel, unselectedOptions: unsel }
-  }, [options])
+  const selectedOptions = options.filter((option) => option.initialSelected)
+  const unselectedOptions = options.filter((option) => !option.initialSelected)
 
   return (
     <Command loop>

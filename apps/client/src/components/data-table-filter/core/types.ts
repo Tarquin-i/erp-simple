@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 /*
  * # GENERAL NOTES:
@@ -111,6 +112,12 @@ export type ColumnConfig<
   icon: LucideIcon
   type: TType
   options?: TType extends OptionBasedColumnDataType ? ColumnOption[] : never
+  renderFilterValue?: TType extends 'option'
+    ? (
+        filter: FilterModel<'option'> | undefined,
+        actions: DataTableFilterActions,
+      ) => ReactNode
+    : never
   facetedOptions?: TType extends OptionBasedColumnDataType
     ? Map<string, number>
     : never

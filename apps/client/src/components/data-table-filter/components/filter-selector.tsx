@@ -43,6 +43,8 @@ interface FilterSelectorProps<TData> {
   actions: DataTableFilterActions
   strategy: FilterStrategy
   locale?: Locale
+  trigger?: React.ReactElement
+  align?: 'start' | 'center' | 'end'
 }
 
 export const FilterSelector = memo(__FilterSelector) as typeof __FilterSelector
@@ -53,6 +55,8 @@ function __FilterSelector<TData>({
   actions,
   strategy,
   locale = 'en',
+  trigger,
+  align = 'start',
 }: FilterSelectorProps<TData>) {
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState('')
@@ -82,7 +86,7 @@ function __FilterSelector<TData>({
     () =>
       property && column ? (
         <FilterValueController
-          filter={filter!}
+          filter={filter}
           column={column as Column<TData, ColumnDataType>}
           actions={actions}
           strategy={strategy}
@@ -138,16 +142,18 @@ function __FilterSelector<TData>({
       }}
     >
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn('h-7', hasFilters && 'w-fit !px-2')}
-        >
-          <FilterIcon className="size-4" />
-          {!hasFilters && <span>{t('filter', locale)}</span>}
-        </Button>
+        {trigger ?? (
+          <Button
+            variant="outline"
+            className={cn('h-7', hasFilters && 'w-fit !px-2')}
+          >
+            <FilterIcon className="size-4" />
+            {!hasFilters && <span>{t('filter', locale)}</span>}
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent
-        align="start"
+        align={align}
         side="bottom"
         className="w-fit p-0 origin-(--radix-popover-content-transform-origin)"
       >
@@ -241,12 +247,8 @@ function __QuickSearchFilters<TData>({
 }: QuickSearchFiltersProps<TData>) {
   if (!search || search.trim().length < 2) return null
 
-  const cols = useMemo(
-    () =>
-      columns.filter((c) =>
-        isAnyOf<ColumnDataType>(c.type, ['option', 'multiOption']),
-      ),
-    [columns],
+  const cols = columns.filter((column) =>
+    isAnyOf<ColumnDataType>(column.type, ['option', 'multiOption']),
   )
 
   return (
@@ -265,7 +267,7 @@ function __QuickSearchFilters<TData>({
           <React.Fragment key={column.id}>
             {options.map((v) => {
               const checked = Boolean(filter?.values.includes(v.value))
-              const count = optionsCount?.get(v.value) ?? 0
+              const count = optionsCount?.get(v.value)
 
               return (
                 <CommandItem
@@ -299,12 +301,14 @@ function __QuickSearchFilters<TData>({
                         {v.label}
                         <sup
                           className={cn(
-                            !optionsCount && 'hidden',
+                            count == null && 'hidden',
                             'ml-0.5 tabular-nums tracking-tight text-muted-foreground',
                             count === 0 && 'slashed-zero',
                           )}
                         >
-                          {count < 100 ? count : '100+'}
+                          {typeof count === 'number'
+                            ? (count < 100 ? count : '100+')
+                            : ''}
                         </sup>
                       </span>
                     </div>
