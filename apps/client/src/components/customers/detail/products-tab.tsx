@@ -1,7 +1,7 @@
 import { type HistoryState, Link } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { CustomerPagination } from "@/components/customers/pagination";
+import { CustomerPagination } from "@/components/shared/pagination";
 import { Button } from "@/components/ui/button";
 import {
   Empty,

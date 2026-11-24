@@ -3,6 +3,9 @@ import { ContactRound, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
+import { ListSearchInput } from "@/components/shared/list-toolbar";
+import { CustomerPagination } from "@/components/shared/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +15,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { ListFilterToolbar } from "@/components/ui/list-filter-toolbar";
-import { ListSearchInput } from "@/components/ui/list-toolbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -28,7 +29,6 @@ import {
 import { listCustomers } from "@/request/customers";
 import type { CustomerListQuery } from "@/request/customers";
 
-import { CustomerPagination } from "../pagination";
 import { useCustomerListFilters } from "./filters";
 
 type CustomerPage = Awaited<ReturnType<typeof listCustomers>>;

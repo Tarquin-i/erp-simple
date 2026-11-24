@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 
-import type { CustomerChoice } from "@/components/communication/form/customer-field";
+import type { CustomerChoice } from "@/components/shared/customer-field";
 import { ProductForm, readProductDraft } from "@/components/products/form";
 import {
   ProductFormPending,
@@ -20,7 +20,7 @@ import {
 } from "@/components/products/navigation";
 import { productFormIssue } from "@/components/products/save-state";
 import type { ProductFormIssue } from "@/components/products/save-state";
-import { toastManager } from "@/components/ui/toast";
+import { toastManager } from "@/components/shared/toast";
 import { createUuid } from "@/lib/uuid";
 import { getCustomer } from "@/request/customers";
 import { createProduct, ProductApiError } from "@/request/products";

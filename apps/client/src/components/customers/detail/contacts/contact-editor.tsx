@@ -14,11 +14,15 @@ import {
   useState,
 } from "react";
 
+import {
+  PhoneNumberInput,
+  readPhoneDraft,
+} from "@/components/shared/phone-number-input";
+import { keepDialogOpenOnComboboxEscape } from "@/components/shared/searchable-select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { keepDialogOpenOnComboboxEscape } from "@/components/ui/searchable-select";
 import {
   Select,
   SelectContent,
@@ -47,7 +51,6 @@ import {
   sameContactValue,
 } from "./method-value";
 import type { ContactChange, ContactEditSnapshot } from "./mutations";
-import { PhoneNumberInput, readPhoneDraft } from "./phone-number-input";
 
 export type ContactEditorMode =
   | { kind: "create" }

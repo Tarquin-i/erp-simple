@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Package, Plus } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { CustomerPagination } from "@/components/customers/pagination";
+import { CustomerPagination } from "@/components/shared/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,13 +16,13 @@ import {
   ListFilterButton,
   ListSearchInput,
   ListToolbar,
-} from "@/components/ui/list-toolbar";
+} from "@/components/shared/list-toolbar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { keepDialogOpenOnComboboxEscape } from "@/components/ui/searchable-select";
+import { keepDialogOpenOnComboboxEscape } from "@/components/shared/searchable-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,

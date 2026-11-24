@@ -12,7 +12,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "@/components/shared/searchable-select";
 
 const countryPriority = new Map<CountryCode, number>([
   ["CN", 1],

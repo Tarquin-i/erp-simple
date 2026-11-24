@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FieldError } from "@/components/ui/field";
-import { toastManager } from "@/components/ui/toast";
+import { toastManager } from "@/components/shared/toast";
 import {
   AddressApiError,
   type AddressDetail,

@@ -7,12 +7,12 @@ import {
 import { CircleAlert, Save } from "lucide-react";
 import { type FormEvent, useId, useMemo, useRef, useState } from "react";
 
-import { CommunicationCustomerField } from "@/components/communication/form/customer-field";
+import { CommunicationCustomerField } from "@/components/shared/customer-field";
 import {
   PhoneNumberInput,
   readPhoneDraft,
-} from "@/components/customers/detail/contacts/phone-number-input";
-import { VersionConflictDialog } from "@/components/customers/version-conflict-dialog";
+} from "@/components/shared/phone-number-input";
+import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,7 +38,7 @@ import { Input } from "@/components/ui/input";
 import {
   keepDialogOpenOnComboboxEscape,
   SearchableSelect,
-} from "@/components/ui/searchable-select";
+} from "@/components/shared/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,

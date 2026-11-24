@@ -19,7 +19,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { readListQueryFromState } from "@/components/customers/list-query";
-import { CustomerPagination } from "@/components/customers/pagination";
+import { CustomerPagination } from "@/components/shared/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +34,7 @@ import {
   ListFilterButton,
   ListSearchInput,
   ListToolbar,
-} from "@/components/ui/list-toolbar";
+} from "@/components/shared/list-toolbar";
 import {
   Popover,
   PopoverContent,

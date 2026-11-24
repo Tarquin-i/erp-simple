@@ -10,8 +10,10 @@ import {
   SavedAttachmentUploadStatus,
 } from "@/components/communication/attachments/saved-uploads";
 import type { AttachmentUploadQueue } from "@/components/communication/attachments/use-upload-queue";
-import { VersionConflictDialog } from "@/components/customers/version-conflict-dialog";
+import { CommunicationCustomerField } from "@/components/shared/customer-field";
+import type { CustomerChoice } from "@/components/shared/customer-field";
 import { TagPicker } from "@/components/shared/option-pickers";
+import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -36,8 +38,6 @@ import type { Viewer } from "@/request/organization";
 
 import { startCreationSubmission } from "./creation-submission";
 import type { CreationRecovery } from "./creation-submission";
-import { CommunicationCustomerField } from "./customer-field";
-import type { CustomerChoice } from "./customer-field";
 import { getChanges, getDifferences, rebaseDraft, toDraft } from "./draft";
 import type { CommunicationDraft } from "./draft";
 import { CommunicationOwnerField } from "./owner-field";

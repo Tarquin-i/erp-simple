@@ -8,7 +8,7 @@ import {
 } from "@/components/addresses/load-state";
 import { readAddressListQuery } from "@/components/addresses/navigation";
 import { AddressPhoneValue } from "@/components/addresses/phone-value";
-import { CustomerPagination } from "@/components/customers/pagination";
+import { CustomerPagination } from "@/components/shared/pagination";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -16,7 +16,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { ListSearchInput, ListToolbar } from "@/components/ui/list-toolbar";
+import { ListSearchInput, ListToolbar } from "@/components/shared/list-toolbar";
 import {
   Table,
   TableBody,

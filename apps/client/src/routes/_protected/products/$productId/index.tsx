@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
-import { toastManager } from "@/components/ui/toast";
+import { toastManager } from "@/components/shared/toast";
 import {
   archiveProduct,
   getProduct,

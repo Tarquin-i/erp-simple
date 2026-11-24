@@ -19,7 +19,7 @@ import {
   readAddressDetailSearch,
 } from "@/components/addresses/navigation";
 import { Button } from "@/components/ui/button";
-import { toastManager } from "@/components/ui/toast";
+import { toastManager } from "@/components/shared/toast";
 import {
   AddressApiError,
   type AddressDetail,

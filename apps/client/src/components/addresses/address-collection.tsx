@@ -9,12 +9,12 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
-import { toastManager } from "@/components/ui/toast";
+import { toastManager } from "@/components/shared/toast";
 import {
   VirtualList,
   type VirtualListHandle,
   type VirtualScrollAnchor,
-} from "@/components/ui/virtual-list";
+} from "@/components/shared/virtual-list";
 import {
   AddressApiError,
   type AddressDetail,

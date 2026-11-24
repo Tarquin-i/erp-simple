@@ -4,7 +4,7 @@ import type { DragEvent, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
-import { toastManager } from "@/components/ui/toast";
+import { toastManager } from "@/components/shared/toast";
 import { getCommunicationAttachmentUploadLimit } from "@/request/communication-attachments";
 
 import { formatAttachmentUploadLimit } from "./file-size";

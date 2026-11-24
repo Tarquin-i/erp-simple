@@ -4,7 +4,7 @@ import { type ComponentProps, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "@/components/shared/searchable-select";
 import type { Communication } from "@/request/communication";
 import { listCustomers } from "@/request/customers";
 

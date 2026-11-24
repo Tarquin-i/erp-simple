@@ -2,7 +2,7 @@ import { cn } from "cn";
 import { Search } from "lucide-react";
 import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 
-import { Button } from "./button";
+import { Button } from "@/components/ui/button";
 import {
   Combobox,
   ComboboxContent,
@@ -11,8 +11,8 @@ import {
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
-} from "./combobox";
-import { InputGroupAddon, InputGroupButton } from "./input-group";
+} from "@/components/ui/combobox";
+import { InputGroupAddon, InputGroupButton } from "@/components/ui/input-group";
 
 type SelectOption = { name: string; keywords?: string; code?: string };
 

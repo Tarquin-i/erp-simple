@@ -14,7 +14,7 @@ import { AddressCollectionPending } from "@/components/addresses/load-state";
 import { CustomerCommunicationTab } from "@/components/communication/list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DetailField } from "@/components/ui/detail-field";
+import { DetailField } from "@/components/shared/detail-field";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Customer } from "@/request/customers";
 

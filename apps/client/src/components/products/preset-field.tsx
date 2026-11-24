@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "@/components/shared/searchable-select";
 
 export type ProductPresetOption = { name: string; value: string };
 

@@ -12,7 +12,8 @@ import type {
   FilterStrategy,
   FiltersState,
 } from "@/components/data-table-filter/core/types";
-import { ListFilterButton, ListToolbar } from "@/components/ui/list-toolbar";
+
+import { ListFilterButton, ListToolbar } from "./list-toolbar";
 
 export function ListFilterToolbar<TData>({
   title,

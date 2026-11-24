@@ -1,8 +1,8 @@
 import { Save } from "lucide-react";
 import { type FormEvent, useEffect, useId, useState } from "react";
 
-import { CommunicationCustomerField } from "@/components/communication/form/customer-field";
-import type { CustomerChoice } from "@/components/communication/form/customer-field";
+import { CommunicationCustomerField } from "@/components/shared/customer-field";
+import type { CustomerChoice } from "@/components/shared/customer-field";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -12,7 +12,7 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "@/components/shared/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import { isProductType, productTypeLabels } from "@/request/products";
 import type {

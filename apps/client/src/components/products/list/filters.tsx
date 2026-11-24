@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { CommunicationCustomerField } from "@/components/communication/form/customer-field";
-import type { CustomerChoice } from "@/components/communication/form/customer-field";
+import { CommunicationCustomerField } from "@/components/shared/customer-field";
+import type { CustomerChoice } from "@/components/shared/customer-field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldLegend, FieldSet } from "@/components/ui/field";

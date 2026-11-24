@@ -1,5 +1,6 @@
 import { DEFAULT_PHONE_COUNTRY, normalizeMobilePhone } from "@repo/phone";
 
+import { readPhoneDraft } from "@/components/shared/phone-number-input";
 import { CustomerApiError } from "@/request/customers";
 import type {
   CustomerContact,
@@ -14,7 +15,6 @@ import {
   sameContactValue,
 } from "./method-value";
 import type { ContactChange } from "./mutations";
-import { readPhoneDraft } from "./phone-number-input";
 
 export type ContactConflict = {
   change: Exclude<ContactChange, { kind: "create" }>;

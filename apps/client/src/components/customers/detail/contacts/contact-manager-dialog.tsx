@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FieldError } from "@/components/ui/field";
-import { keepDialogOpenOnComboboxEscape } from "@/components/ui/searchable-select";
+import { keepDialogOpenOnComboboxEscape } from "@/components/shared/searchable-select";
 import type {
   CustomerContact,
   CustomerContactMethod,

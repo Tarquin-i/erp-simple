@@ -10,6 +10,7 @@ import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { OptionPicker, TagPicker } from "@/components/shared/option-pickers";
+import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -32,7 +33,6 @@ import type {
 } from "@/request/customers";
 
 import { readListQueryFromState } from "../list-query";
-import { VersionConflictDialog } from "../version-conflict-dialog";
 import { conflictDifferences, isCustomerSnapshot } from "./edit-conflict";
 import { customerDraft, getChangedFields } from "./form-payload";
 import type { Draft } from "./form-payload";

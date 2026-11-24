@@ -3,7 +3,7 @@ import { Archive } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { DetailField } from "@/components/ui/detail-field";
+import { DetailField } from "@/components/shared/detail-field";
 import { productTypeLabels } from "@/request/products";
 import type { ProductDetailRecord } from "@/request/products";
 

@@ -2,10 +2,10 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { VersionConflictDialog } from "@/components/customers/version-conflict-dialog";
+import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DetailField } from "@/components/ui/detail-field";
+import { DetailField } from "@/components/shared/detail-field";
 import { FieldError } from "@/components/ui/field";
 import {
   Select,

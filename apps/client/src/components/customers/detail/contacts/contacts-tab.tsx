@@ -3,6 +3,8 @@ import { ContactRound, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
+import { VirtualList } from "@/components/shared/virtual-list";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -21,14 +23,12 @@ import {
 } from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
-import { VirtualList } from "@/components/ui/virtual-list";
 import { CustomerApiError, listCustomerContacts } from "@/request/customers";
 import type {
   CustomerContact,
   CustomerContactMethod,
 } from "@/request/customers";
 
-import { VersionConflictDialog } from "../../version-conflict-dialog";
 import { CustomerContactEditor } from "./contact-editor";
 import type { ContactEditorMode } from "./contact-editor";
 import { ContactGroup } from "./contact-group";

@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 
-import { VersionConflictDialog } from "@/components/customers/version-conflict-dialog";
+import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import { ProductForm, readProductDraft } from "@/components/products/form";
 import {
   ProductFormPending,
@@ -22,7 +22,7 @@ import {
   rebaseProductEdit,
 } from "@/components/products/save-state";
 import type { ProductFormIssue } from "@/components/products/save-state";
-import { toastManager } from "@/components/ui/toast";
+import { toastManager } from "@/components/shared/toast";
 import {
   getProduct,
   isProductSnapshot,
