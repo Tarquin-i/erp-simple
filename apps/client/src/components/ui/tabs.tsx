@@ -39,18 +39,101 @@ const tabsListVariants = cva(
 );
 
 function TabsList({
+  animatedIndicator = false,
+  children,
   className,
+  ref,
   variant = "default",
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List> &
-  VariantProps<typeof tabsListVariants>) {
+  VariantProps<typeof tabsListVariants> & { animatedIndicator?: boolean }) {
+  const listRef = React.useRef<HTMLDivElement>(null);
+  const indicatorRef = React.useRef<HTMLSpanElement>(null);
+  const animated = animatedIndicator && variant === "default" && !props.asChild;
+
+  React.useImperativeHandle(ref, () => listRef.current!);
+
+  React.useLayoutEffect(() => {
+    const list = listRef.current;
+    const indicator = indicatorRef.current;
+    if (!animated || !list || !indicator) return;
+
+    const update = () => {
+      const active = list.querySelector<HTMLElement>(
+        ':scope > [data-slot="tabs-trigger"][data-state="active"]'
+      );
+      if (!active) {
+        delete list.dataset.animatedIndicator;
+        return;
+      }
+
+      indicator.style.width = `${active.offsetWidth}px`;
+      indicator.style.height = `${active.offsetHeight}px`;
+      indicator.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
+      if (!list.hasAttribute("data-animated-indicator")) {
+        // 首次定位直接落在当前页签上。
+        indicator.getBoundingClientRect();
+        list.dataset.animatedIndicator = "true";
+      }
+    };
+
+    const resize = new ResizeObserver(update);
+    const observeTabs = () => {
+      resize.disconnect();
+      resize.observe(list);
+      for (const tab of list.querySelectorAll(
+        ':scope > [data-slot="tabs-trigger"]'
+      )) {
+        resize.observe(tab);
+      }
+    };
+    const mutations = new MutationObserver((records) => {
+      if (records.some(({ type }) => type === "childList")) observeTabs();
+      update();
+    });
+
+    update();
+    observeTabs();
+    mutations.observe(list, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["data-state"],
+    });
+    return () => {
+      resize.disconnect();
+      mutations.disconnect();
+      delete list.dataset.animatedIndicator;
+    };
+  }, [animated]);
+
   return (
     <TabsPrimitive.List
+      ref={listRef}
       data-slot="tabs-list"
       data-variant={variant}
-      className={cn(tabsListVariants({ variant }), className)}
+      className={cn(
+        tabsListVariants({ variant }),
+        animated &&
+          "relative isolate data-[animated-indicator]:[&>[data-slot=tabs-trigger]]:z-10 data-[animated-indicator]:[&>[data-slot=tabs-trigger][data-state=active]]:bg-transparent data-[animated-indicator]:[&>[data-slot=tabs-trigger][data-state=active]]:shadow-none dark:data-[animated-indicator]:[&>[data-slot=tabs-trigger][data-state=active]]:border-transparent",
+        className
+      )}
       {...props}
-    />
+    >
+      {animated ? (
+        <>
+          {children}
+          <span
+            ref={indicatorRef}
+            aria-hidden="true"
+            data-slot="tabs-indicator"
+            className="pointer-events-none invisible absolute top-0 left-0 rounded-md border border-transparent bg-background shadow-sm group-data-[animated-indicator]/tabs-list:visible motion-safe:group-data-[animated-indicator]/tabs-list:transition-[transform,width,height] motion-safe:duration-150 motion-safe:ease-out dark:border-input dark:bg-input/30"
+          />
+        </>
+      ) : (
+        children
+      )}
+    </TabsPrimitive.List>
   );
 }
 

@@ -1,11 +1,12 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
+import { DetailField } from "@/components/shared/detail-field";
+import { ExpandableText } from "@/components/shared/expandable-text";
 import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DetailField } from "@/components/shared/detail-field";
 import { FieldError } from "@/components/ui/field";
 import {
   Select,
@@ -29,48 +30,6 @@ import type {
 import { CommunicationAttachmentsTab } from "./attachments/tab";
 import { CommunicationCustomerLink } from "./customer-link";
 import type { CommunicationOrigin } from "./navigation";
-
-function CommunicationSummary({ summary }: { summary: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const paragraph = useRef<HTMLParagraphElement>(null);
-  const id = useId();
-
-  useEffect(() => {
-    const element = paragraph.current;
-    if (!element || expanded) return;
-    const measure = () =>
-      setHasMore(element.scrollHeight > element.clientHeight);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [expanded, summary]);
-
-  return (
-    <>
-      <p
-        ref={paragraph}
-        id={id}
-        className={`leading-6 whitespace-pre-wrap wrap-anywhere${expanded ? "" : " line-clamp-3"}`}
-      >
-        {summary}
-      </p>
-      {(hasMore || expanded) && (
-        <Button
-          type="button"
-          variant="link"
-          className="mt-1 h-auto px-0"
-          aria-controls={id}
-          aria-expanded={expanded}
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? "收起" : "展开"}
-        </Button>
-      )}
-    </>
-  );
-}
 
 export function CommunicationDetail({
   communication,
@@ -253,7 +212,7 @@ export function CommunicationDetail({
           </Select>
         </DetailField>
         <DetailField label="初次沟通内容" className="sm:col-span-2">
-          <CommunicationSummary summary={record.summary} />
+          <ExpandableText text={record.summary} />
         </DetailField>
       </dl>
 
@@ -264,7 +223,7 @@ export function CommunicationDetail({
       >
         <div className="flex min-w-0 items-center gap-2">
           <div className="min-w-0 overflow-x-auto overflow-y-hidden py-1">
-            <TabsList aria-label="沟通关联信息">
+            <TabsList aria-label="沟通关联信息" animatedIndicator>
               <TabsTrigger
                 className="min-w-[72px] sm:min-w-[88px]"
                 value="attachments"

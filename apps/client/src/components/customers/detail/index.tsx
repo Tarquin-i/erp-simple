@@ -5,16 +5,16 @@ import {
   type ReactNode,
   Suspense,
   useEffect,
-  useId,
   useRef,
   useState,
 } from "react";
 
 import { AddressCollectionPending } from "@/components/addresses/load-state";
 import { CustomerCommunicationTab } from "@/components/communication/list";
+import { DetailField } from "@/components/shared/detail-field";
+import { ExpandableText } from "@/components/shared/expandable-text";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DetailField } from "@/components/shared/detail-field";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Customer } from "@/request/customers";
 
@@ -24,53 +24,6 @@ import { isCustomerDetailTab, relatedTabs } from "./tabs";
 import type { CustomerDetailTab } from "./tabs";
 
 const CustomerAddressesTab = lazy(() => import("./addresses-tab"));
-
-function CustomerRemark({ remark }: { remark: string | null }) {
-  const [expanded, setExpanded] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const paragraph = useRef<HTMLParagraphElement>(null);
-  const id = useId();
-
-  useEffect(() => {
-    // 备注实际超出三行才显示展开按钮，容器宽度变化时重新测量。
-    const element = paragraph.current;
-    if (!element) return;
-    function measure() {
-      if (!element || expanded) return;
-      setHasMore(element.scrollHeight > element.clientHeight);
-    }
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [expanded, remark]);
-
-  if (!remark) return <span className="text-muted-foreground">—</span>;
-
-  return (
-    <>
-      <p
-        ref={paragraph}
-        id={id}
-        className={`leading-6 whitespace-pre-wrap wrap-anywhere ${expanded ? "" : "line-clamp-3"}`}
-      >
-        {remark}
-      </p>
-      {(hasMore || expanded) && (
-        <Button
-          type="button"
-          variant="link"
-          className="mt-1 h-auto px-0"
-          aria-controls={id}
-          aria-expanded={expanded}
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? "收起" : "展开"}
-        </Button>
-      )}
-    </>
-  );
-}
 
 export function CustomerDetail({
   customer,
@@ -166,7 +119,11 @@ export function CustomerDetail({
         </DetailField>
         <DetailField label="业务员">{customer.ownerName}</DetailField>
         <DetailField className="sm:col-span-2" label="备注">
-          <CustomerRemark remark={customer.remark} />
+          {customer.remark ? (
+            <ExpandableText text={customer.remark} />
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
         </DetailField>
       </dl>
 
@@ -184,6 +141,7 @@ export function CustomerDetail({
           >
             <TabsList
               aria-label="客户关联信息"
+              animatedIndicator
               onPointerDownCapture={(event) => {
                 if (
                   event.button === 0 &&
