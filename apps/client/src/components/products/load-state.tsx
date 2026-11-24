@@ -18,10 +18,34 @@ export function ProductPagePending() {
     <main
       aria-busy="true"
       aria-label="正在加载产品"
-      className="min-w-0 flex-1 space-y-5 bg-background px-4 py-5 sm:p-6"
+      className="min-w-0 flex-1 bg-background px-4 py-6 sm:px-6"
     >
-      <Skeleton className="h-8 w-40" />
-      <Skeleton className="h-36 w-full" />
+      <div aria-hidden="true" className="flex flex-wrap items-start gap-3">
+        <div className="space-y-1">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-5 w-20" />
+        </div>
+        <div className="ml-auto flex gap-2">
+          <Skeleton className="h-10 w-20" />
+          <Skeleton className="h-10 w-20" />
+        </div>
+      </div>
+      <div aria-hidden="true" className="mt-6 space-y-3">
+        <Skeleton className="h-6 w-16" />
+        <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+          {["english", "customer", "type", "created", "updated"].map(
+            (field) => (
+              <div
+                key={field}
+                className={`space-y-1.5${field === "english" ? " sm:col-span-2" : ""}`}
+              >
+                <Skeleton className="h-5 w-16" />
+                <Skeleton className="h-5 w-40" />
+              </div>
+            )
+          )}
+        </div>
+      </div>
     </main>
   );
 }

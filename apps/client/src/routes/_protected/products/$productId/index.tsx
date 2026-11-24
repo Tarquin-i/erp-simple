@@ -133,7 +133,7 @@ function ProductWorkspace({ product }: { product: ProductDetailRecord }) {
       <ProductDetail
         product={current}
         editAction={
-          <Button asChild>
+          <Button asChild className="h-10 px-4">
             <Link
               to="/products/$productId/edit"
               params={{ productId: current.id }}
@@ -141,7 +141,7 @@ function ProductWorkspace({ product }: { product: ProductDetailRecord }) {
               preload={false}
               replace
             >
-              <Pencil aria-hidden="true" />
+              <Pencil data-icon="inline-start" />
               编辑
             </Link>
           </Button>
