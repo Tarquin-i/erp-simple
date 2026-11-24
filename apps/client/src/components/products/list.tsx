@@ -284,7 +284,7 @@ export function ProductList({
               >
                 <TableCell className="h-14 max-w-0 px-2.5">
                   <Link
-                    className={`${tableLinkClassName} font-medium`}
+                    className={tableLinkClassName}
                     to="/products/$productId"
                     params={{ productId: product.id }}
                     state={listOrigin}

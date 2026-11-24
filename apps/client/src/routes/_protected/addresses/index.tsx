@@ -172,11 +172,16 @@ function AddressDirectory() {
                       void navigate(destination);
                     }}
                   >
-                    <TableCell
-                      className="truncate py-3"
-                      title={address.customer.companyName}
-                    >
-                      {address.customer.companyName}
+                    <TableCell className="py-3">
+                      <Link
+                        to="/customers/$customerId"
+                        params={{ customerId: address.customer.id }}
+                        preload={false}
+                        title={address.customer.companyName}
+                        className={tableLinkClassName}
+                      >
+                        {address.customer.companyName}
+                      </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {address.customer.customerNo}
