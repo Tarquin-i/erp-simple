@@ -1,3 +1,8 @@
+import type {
+  ListOptionOperator,
+  ListOptionValue,
+} from "@/lib/list-option-query";
+
 export type AddressCustomer = {
   id: string;
   companyName: string;
@@ -45,7 +50,11 @@ export type AddressDetail = AddressListItem &
 
 type AddressPagination = { page?: number; pageSize?: number };
 
-export type AddressListQuery = AddressPagination & { search?: string };
+export type AddressListQuery = AddressPagination & {
+  search?: string;
+  ownerUserId?: ListOptionValue;
+  ownerOperator?: ListOptionOperator;
+};
 
 type AddressPage = {
   addresses: AddressListItem[];
@@ -80,10 +89,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   );
 }
 
-function queryString(query: Record<string, string | number | undefined>) {
+function queryString(
+  query: Record<string, ListOptionValue | number | undefined>
+) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined && value !== "") params.set(key, String(value));
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(key, item);
+    } else if (value !== undefined && value !== "") {
+      params.set(key, String(value));
+    }
   }
   return params.size ? `?${params}` : "";
 }
@@ -134,7 +149,7 @@ export function isAddressSnapshot(
 
 /**
  * 查询当前账号可见客户的默认地址。
- * @param query 搜索词和分页条件。
+ * @param query 搜索词、所属客户的业务员筛选和分页条件。
  * @param signal 用于取消查询的信号。
  * @returns 默认地址摘要和分页信息。
  * @throws 请求返回失败状态时抛出 AddressApiError。

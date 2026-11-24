@@ -1,6 +1,11 @@
 import type { HistoryState } from "@tanstack/react-router";
 
 import { readListQueryFromState } from "@/components/customers/list-query";
+import {
+  listOptionOperator,
+  listOptionValue,
+  readListOptionValues,
+} from "@/lib/list-option-query";
 import type { AddressListQuery } from "@/request/addresses";
 
 declare module "@tanstack/react-router" {
@@ -75,11 +80,18 @@ export function readAddressListQuery(
 ): AddressListQuery {
   const search =
     typeof raw.search === "number" ? String(raw.search) : raw.search;
+  const owners = readListOptionValues(raw.ownerUserId, (value) =>
+    typeof value === "string"
+      ? value.replaceAll("\0", "").trim().slice(0, 128) || undefined
+      : undefined
+  );
   return {
     ...readAddressPage(raw),
     search:
       typeof search === "string"
         ? search.replaceAll("\0", "").trim().slice(0, 128) || undefined
         : undefined,
+    ownerUserId: listOptionValue(owners),
+    ownerOperator: listOptionOperator(owners.length, raw.ownerOperator),
   };
 }
