@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { ArrowRightIcon, ChevronRightIcon, FilterIcon } from 'lucide-react'
+import { ChevronRightIcon, FilterIcon } from 'lucide-react'
 import {
   isValidElement,
   memo,
@@ -223,15 +223,11 @@ export function FilterableColumn<TData, TType extends ColumnDataType, TVal>({
       value={column.id}
       keywords={[column.displayName]}
       onSelect={() => setProperty(column.id)}
-      className="group"
       onMouseEnter={prefetch}
     >
-      <div className="flex w-full items-center justify-between">
-        <div className="inline-flex items-center gap-1.5">
-          {<column.icon strokeWidth={2.25} className="size-4" />}
-          <span>{column.displayName}</span>
-        </div>
-        <ArrowRightIcon className="size-4 opacity-0 group-aria-selected:opacity-100" />
+      <div className="inline-flex items-center gap-1.5">
+        <column.icon strokeWidth={2.25} className="size-4" />
+        <span>{column.displayName}</span>
       </div>
     </CommandItem>
   )
