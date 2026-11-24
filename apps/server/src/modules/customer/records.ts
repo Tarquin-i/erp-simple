@@ -33,6 +33,7 @@ import {
   withBusinessReadSnapshot,
 } from "../business/access";
 import type { BusinessAccess } from "../business/access";
+import type { ListOptionFilter } from "../business/list-option-filter";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { lockDepartment } from "../organization/departments";
@@ -47,13 +48,11 @@ export interface CustomerWriteInput {
   tagIds?: string[];
 }
 
-type CustomerOptionFilter = { values: string[]; excluded: boolean };
-
 interface CustomerFilters {
   search?: string;
-  channels?: CustomerOptionFilter;
-  tags?: CustomerOptionFilter;
-  owners?: CustomerOptionFilter;
+  channels?: ListOptionFilter;
+  tags?: ListOptionFilter;
+  owners?: ListOptionFilter;
   page: number;
   pageSize: number;
 }
