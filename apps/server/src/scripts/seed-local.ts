@@ -16,13 +16,19 @@ import {
   departmentApplication,
   member,
   organization,
+  payout,
   product,
   user,
 } from "@repo/db/schema";
+import type { PayoutDefinition } from "@repo/db/schema";
 import { and, eq, getTableName, inArray, or, sql } from "drizzle-orm";
 
 import { readAddressCreateInput } from "../modules/address/input";
 import type { DatabaseTransaction } from "../modules/identity/auth/better-auth";
+import {
+  assertPayoutTicketCapacity,
+  readPayoutCreateInput,
+} from "../modules/payout/input";
 import { readProductCreateInput } from "../modules/product/input";
 
 const seedCustomerChannels = [
@@ -89,6 +95,7 @@ const seedIdPrefixes = {
   communicationTag: "d0000006",
   address: "d0000007",
   product: "d0000008",
+  payout: "d0000009",
 } as const;
 
 function seedId(kind: keyof typeof seedIdPrefixes, index: number) {
@@ -421,6 +428,162 @@ const seedProductTypesByCustomer = new Map<
   ],
 ]);
 
+const seedPayoutDefinitions = {
+  cash: {
+    groups: [
+      {
+        id: "cash-prizes",
+        name: "现金大奖",
+        prizes: [
+          { id: "grand", name: "头奖", amount: 500, quantity: 3 },
+          { id: "first", name: "一等奖", amount: 100, quantity: 30 },
+        ],
+      },
+      {
+        id: "participation-prizes",
+        name: "参与奖励",
+        prizes: [{ id: "bonus", name: "参与奖", amount: 2, quantity: 600 }],
+      },
+    ],
+  },
+  voucher: {
+    groups: [
+      {
+        id: "voucher-prizes",
+        name: "抵用券",
+        prizes: [
+          { id: "premium", name: "超值抵用券", amount: 50, quantity: 10 },
+          { id: "standard", name: "通用抵用券", amount: 12.5, quantity: 100 },
+        ],
+      },
+    ],
+  },
+  overseas: {
+    groups: [
+      {
+        id: "overseas-prizes",
+        name: "活动奖励",
+        prizes: [
+          { id: "grand", name: "特别奖", amount: 25, quantity: 6 },
+          { id: "bonus", name: "幸运奖", amount: 2, quantity: 240 },
+        ],
+      },
+    ],
+  },
+  draft: { groups: [] },
+} satisfies Record<string, PayoutDefinition>;
+
+const seedPayouts = [
+  {
+    index: 1,
+    customerIndex: 1,
+    productType: "pull-tab",
+    name: "夏日嘉年华首批奖表",
+    ticketCount: 20000,
+    unitPrice: "5",
+    plan: "cash",
+  },
+  {
+    index: 2,
+    customerIndex: 1,
+    productType: "pull-tab",
+    name: "夏日嘉年华加印奖表",
+    ticketCount: 10000,
+    unitPrice: "5",
+    plan: "voucher",
+  },
+  {
+    index: 3,
+    customerIndex: 1,
+    productType: "lottery",
+    name: "Summer Draw 2026",
+    ticketCount: 10000,
+    unitPrice: "1.5",
+    plan: "overseas",
+  },
+  {
+    index: 4,
+    customerIndex: 3,
+    productType: "scratch-card",
+    name: "会员积分抽奖方案",
+    ticketCount: 20000,
+    unitPrice: "2.5",
+    plan: "cash",
+  },
+  {
+    index: 5,
+    customerIndex: 3,
+    productType: "scratch-card",
+    name: "会员积分抽奖加开场",
+    ticketCount: 5000,
+    unitPrice: "2.5",
+    plan: "voucher",
+  },
+  {
+    index: 6,
+    customerIndex: 3,
+    productType: "user-defined",
+    name: "展会现场兑奖草案",
+    ticketCount: 8000,
+    unitPrice: "3",
+    plan: "draft",
+  },
+  {
+    index: 7,
+    customerIndex: 7,
+    productType: "lottery",
+    name: "周年庆抽奖券首批",
+    ticketCount: 25000,
+    unitPrice: "1.25",
+    plan: "overseas",
+  },
+  {
+    index: 8,
+    customerIndex: 7,
+    productType: "lottery",
+    name: "Anniversary Draw 2026",
+    ticketCount: 10000,
+    unitPrice: "1.25",
+    plan: "overseas",
+  },
+  {
+    index: 9,
+    customerIndex: 7,
+    productType: "pull-tab",
+    name: "夏日嘉年华周末专场",
+    ticketCount: 15000,
+    unitPrice: "4",
+    plan: "cash",
+  },
+  {
+    index: 10,
+    customerIndex: 9,
+    productType: "scratch-card",
+    name: "松果会员日刮奖",
+    ticketCount: 12000,
+    unitPrice: "3",
+    plan: "voucher",
+  },
+  {
+    index: 11,
+    customerIndex: 9,
+    productType: "scratch-card",
+    name: "松果会员日返场刮奖",
+    ticketCount: 8000,
+    unitPrice: "3",
+    plan: "voucher",
+  },
+  {
+    index: 12,
+    customerIndex: 9,
+    productType: "lottery",
+    name: "秋季新品抽奖券",
+    ticketCount: 10000,
+    unitPrice: "2",
+    plan: "overseas",
+  },
+] as const;
+
 async function seedCustomerProducts(
   tx: DatabaseTransaction,
   customerIndex: number,
@@ -464,6 +627,80 @@ async function seedCustomerProducts(
     .values(values)
     .onConflictDoNothing()
     .returning({ id: product.id });
+  return inserted.length;
+}
+
+async function seedBusinessPayouts(tx: DatabaseTransaction) {
+  const fixtures = seedPayouts.map(
+    ({ customerIndex, productType, ...data }) => ({
+      ...data,
+      productId: seedId(
+        "product",
+        customerIndex * 10 + seedProductTemplates[productType].index
+      ),
+    })
+  );
+  const activeProducts = await tx
+    .select({
+      id: product.id,
+      currencyCode: product.currencyCode,
+      createdAt: product.createdAt,
+      ownerUserId: customer.ownerUserId,
+    })
+    .from(product)
+    .innerJoin(customer, eq(customer.id, product.customerId))
+    .where(
+      and(
+        inArray(
+          product.id,
+          fixtures.map(({ productId }) => productId)
+        ),
+        eq(product.status, "active")
+      )
+    )
+    .for("share", { of: product });
+  const productsById = new Map(activeProducts.map((item) => [item.id, item]));
+  const values: (typeof payout.$inferInsert)[] = [];
+
+  for (const {
+    index,
+    productId,
+    name,
+    ticketCount,
+    unitPrice,
+    plan,
+  } of fixtures) {
+    const source = productsById.get(productId);
+    if (!source) continue;
+
+    const definition = seedPayoutDefinitions[plan];
+    const createdAt = new Date(source.createdAt.getTime() + index * 60000);
+    assertPayoutTicketCapacity(definition, ticketCount);
+    values.push({
+      ...readPayoutCreateInput({
+        productId,
+        name: `演示·${name}`,
+        ticketCount,
+        unitPrice,
+        remark: "演示奖表，发行张数和赔付数据仅供流程测试。",
+      }),
+      id: seedId("payout", index),
+      currencyCode: source.currencyCode,
+      definition,
+      createdByUserId: source.ownerUserId,
+      updatedByUserId: source.ownerUserId,
+      createdAt,
+      updatedAt: createdAt,
+    });
+  }
+  if (!values.length) return 0;
+
+  // 固定 ID，重复执行时保留已编辑或归档的奖表，也保留用户新建的同名奖表。
+  const inserted = await tx
+    .insert(payout)
+    .values(values)
+    .onConflictDoNothing()
+    .returning({ id: payout.id });
   return inserted.length;
 }
 
@@ -766,6 +1003,7 @@ async function seedBusinessData(
     createdCommunications,
     createdAddresses,
     createdProducts,
+    createdPayouts: await seedBusinessPayouts(tx),
   };
 }
 
@@ -811,6 +1049,7 @@ async function seedLocalData() {
       communicationTag,
       communicationTagAssignment,
       product,
+      payout,
     ].map(getTableName);
     const missingTables = await database.db.execute<{ name: string }>(sql`
       select name
@@ -925,9 +1164,10 @@ try {
     createdCommunications,
     createdAddresses,
     createdProducts,
+    createdPayouts,
   } = await seedLocalData();
   console.log(
-    `本地种子已就绪。新增账号 ${createdAccounts} 个，保留已有账号 ${seedAccounts.length - createdAccounts} 个，新增客户渠道 ${createdChannels} 项，客户 ${createdCustomers} 个，沟通 ${createdCommunications} 条，地址 ${createdAddresses} 条，产品 ${createdProducts} 条。`
+    `本地种子已就绪。新增账号 ${createdAccounts} 个，保留已有账号 ${seedAccounts.length - createdAccounts} 个，新增客户渠道 ${createdChannels} 项，客户 ${createdCustomers} 个，沟通 ${createdCommunications} 条，地址 ${createdAddresses} 条，产品 ${createdProducts} 条，奖表 ${createdPayouts} 份。`
   );
 } catch (error) {
   console.error(formatDatabaseError(error));
