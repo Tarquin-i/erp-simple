@@ -32,7 +32,7 @@ import {
 
 type QueryUpdater = (previous: CustomerListQuery) => CustomerListQuery;
 type CustomerOptionColumn = ColumnConfig<Customer, "option">;
-type DictionaryOptions = { channels: ColumnOption[]; owners: ColumnOption[] };
+type DictionaryState = { options?: ColumnOption[]; failed?: boolean };
 type TagLabel = { label: string; retryable?: boolean };
 
 const channelField = {
@@ -61,6 +61,70 @@ const ownerField = {
 } as const;
 const filterFields = [channelField, tagField, ownerField];
 const serverRows: Customer[] = [];
+const dictionaryLoadingText = "正在读取选项…";
+
+async function loadChannelOptions(signal: AbortSignal) {
+  const { channels } = await listCustomerChannels(signal);
+  return channels.map(({ code, name }) => ({ value: code, label: name }));
+}
+
+async function loadOwnerOptions(signal: AbortSignal) {
+  const { owners } = await listCustomerOwners(signal);
+  return owners.map(({ id, name }) => ({ value: id, label: name }));
+}
+
+function useFilterDictionary(
+  loadOptions: (signal: AbortSignal) => Promise<ColumnOption[]>
+) {
+  const [state, setState] = useState<DictionaryState>({});
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+    void loadOptions(signal).then(
+      (options) => {
+        if (!signal.aborted) setState({ options });
+      },
+      () => {
+        if (!signal.aborted) setState({ failed: true });
+      }
+    );
+    return () => controller.abort();
+  }, [attempt, loadOptions]);
+
+  const retry = useCallback(() => {
+    setState({});
+    setAttempt((value) => value + 1);
+  }, []);
+
+  return [state, retry] as const;
+}
+
+function renderDictionaryState(
+  { options, failed }: DictionaryState,
+  retry: () => void
+) {
+  if (options) return;
+  return () => (
+    <div className="flex items-center justify-between gap-2 p-3 text-sm">
+      {failed ? (
+        <>
+          <span role="alert" className="text-destructive">
+            暂时无法加载选项。
+          </span>
+          <Button type="button" variant="outline" size="xs" onClick={retry}>
+            重试
+          </Button>
+        </>
+      ) : (
+        <span role="status" className="text-muted-foreground">
+          {dictionaryLoadingText}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function readFilters(query: CustomerListQuery): FiltersState {
   return filterFields.flatMap(({ id, type, operatorKey }) => {
@@ -128,9 +192,8 @@ export function useCustomerListFilters(
   onQueryChange: (update: QueryUpdater) => void,
   pageTags: ReadonlyMap<string, CustomerTag>
 ) {
-  const [dictionaries, setDictionaries] = useState<DictionaryOptions>();
-  const [dictionaryError, setDictionaryError] = useState(false);
-  const [dictionaryRetry, setDictionaryRetry] = useState(0);
+  const [channels, retryChannels] = useFilterDictionary(loadChannelOptions);
+  const [owners, retryOwners] = useFilterDictionary(loadOwnerOptions);
   const [tagLabels, setTagLabels] = useState<ReadonlyMap<string, TagLabel>>(
     () => new Map()
   );
@@ -138,30 +201,6 @@ export function useCustomerListFilters(
     () => customerFilterValues(query.tagId),
     [query.tagId]
   );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const { signal } = controller;
-    void Promise.all([
-      listCustomerChannels(signal),
-      listCustomerOwners(signal),
-    ]).then(
-      ([{ channels }, { owners }]) => {
-        if (signal.aborted) return;
-        setDictionaries({
-          channels: channels.map(({ code, name }) => ({
-            value: code,
-            label: name,
-          })),
-          owners: owners.map(({ id, name }) => ({ value: id, label: name })),
-        });
-      },
-      () => {
-        if (!signal.aborted) setDictionaryError(true);
-      }
-    );
-    return () => controller.abort();
-  }, [dictionaryRetry]);
 
   useEffect(() => {
     const missingIds = tagIds.filter(
@@ -232,46 +271,18 @@ export function useCustomerListFilters(
   );
 
   const columnsConfig = useMemo(() => {
-    const pending = "正在读取选项…";
-    const dictionaryState = dictionaries
-      ? undefined
-      : () => (
-          <div className="flex items-center justify-between gap-2 p-3 text-sm">
-            {dictionaryError ? (
-              <>
-                <span role="alert" className="text-destructive">
-                  暂时无法加载选项。
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() => {
-                    setDictionaryError(false);
-                    setDictionaryRetry((value) => value + 1);
-                  }}
-                >
-                  重试
-                </Button>
-              </>
-            ) : (
-              <span role="status" className="text-muted-foreground">
-                {pending}
-              </span>
-            )}
-          </div>
-        );
-
     return [
       {
         ...channelField,
         accessor: (customer) => customer.channels.map(({ code }) => code),
         options: withSelectedOptions(
-          dictionaries?.channels ?? [],
+          channels.options ?? [],
           customerFilterValues(query.channelCode),
-          dictionaries || dictionaryError ? "所选渠道不可用" : pending
+          channels.options || channels.failed
+            ? "所选渠道不可用"
+            : dictionaryLoadingText
         ),
-        renderFilterValue: dictionaryState,
+        renderFilterValue: renderDictionaryState(channels, retryChannels),
       },
       {
         ...tagField,
@@ -300,19 +311,23 @@ export function useCustomerListFilters(
         ...ownerField,
         accessor: (customer) => customer.ownerUserId,
         options: withSelectedOptions(
-          dictionaries?.owners ?? [],
+          owners.options ?? [],
           customerFilterValues(query.ownerUserId),
-          dictionaries || dictionaryError ? "所选业务员不可用" : pending
+          owners.options || owners.failed
+            ? "所选业务员不可用"
+            : dictionaryLoadingText
         ),
-        renderFilterValue: dictionaryState,
+        renderFilterValue: renderDictionaryState(owners, retryOwners),
       },
     ] satisfies CustomerOptionColumn[];
   }, [
-    dictionaries,
-    dictionaryError,
+    channels,
+    owners,
     pageTags,
     query.channelCode,
     query.ownerUserId,
+    retryChannels,
+    retryOwners,
     retryTagLabels,
     tagIds,
     tagLabels,
