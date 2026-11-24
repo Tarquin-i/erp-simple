@@ -89,6 +89,11 @@ export const payout = pgTable(
       table.createdAt,
       table.id
     ),
+    index("payout_status_created_idx").on(
+      table.status,
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst()
+    ),
     uniqueIndex("payout_product_active_name_unique")
       .on(table.productId, table.normalizedName)
       .where(sql`${table.status} = 'active'`),

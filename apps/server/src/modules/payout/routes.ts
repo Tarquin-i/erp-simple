@@ -7,6 +7,7 @@ import {
   readExpectedVersion,
   readObject,
   readPositiveInteger,
+  readString,
   readUuid,
 } from "../customer/input";
 
@@ -24,7 +25,7 @@ export const payoutRoutes = new Hono<BusinessAccessEnv>();
 payoutRoutes.use("*", requireBusinessAccess);
 
 payoutRoutes.get("/", async (c) => {
-  const { page, pageSize } = c.req.query();
+  const { page, pageSize, search } = c.req.query();
   const query = c.req.queries();
   const result = await listPayouts(c.get("businessAccess"), {
     products: readListOptionFilter(
@@ -35,6 +36,7 @@ payoutRoutes.get("/", async (c) => {
     ),
     page: readPositiveInteger(page, "页码", 1, 1_000_000),
     pageSize: readPositiveInteger(pageSize, "每页条数", 20, 100),
+    search: search?.trim() ? readString(search, "搜索词", 256) : undefined,
   });
   return c.json(result);
 });

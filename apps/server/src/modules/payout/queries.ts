@@ -1,5 +1,19 @@
-import { customer, payout, product } from "@repo/db/schema";
-import { and, count, desc, eq, inArray, notInArray } from "drizzle-orm";
+import {
+  customer,
+  normalizePayoutName,
+  payout,
+  product,
+} from "@repo/db/schema";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import {
   businessScopeWhere,
@@ -25,6 +39,7 @@ interface PayoutFilters {
   products?: ListOptionFilter;
   page: number;
   pageSize: number;
+  search?: string;
 }
 
 const payoutSourceFields = {
@@ -108,16 +123,25 @@ function activePayoutScope(access: BusinessAccess) {
   );
 }
 
+function payoutSearchWhere(search: string) {
+  const term = normalizePayoutName(search);
+  return or(
+    sql`position(${term} in ${payout.normalizedName}) > 0`,
+    sql`position(${term} in ${product.normalizedName}) > 0`
+  );
+}
+
 /** 使用同一只读快照读取权限、列表及总数。 */
 export function listPayouts(
   access: BusinessAccess,
-  { products, page, pageSize }: PayoutFilters
+  { products, page, pageSize, search }: PayoutFilters
 ) {
   const productMatches = products?.excluded ? notInArray : inArray;
   return withBusinessReadSnapshot(access.userId, async (tx, freshAccess) => {
     const filter = and(
       activePayoutScope(freshAccess),
-      products ? productMatches(payout.productId, products.values) : undefined
+      products ? productMatches(payout.productId, products.values) : undefined,
+      search === undefined ? undefined : payoutSearchWhere(search)
     );
     const rows = await tx
       .select({ payout, source: payoutSourceFields })
