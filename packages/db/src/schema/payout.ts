@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { SQLWrapper } from "drizzle-orm";
 import {
   check,
   index,
@@ -38,6 +39,11 @@ const nameWhitespace = sql.raw(
   "'\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff'"
 );
 
+/** 生成列和改名查重共用同一套去空白、转小写规则。 */
+export function normalizePayoutName(name: SQLWrapper | string) {
+  return sql`lower(btrim(${name}, ${nameWhitespace}) collate pg_catalog."und-x-icu")`;
+}
+
 /** Payout 归属产品。新建时奖项列表为空，奖项在详情里编辑。 */
 export const payout = pgTable(
   "payout",
@@ -48,9 +54,7 @@ export const payout = pgTable(
       .references(() => product.id, { onDelete: "restrict" }),
     name: varchar("name", { length: 128 }).notNull(),
     normalizedName: text("normalized_name")
-      .generatedAlwaysAs(
-        sql`lower(btrim(${sql.identifier("name")}, ${nameWhitespace}) collate pg_catalog."und-x-icu")`
-      )
+      .generatedAlwaysAs(normalizePayoutName(sql.identifier("name")))
       .notNull(),
     ticketCount: integer("ticket_count").notNull(),
     // 币种在创建时从产品带入，票面售价单独保存。

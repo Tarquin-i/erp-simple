@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { customer, payout, product } from "@repo/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { customer, normalizePayoutName, payout, product } from "@repo/db/schema";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 
 import { businessScopeWhere } from "../business/access";
@@ -27,6 +27,10 @@ function conflict(code: string, message: string): never {
   });
 }
 
+function duplicatePayoutName(): never {
+  conflict("payout_name_conflict", "该产品已有同名的有效 Payout。");
+}
+
 async function writePayout<T>(write: (tx: DatabaseTransaction) => Promise<T>) {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -35,7 +39,7 @@ async function writePayout<T>(write: (tx: DatabaseTransaction) => Promise<T>) {
       if (
         isConstraintError(error, "23505", "payout_product_active_name_unique")
       ) {
-        conflict("payout_name_conflict", "该产品已有同名的有效 Payout。");
+        duplicatePayoutName();
       }
       const cause = error instanceof Error ? (error.cause ?? error) : error;
       if (
@@ -289,8 +293,30 @@ export function updatePayout(
       assertPayoutTicketCapacity(input.definition, record.ticketCount);
     }
 
+    const { name } = input;
+    const nameChanged = name !== undefined && name !== record.name;
+    if (nameChanged) {
+      // 只读查重可以提前拦截互换名称。比较时使用与生成列一致的默认排序规则。
+      const [duplicate] = await tx
+        .select({ id: payout.id })
+        .from(payout)
+        .where(
+          and(
+            eq(payout.productId, record.productId),
+            activePayout,
+            eq(
+              payout.normalizedName,
+              sql`${normalizePayoutName(name)} collate pg_catalog."default"`
+            ),
+            ne(payout.id, id)
+          )
+        )
+        .limit(1);
+      if (duplicate) duplicatePayoutName();
+    }
+
     const changed =
-      (input.name !== undefined && input.name !== record.name) ||
+      nameChanged ||
       (input.unitPrice !== undefined &&
         Number(input.unitPrice) !== Number(record.unitPrice)) ||
       (input.remark !== undefined && input.remark !== record.remark) ||
