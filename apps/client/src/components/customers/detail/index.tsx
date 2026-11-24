@@ -14,6 +14,7 @@ import { AddressCollectionPending } from "@/components/addresses/load-state";
 import { CustomerCommunicationTab } from "@/components/communication/list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DetailField } from "@/components/ui/detail-field";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Customer } from "@/request/customers";
 
@@ -23,23 +24,6 @@ import { isCustomerDetailTab, relatedTabs } from "./tabs";
 import type { CustomerDetailTab } from "./tabs";
 
 const CustomerAddressesTab = lazy(() => import("./addresses-tab"));
-
-function DetailField({
-  label,
-  children,
-  className = "",
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`min-w-0 space-y-1.5 ${className}`}>
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-sm wrap-anywhere">{children}</dd>
-    </div>
-  );
-}
 
 function CustomerRemark({ remark }: { remark: string | null }) {
   const [expanded, setExpanded] = useState(false);

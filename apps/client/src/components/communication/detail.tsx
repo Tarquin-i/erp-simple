@@ -1,10 +1,11 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { VersionConflictDialog } from "@/components/customers/version-conflict-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DetailField } from "@/components/ui/detail-field";
 import { FieldError } from "@/components/ui/field";
 import {
   Select,
@@ -28,23 +29,6 @@ import type {
 import { CommunicationAttachmentsTab } from "./attachments/tab";
 import { CommunicationCustomerLink } from "./customer-link";
 import type { CommunicationOrigin } from "./navigation";
-
-function DetailField({
-  label,
-  children,
-  fullWidth,
-}: {
-  label: string;
-  children: ReactNode;
-  fullWidth?: boolean;
-}) {
-  return (
-    <div className={`min-w-0 space-y-1.5${fullWidth ? " sm:col-span-2" : ""}`}>
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-sm wrap-anywhere">{children}</dd>
-    </div>
-  );
-}
 
 function CommunicationSummary({ summary }: { summary: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -268,7 +252,7 @@ export function CommunicationDetail({
             </SelectContent>
           </Select>
         </DetailField>
-        <DetailField label="初次沟通内容" fullWidth>
+        <DetailField label="初次沟通内容" className="sm:col-span-2">
           <CommunicationSummary summary={record.summary} />
         </DetailField>
       </dl>
