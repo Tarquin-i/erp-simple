@@ -18,7 +18,7 @@ import {
 
 import { type AddressAction, AddressCardMenu } from "./address-card-menu";
 import { copyAddressValue } from "./copy-address-value";
-import { AddressPhoneValue } from "./phone-value";
+import { AddressPhoneValue, formatAddressPhone } from "./phone-value";
 
 type AddressCardActionsProps = {
   address: AddressListItem;
@@ -69,7 +69,7 @@ function AddressCardActions({
     const text = [
       `地址: ${address.formattedAddress}`,
       `联系人： ${address.recipientName}`,
-      `联系方式： 电话-${address.phone}`,
+      `联系方式： 电话-${formatAddressPhone(address.phone)}`,
     ].join("\n");
     try {
       await copyAddressValue(text, "已复制收货信息", "复制失败，请重试。");
