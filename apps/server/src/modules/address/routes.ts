@@ -2,6 +2,7 @@ import { Hono } from "hono";
 
 import { requireBusinessAccess } from "../business/access";
 import type { BusinessAccessEnv } from "../business/access";
+import { readListOptionFilter } from "../business/list-option-filter";
 import {
   readExpectedVersion,
   readObject,
@@ -60,11 +61,18 @@ addressRoutes.use("*", requireBusinessAccess);
 
 addressRoutes.get("/", async (c) => {
   const query = c.req.query();
+  const { ownerUserId, ownerOperator } = c.req.queries();
   const result = await listDefaultAddresses(c.get("businessAccess"), {
     ...readPagination(query),
     search: query.search?.trim()
       ? readString(query.search, "搜索词", 128)
       : undefined,
+    owners: readListOptionFilter(
+      ownerUserId,
+      ownerOperator,
+      "业务员",
+      (value) => readString(value, "业务员 ID", 128)
+    ),
   });
   return c.json(result);
 });

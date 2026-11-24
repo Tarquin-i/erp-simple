@@ -1,17 +1,28 @@
 import { customer, customerAddress } from "@repo/db/schema";
-import { and, count, desc, eq, or, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import {
   businessScopeWhere,
   withBusinessReadSnapshot,
 } from "../business/access";
 import type { BusinessAccess } from "../business/access";
+import type { ListOptionFilter } from "../business/list-option-filter";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
 import { getAddressCountryName } from "./input";
 
 type Address = typeof customerAddress.$inferSelect;
 type AddressPagination = { page: number; pageSize: number; search?: string };
+type AddressDirectoryQuery = AddressPagination & { owners?: ListOptionFilter };
 
 const customerFields = {
   id: customer.id,
@@ -110,22 +121,24 @@ export function addressView(
  * 使用同一组可见范围和搜索条件读取一页地址及总数。
  * @param tx 持有一致读快照的事务。
  * @param access 事务内重新读取的业务权限。
- * @param pagination 分页与可选搜索词。
+ * @param pagination 分页、可选搜索词和所属客户的业务员筛选。
  * @param customerId 指定时读取该客户的全部有效地址，省略时读取各客户默认地址。
  * @returns 地址摘要列表及分页信息。
  */
 async function readAddressPage(
   tx: DatabaseTransaction,
   access: BusinessAccess,
-  { page, pageSize, search }: AddressPagination,
+  { page, pageSize, search, owners }: AddressDirectoryQuery,
   customerId?: string
 ) {
+  const ownerMatches = owners?.excluded ? notInArray : inArray;
   const filter = and(
     businessScopeWhere(access, customer),
     eq(customerAddress.status, "active"),
     customerId === undefined
       ? eq(customerAddress.isDefault, true)
       : eq(customerAddress.customerId, customerId),
+    owners ? ownerMatches(customer.ownerUserId, owners.values) : undefined,
     search === undefined
       ? undefined
       : or(
@@ -172,16 +185,16 @@ async function readAddressPage(
 /**
  * 按当前客户可见范围查询各客户的有效默认地址。
  * @param access 调用账号及其初始业务权限。
- * @param pagination 分页与可选搜索词，支持客户名称、客户编号或收货人。
+ * @param query 分页、业务员筛选及可按客户名称、客户编号或收货人匹配的搜索词。
  * @returns 默认地址摘要和分页信息，按更新时间和 ID 倒序。
  * @throws 账号不存在或无业务权限时抛出 HTTP 401 或 403。
  */
 export function listDefaultAddresses(
   access: BusinessAccess,
-  pagination: AddressPagination
+  query: AddressDirectoryQuery
 ) {
   return withBusinessReadSnapshot(access.userId, (tx, currentAccess) =>
-    readAddressPage(tx, currentAccess, pagination)
+    readAddressPage(tx, currentAccess, query)
   );
 }
 
