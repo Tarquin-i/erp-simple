@@ -157,10 +157,10 @@ function ProductWorkspace({ product }: { product: ProductDetailRecord }) {
           if (!archiving.current) setConfirmOpen(open);
         }}
       >
-        <AlertDialogContent className="w-[calc(100%-2rem)]">
+        <AlertDialogContent className="w-[calc(100%-2rem)] grid-cols-1">
           <AlertDialogHeader>
             <AlertDialogTitle>归档产品</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="min-w-0 wrap-anywhere">
               「{current.name}」归档后将从产品列表移除，原资料仍会保留。
             </AlertDialogDescription>
           </AlertDialogHeader>
