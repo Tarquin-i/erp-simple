@@ -8,6 +8,7 @@ import type {
   FiltersState,
 } from "@/components/data-table-filter/core/types";
 import { useDataTableFilters } from "@/components/data-table-filter";
+import { TagSelector } from "@/components/shared/tag-selector";
 import { Button } from "@/components/ui/button";
 import {
   CustomerApiError,
@@ -20,8 +21,6 @@ import type {
   CustomerListQuery,
   CustomerTag,
 } from "@/request/customers";
-
-import { TagSelector } from "./tag-selector";
 
 type QueryUpdater = (previous: CustomerListQuery) => CustomerListQuery;
 type CustomerOptionColumn = ColumnConfig<Customer, "option">;

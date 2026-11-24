@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { TagSelector } from "@/components/customers/list/tag-selector";
+import { TagSelector } from "@/components/shared/tag-selector";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PopoverHeader, PopoverTitle } from "@/components/ui/popover";
