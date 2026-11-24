@@ -1,12 +1,9 @@
 import { ChevronRight, Pencil, Plus, UserRound } from "lucide-react";
 
+import { AnimatedCollapsibleContent } from "@/components/shared/animated-collapsible-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { CustomerContact } from "@/request/customers";
 
 import { contactMethodLabels } from "./method-labels";
@@ -45,7 +42,7 @@ export function ContactGroup({
             <span className="truncate">{contact.name}</span>
             <ChevronRight
               aria-hidden="true"
-              className="size-3.5 text-muted-foreground transition-transform group-data-[state=open]/contact:rotate-90"
+              className="size-3.5 text-muted-foreground transition-transform duration-200 ease-out motion-reduce:transition-none group-data-[state=open]/contact:rotate-90"
             />
             <span className="shrink-0 text-muted-foreground text-xs">
               {contact.methods.length} 项
@@ -73,7 +70,7 @@ export function ContactGroup({
           <Plus aria-hidden="true" />
         </Button>
       </div>
-      <CollapsibleContent asChild>
+      <AnimatedCollapsibleContent open={expanded}>
         <ul className="ml-4 pl-4">
           {contact.methods.length === 0 && (
             <li className={`${branchClass} text-muted-foreground`}>
@@ -92,7 +89,7 @@ export function ContactGroup({
             </li>
           ))}
         </ul>
-      </CollapsibleContent>
+      </AnimatedCollapsibleContent>
     </Collapsible>
   );
 }

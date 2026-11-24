@@ -110,11 +110,20 @@ export function VirtualList<T extends { id: string }>({
     count: items.length,
     getItemKey,
     estimateSize: (index) => estimateSize(items[index]),
+    // 动画逐帧改变高度，测量后立即更新行位置和列表高度。
+    directDomUpdates: true,
     gap: 12,
     overscan: 3,
     scrollMargin,
     rangeExtractor,
   });
+  const setListRef = useCallback(
+    (node: HTMLUListElement | null) => {
+      listRef.current = node;
+      virtualizer.containerRef(node);
+    },
+    [virtualizer]
+  );
   const visibleEnd = virtualizer.range?.endIndex;
   const rows = virtualizer.getVirtualItems();
 
@@ -148,10 +157,9 @@ export function VirtualList<T extends { id: string }>({
 
   return (
     <ul
-      ref={listRef}
+      ref={setListRef}
       aria-label={label}
       className="relative [overflow-anchor:none]"
-      style={{ height: virtualizer.getTotalSize() }}
     >
       {rows.map((row) => {
         const item = items[row.index];
@@ -162,7 +170,6 @@ export function VirtualList<T extends { id: string }>({
             aria-posinset={row.index + 1}
             ref={virtualizer.measureElement}
             className="absolute inset-x-0 top-0"
-            style={{ transform: `translateY(${row.start - scrollMargin}px)` }}
             onFocusCapture={() => setFocusedId(item.id)}
             onBlurCapture={(event) => {
               if (!event.currentTarget.contains(event.relatedTarget)) {

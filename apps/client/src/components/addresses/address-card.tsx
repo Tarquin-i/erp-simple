@@ -1,13 +1,10 @@
 import { ChevronRight, Copy, Phone, Star, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { AnimatedCollapsibleContent } from "@/components/shared/animated-collapsible-content";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FieldError } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -216,8 +213,8 @@ export function AddressCard({
       asChild
       open={open}
       onOpenChange={(expanded) => {
+        if (expanded && loadError) onDetailChange(id, undefined);
         onOpenChange(id, expanded);
-        if (!expanded && loadError) onDetailChange(id, undefined);
       }}
     >
       <Card className="gap-0 py-0 has-aria-[current=page]:ring-ring/40">
@@ -234,7 +231,7 @@ export function AddressCard({
                 收货地址
                 <ChevronRight
                   aria-hidden="true"
-                  className="text-muted-foreground transition-transform motion-reduce:transition-none group-data-[state=open]/address:rotate-90"
+                  className="text-muted-foreground transition-transform duration-200 ease-out motion-reduce:transition-none group-data-[state=open]/address:rotate-90"
                 />
               </Button>
             </CollapsibleTrigger>
@@ -269,20 +266,18 @@ export function AddressCard({
             </span>
           </div>
         </CardContent>
-        <CollapsibleContent>
-          {open && (
-            <CardContent className="px-4 pb-4">
-              {detail ? (
-                <AddressCardDetails address={detail} />
-              ) : (
-                <AddressCardDetailStatus
-                  error={loadError}
-                  onRetry={() => onDetailChange(id, undefined)}
-                />
-              )}
-            </CardContent>
-          )}
-        </CollapsibleContent>
+        <AnimatedCollapsibleContent open={open}>
+          <CardContent className="px-4 pb-4">
+            {detail ? (
+              <AddressCardDetails address={detail} />
+            ) : (
+              <AddressCardDetailStatus
+                error={loadError}
+                onRetry={() => onDetailChange(id, undefined)}
+              />
+            )}
+          </CardContent>
+        </AnimatedCollapsibleContent>
       </Card>
     </Collapsible>
   );

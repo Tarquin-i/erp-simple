@@ -16,9 +16,11 @@ import { useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { AnimatedCollapsibleContent } from "@/components/shared/animated-collapsible-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -369,57 +371,66 @@ export function AttachmentTimeline({
             const collapsed = collapsedDates.has(date);
             const groupId = `${idPrefix}-${date}`;
             return (
-              <section
-                aria-labelledby={`${groupId}-date`}
-                className="space-y-2"
-                data-attachment-date={date}
+              <Collapsible
+                asChild
                 key={date}
+                open={!collapsed}
+                onOpenChange={(open) => setDateCollapsed(date, !open)}
               >
-                <Button
-                  aria-controls={`${groupId}-files`}
-                  aria-expanded={!collapsed}
-                  className="w-full scroll-mt-20 justify-start gap-2 px-1 hover:bg-muted/70 aria-expanded:bg-transparent aria-expanded:hover:bg-muted/70"
-                  id={`${groupId}-date`}
-                  ref={(element) => {
-                    if (element) groupTriggers.current.set(date, element);
-                    else groupTriggers.current.delete(date);
-                  }}
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setDateCollapsed(date, !collapsed)}
+                <section
+                  aria-labelledby={`${groupId}-date`}
+                  className="space-y-2"
+                  data-attachment-date={date}
                 >
-                  <span>{label}</span>
-                  <Separator className="min-w-3 flex-1 data-horizontal:w-auto" />
-                  <span className="text-muted-foreground text-xs">
-                    {items.length} 个附件
-                  </span>
-                  <ChevronDown
-                    aria-hidden="true"
-                    className={collapsed ? "size-4 -rotate-90" : "size-4"}
-                  />
-                </Button>
-                <ul
-                  className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,8rem),1fr))] gap-2.5"
-                  hidden={collapsed}
-                  id={`${groupId}-files`}
-                >
-                  {items.map((attachment) => (
-                    <li className="min-w-0" key={attachment.id}>
-                      <AttachmentTile
-                        attachment={attachment}
-                        communicationId={communicationId}
-                        deletingId={deletingId}
-                        downloading={
-                          downloadingIds?.has(attachment.id) ?? false
-                        }
-                        onDelete={onDelete}
-                        onDownload={onDownload}
-                        onPreview={(id, trigger) => setPreview({ id, trigger })}
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      aria-controls={`${groupId}-files`}
+                      className="group/date w-full scroll-mt-20 justify-start gap-2 px-1 hover:bg-muted/70 aria-expanded:bg-transparent aria-expanded:hover:bg-muted/70"
+                      id={`${groupId}-date`}
+                      ref={(element) => {
+                        if (element) groupTriggers.current.set(date, element);
+                        else groupTriggers.current.delete(date);
+                      }}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <span>{label}</span>
+                      <Separator className="min-w-3 flex-1 data-horizontal:w-auto" />
+                      <span className="text-muted-foreground text-xs">
+                        {items.length} 个附件
+                      </span>
+                      <ChevronDown
+                        aria-hidden="true"
+                        className="size-4 transition-transform duration-200 ease-out motion-reduce:transition-none group-data-[state=closed]/date:-rotate-90"
                       />
-                    </li>
-                  ))}
-                </ul>
-              </section>
+                    </Button>
+                  </CollapsibleTrigger>
+                  <AnimatedCollapsibleContent open={!collapsed}>
+                    <ul
+                      className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,8rem),1fr))] gap-2.5"
+                      id={`${groupId}-files`}
+                    >
+                      {items.map((attachment) => (
+                        <li className="min-w-0" key={attachment.id}>
+                          <AttachmentTile
+                            attachment={attachment}
+                            communicationId={communicationId}
+                            deletingId={deletingId}
+                            downloading={
+                              downloadingIds?.has(attachment.id) ?? false
+                            }
+                            onDelete={onDelete}
+                            onDownload={onDownload}
+                            onPreview={(id, trigger) =>
+                              setPreview({ id, trigger })
+                            }
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </AnimatedCollapsibleContent>
+                </section>
+              </Collapsible>
             );
           })}
         </div>
