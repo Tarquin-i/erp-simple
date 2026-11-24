@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +36,11 @@ type PagedListFilterLabels = {
 };
 
 const pageSize = 20;
+
+function handleActionKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+  // 让按钮响应 Enter，避免命令菜单把它当作选择候选项。
+  if (event.key === "Enter") event.stopPropagation();
+}
 
 /** 提供服务端分页和搜索，已选项由当前列表的筛选条件控制。 */
 export function PagedListFilter<TOption extends ListOption>({
@@ -103,9 +108,13 @@ export function PagedListFilter<TOption extends ListOption>({
     };
   }, [keyword, loadOptions, loadErrorText, page, retry]);
 
-  function changePage(next: number) {
-    // 分页按钮在等待响应时会卸载，焦点留在常驻的搜索框内。
+  function focusSearch() {
+    // 分页和重试按钮会卸载，焦点留在常驻的搜索框内。
     searchRef.current?.focus({ preventScroll: true });
+  }
+
+  function changePage(next: number) {
+    focusSearch();
     setPage(next);
     setResult(undefined);
     setError("");
@@ -160,7 +169,9 @@ export function PagedListFilter<TOption extends ListOption>({
             type="button"
             variant="ghost"
             size="xs"
+            onKeyDown={handleActionKeyDown}
             onClick={() => {
+              focusSearch();
               setError("");
               setRetry((attempt) => attempt + 1);
             }}
@@ -182,7 +193,11 @@ export function PagedListFilter<TOption extends ListOption>({
             type="button"
             variant="ghost"
             size="xs"
-            onClick={onRetryLabels}
+            onKeyDown={handleActionKeyDown}
+            onClick={() => {
+              focusSearch();
+              onRetryLabels();
+            }}
           >
             重试
           </Button>
@@ -205,6 +220,7 @@ export function PagedListFilter<TOption extends ListOption>({
               size="icon-xs"
               aria-label={labels.previousPageLabel}
               disabled={page <= 1}
+              onKeyDown={handleActionKeyDown}
               onClick={() => changePage(page - 1)}
             >
               <ChevronLeft />
@@ -215,6 +231,7 @@ export function PagedListFilter<TOption extends ListOption>({
               size="icon-xs"
               aria-label={labels.nextPageLabel}
               disabled={page * pageSize >= result.total}
+              onKeyDown={handleActionKeyDown}
               onClick={() => changePage(page + 1)}
             >
               <ChevronRight />
