@@ -92,6 +92,7 @@ export class CustomerApiError extends Error {
 }
 
 const base = "/api/customers";
+const customerListGetTargetLimit = 8_000;
 
 /**
  * 发送同源客户模块请求，统一解析 JSON 响应和业务错误。
@@ -148,9 +149,20 @@ const contactPath = (customerId: string, contactId: string) =>
  * @throws HTTP 失败时抛出 `CustomerApiError`，取消或网络异常由调用方处理。
  */
 export function listCustomers(query: CustomerListQuery, signal?: AbortSignal) {
-  return request<PageMetadata & { customers: Customer[] }>(queryString(query), {
-    signal,
-  });
+  const suffix = queryString(query);
+  // URLSearchParams 的输出已编码为 ASCII，长度可直接作为请求路径字节数。
+  if (base.length + suffix.length > customerListGetTargetLimit) {
+    const body = Object.fromEntries(
+      Object.entries(query).filter(([, value]) => value !== "")
+    );
+    return request<PageMetadata & { customers: Customer[] }>("/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    });
+  }
+  return request<PageMetadata & { customers: Customer[] }>(suffix, { signal });
 }
 
 export function getCustomer(id: string, signal?: AbortSignal) {

@@ -1,8 +1,9 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 
 import { customerAddressRoutes } from "../address/routes";
 import { requireBusinessAccess } from "../business/access";
-import type { BusinessAccessEnv } from "../business/access";
+import type { BusinessAccess, BusinessAccessEnv } from "../business/access";
 import { readListOptionFilter } from "../business/list-option-filter";
 import { fail } from "../organization/errors";
 import { customerContactRoutes } from "./contacts";
@@ -30,6 +31,17 @@ const editableFields = [
   "channelCodes",
   "tagIds",
 ] as const;
+
+const listFilterFields = new Set(["channelCode", "tagId", "ownerUserId"]);
+const listFields = [
+  "search",
+  "page",
+  "pageSize",
+  ...listFilterFields,
+  "channelOperator",
+  "tagOperator",
+  "ownerOperator",
+];
 
 function readRemark(value: unknown) {
   if (value === undefined || value === null) return value;
@@ -75,17 +87,12 @@ function readCustomerWrite(body: Record<string, unknown>): CustomerWriteInput {
   };
 }
 
-export const customerRoutes = new Hono<BusinessAccessEnv>();
-
-customerRoutes.use("*", requireBusinessAccess);
-customerRoutes.route("/", customerDictionaryRoutes);
-customerRoutes.route("/", customerContactRoutes);
-customerRoutes.route("/", customerAddressRoutes);
-
-customerRoutes.get("/", async (c) => {
-  const query = c.req.queries();
-  const { search, page, pageSize } = c.req.query();
-  const result = await listCustomers(c.get("businessAccess"), {
+function listCustomerPage(
+  access: BusinessAccess,
+  query: Record<string, string[]>
+) {
+  const search = query.search?.[0];
+  return listCustomers(access, {
     search: search?.trim() ? readString(search, "搜索词", 256) : undefined,
     channels: readListOptionFilter(
       query.channelCode,
@@ -105,11 +112,65 @@ customerRoutes.get("/", async (c) => {
       "业务员",
       (value) => readString(value, "业务员 ID", 128)
     ),
-    page: readPositiveInteger(page, "页码", 1, 1_000_000),
-    pageSize: readPositiveInteger(pageSize, "每页条数", 20, 100),
+    page: readPositiveInteger(query.page?.[0], "页码", 1, 1_000_000),
+    pageSize: readPositiveInteger(query.pageSize?.[0], "每页条数", 20, 100),
   });
+}
+
+function readListBody(body: Record<string, unknown>) {
+  const query: Record<string, string[]> = {};
+  for (const [field, value] of Object.entries(body)) {
+    if (typeof value === "string") {
+      query[field] = [value];
+    } else if (
+      (field === "page" || field === "pageSize") &&
+      typeof value === "number"
+    ) {
+      query[field] = [String(value)];
+    } else if (
+      listFilterFields.has(field) &&
+      Array.isArray(value) &&
+      value.every((item) => typeof item === "string")
+    ) {
+      query[field] = value;
+    } else {
+      fail(400, `客户查询参数 ${field} 的格式不正确。`);
+    }
+  }
+  return query;
+}
+
+export const customerRoutes = new Hono<BusinessAccessEnv>();
+
+customerRoutes.use("*", requireBusinessAccess);
+customerRoutes.route("/", customerDictionaryRoutes);
+customerRoutes.route("/", customerContactRoutes);
+customerRoutes.route("/", customerAddressRoutes);
+
+customerRoutes.get("/", async (c) => {
+  const result = await listCustomerPage(
+    c.get("businessAccess"),
+    c.req.queries()
+  );
   return c.json(result);
 });
+
+// 长条件通过请求体传入，与 GET 共用筛选规则和只读查询。
+customerRoutes.post(
+  "/search",
+  bodyLimit({
+    maxSize: 128 * 1024,
+    onError: (c) => c.json({ message: "客户查询条件过大。" }, 413),
+  }),
+  async (c) => {
+    const body = await readObject(c, listFields);
+    const result = await listCustomerPage(
+      c.get("businessAccess"),
+      readListBody(body)
+    );
+    return c.json(result);
+  }
+);
 
 customerRoutes.post("/", async (c) => {
   const access = c.get("businessAccess");
