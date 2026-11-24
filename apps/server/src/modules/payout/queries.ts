@@ -1,11 +1,12 @@
 import { customer, payout, product } from "@repo/db/schema";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, inArray, notInArray } from "drizzle-orm";
 
 import {
   businessScopeWhere,
   withBusinessReadSnapshot,
 } from "../business/access";
 import type { BusinessAccess } from "../business/access";
+import type { ListOptionFilter } from "../business/list-option-filter";
 import { fail } from "../organization/errors";
 
 type Payout = typeof payout.$inferSelect;
@@ -21,7 +22,7 @@ export interface PayoutSource {
 }
 
 interface PayoutFilters {
-  productId?: string;
+  products?: ListOptionFilter;
   page: number;
   pageSize: number;
 }
@@ -110,12 +111,13 @@ function activePayoutScope(access: BusinessAccess) {
 /** 使用同一只读快照读取权限、列表及总数。 */
 export function listPayouts(
   access: BusinessAccess,
-  { productId, page, pageSize }: PayoutFilters
+  { products, page, pageSize }: PayoutFilters
 ) {
+  const productMatches = products?.excluded ? notInArray : inArray;
   return withBusinessReadSnapshot(access.userId, async (tx, freshAccess) => {
     const filter = and(
       activePayoutScope(freshAccess),
-      productId ? eq(payout.productId, productId) : undefined
+      products ? productMatches(payout.productId, products.values) : undefined
     );
     const rows = await tx
       .select({ payout, source: payoutSourceFields })

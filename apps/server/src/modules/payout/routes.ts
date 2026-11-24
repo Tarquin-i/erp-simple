@@ -2,6 +2,7 @@ import { Hono } from "hono";
 
 import { requireBusinessAccess } from "../business/access";
 import type { BusinessAccessEnv } from "../business/access";
+import { readListOptionFilter } from "../business/list-option-filter";
 import {
   readExpectedVersion,
   readObject,
@@ -30,10 +31,15 @@ export const payoutRoutes = new Hono<BusinessAccessEnv>();
 payoutRoutes.use("*", requireBusinessAccess);
 
 payoutRoutes.get("/", async (c) => {
-  const { productId, page, pageSize } = c.req.query();
+  const { page, pageSize } = c.req.query();
+  const query = c.req.queries();
   const result = await listPayouts(c.get("businessAccess"), {
-    productId:
-      productId === undefined ? undefined : readUuid(productId, "产品 ID"),
+    products: readListOptionFilter(
+      query.productId,
+      query.productOperator,
+      "产品",
+      (value) => readUuid(value, "产品 ID")
+    ),
     page: readPositiveInteger(page, "页码", 1, 1_000_000),
     pageSize: readPositiveInteger(pageSize, "每页条数", 20, 100),
   });

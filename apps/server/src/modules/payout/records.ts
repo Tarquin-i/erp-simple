@@ -155,7 +155,6 @@ async function preparePayoutCreation(
         ...creation.input,
         id,
         currencyCode: source.currencyCode,
-        name: input.name ?? `Payout ${id}`,
       },
     };
   }

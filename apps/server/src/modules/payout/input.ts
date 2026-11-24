@@ -29,7 +29,7 @@ export const payoutCopyFields = ["name", "ticketCount"] as const;
 
 export interface PayoutCreateInput {
   productId: string;
-  name?: string;
+  name: string;
   ticketCount: number;
   unitPrice: string;
   remark: string;
@@ -193,7 +193,7 @@ export function readPayoutCreateInput(
 ): PayoutCreateInput {
   return {
     productId: readUuid(body.productId, "产品 ID"),
-    name: readOptionalName(body.name),
+    name: readString(body.name, "Payout 名称", maxPayoutNameLength),
     ticketCount: readTicketQuantity(body.ticketCount, "总张数"),
     unitPrice:
       body.unitPrice === undefined ? "1" : readUnitPrice(body.unitPrice),
