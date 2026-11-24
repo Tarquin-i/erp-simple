@@ -2,6 +2,7 @@ import { Hono } from "hono";
 
 import { requireBusinessAccess } from "../business/access";
 import type { BusinessAccessEnv } from "../business/access";
+import { readListOptionFilter } from "../business/list-option-filter";
 import {
   readExpectedVersion,
   readObject,
@@ -25,19 +26,14 @@ export const productRoutes = new Hono<BusinessAccessEnv>();
 productRoutes.use("*", requireBusinessAccess);
 
 productRoutes.get("/", async (c) => {
-  const {
-    page,
-    pageSize,
-    search,
-    customerId,
-    sortDirection = "desc",
-  } = c.req.query();
+  const { page, pageSize, search, sortDirection = "desc" } = c.req.query();
   if (sortDirection !== "asc" && sortDirection !== "desc") {
     fail(400, "请选择有效的产品排序方向。");
   }
+  const query = c.req.queries();
   const typeValues = [
-    ...(c.req.queries("productTypes") ?? []),
-    ...(c.req.queries("productType") ?? []),
+    ...(query.productTypes ?? []),
+    ...(query.productType ?? []),
   ].flatMap((value) => value.split(","));
   if (typeValues.length > 20) fail(400, "最多可筛选 20 个产品类型。");
 
@@ -45,11 +41,18 @@ productRoutes.get("/", async (c) => {
     page: readPositiveInteger(page, "页码", 1, 1_000_000),
     pageSize: readPositiveInteger(pageSize, "每页条数", 20, 100),
     search: search?.trim() ? readString(search, "搜索词", 256) : undefined,
-    customerId:
-      customerId === undefined ? undefined : readUuid(customerId, "客户 ID"),
-    productTypes: [
-      ...new Set(typeValues.map((value) => readProductType(value.trim()))),
-    ],
+    customers: readListOptionFilter(
+      query.customerId,
+      query.customerOperator,
+      "客户",
+      (value) => readUuid(value, "客户 ID")
+    ),
+    productTypes: readListOptionFilter(
+      typeValues,
+      query.productTypeOperator,
+      "产品类型",
+      (value) => readProductType(value.trim())
+    ),
     sortDirection,
   });
   return c.json(result);

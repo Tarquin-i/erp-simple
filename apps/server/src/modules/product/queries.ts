@@ -1,11 +1,22 @@
 import { customer, product, productType } from "@repo/db/schema";
-import { and, asc, count, desc, eq, inArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import {
   businessScopeWhere,
   withBusinessReadSnapshot,
 } from "../business/access";
 import type { BusinessAccess } from "../business/access";
+import type { ListOptionFilter } from "../business/list-option-filter";
 import { fail } from "../organization/errors";
 import { productTypeLabels } from "./input";
 import type { ProductType } from "./input";
@@ -16,8 +27,8 @@ interface ProductFilters {
   page: number;
   pageSize: number;
   search?: string;
-  customerId?: string;
-  productTypes?: readonly ProductType[];
+  customers?: ListOptionFilter;
+  productTypes?: ListOptionFilter<ProductType>;
   sortDirection?: "asc" | "desc";
 }
 
@@ -85,16 +96,20 @@ export function productView(
 
 /** 在同一个只读快照中按客户权限查询有效产品和总条数。 */
 export function listProducts(access: BusinessAccess, filters: ProductFilters) {
-  const { page, pageSize, search, customerId, productTypes, sortDirection } =
+  const { page, pageSize, search, customers, productTypes, sortDirection } =
     filters;
   const order = sortDirection === "asc" ? asc : desc;
+  const customerMatches = customers?.excluded ? notInArray : inArray;
+  const typeMatches = productTypes?.excluded ? notInArray : inArray;
   return withBusinessReadSnapshot(access.userId, async (tx, freshAccess) => {
     const filter = and(
       businessScopeWhere(freshAccess, customer),
       eq(product.status, "active"),
-      customerId === undefined ? undefined : eq(product.customerId, customerId),
-      productTypes?.length
-        ? inArray(product.productType, productTypes)
+      customers
+        ? customerMatches(product.customerId, customers.values)
+        : undefined,
+      productTypes
+        ? typeMatches(product.productType, productTypes.values)
         : undefined,
       search === undefined ? undefined : productSearchWhere(search)
     );
