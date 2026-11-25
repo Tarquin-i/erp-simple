@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createUuid } from "@/lib/uuid";
-import { CommunicationApiError } from "@/request/communication";
+import {
+  CommunicationApiError,
+  getCommunication,
+} from "@/request/communication";
 import {
   cancelCommunicationAttachmentUpload,
   completeCommunicationAttachment,
@@ -20,6 +23,37 @@ type UploadItem = AttachmentQueueItem & {
   contentSha256?: string;
   initializationSent?: boolean;
 };
+
+type CommunicationIssue = "archiving" | "unavailable";
+
+function isAccessError(failure: unknown): failure is CommunicationApiError {
+  return (
+    failure instanceof CommunicationApiError &&
+    [401, 403, 404].includes(failure.status)
+  );
+}
+
+async function readCommunicationIssue(
+  failure: unknown,
+  communicationId: string,
+  signal: AbortSignal
+): Promise<CommunicationIssue | undefined> {
+  if (
+    failure instanceof CommunicationApiError &&
+    failure.code === "archive_in_progress"
+  ) {
+    return "archiving";
+  }
+  if (!isAccessError(failure)) return;
+
+  // 单个附件也可能返回 404，只有重新读取父记录才能确认它不可访问。
+  try {
+    const { communication } = await getCommunication(communicationId, signal);
+    if (communication.archiveStartedAt) return "archiving";
+  } catch (checkFailure) {
+    if (isAccessError(checkFailure)) return "unavailable";
+  }
+}
 
 function canRetry(failure: unknown) {
   if (!(failure instanceof CommunicationApiError)) return true;
@@ -45,7 +79,10 @@ async function completeUpload(
       communicationId,
       id,
       signal
-    ).catch(() => null);
+    ).catch((checkFailure: unknown) => {
+      if (isAccessError(checkFailure)) throw checkFailure;
+      return null;
+    });
     if (upload?.state !== "ready") throw failure;
   }
 }
@@ -56,6 +93,8 @@ export function useAttachmentUploadQueue() {
   const active = useRef<AbortController | null>(null);
   const [items, setItems] = useState<UploadItem[]>([]);
   const [busy, setBusy] = useState(false);
+  const [communicationIssue, setCommunicationIssue] =
+    useState<CommunicationIssue>();
 
   useEffect(() => () => active.current?.abort(), []);
 
@@ -116,15 +155,19 @@ export function useAttachmentUploadQueue() {
       setQueue(itemsRef.current.filter((file) => file.id !== id));
       return "removed" as const;
     } catch (failure) {
-      if (!signal.aborted) {
-        update(id, {
-          status: "remove-failed",
-          error:
-            failure instanceof Error
-              ? failure.message
-              : "移除附件失败，请重试。",
-        });
-      }
+      if (signal.aborted) return;
+      const issue = await readCommunicationIssue(
+        failure,
+        communicationId,
+        signal
+      );
+      if (signal.aborted) return;
+      if (issue) setCommunicationIssue(issue);
+      update(id, {
+        status: "remove-failed",
+        error:
+          failure instanceof Error ? failure.message : "移除附件失败，请重试。",
+      });
     } finally {
       active.current = null;
       if (!signal.aborted) setBusy(false);
@@ -189,6 +232,12 @@ export function useAttachmentUploadQueue() {
           update(id, { status: "succeeded" });
         } catch (failure) {
           if (signal.aborted) return false;
+          const issue = await readCommunicationIssue(
+            failure,
+            communicationId,
+            signal
+          );
+          if (signal.aborted) return false;
           succeeded = false;
           update(id, {
             status: "failed",
@@ -196,6 +245,10 @@ export function useAttachmentUploadQueue() {
             error:
               failure instanceof Error ? failure.message : "上传失败，请重试。",
           });
+          if (issue) {
+            setCommunicationIssue(issue);
+            return false;
+          }
         }
       }
       return succeeded;
@@ -237,6 +290,7 @@ export function useAttachmentUploadQueue() {
   return {
     items,
     busy,
+    communicationIssue,
     add,
     remove,
     upload,

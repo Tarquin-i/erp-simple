@@ -138,6 +138,7 @@ function NewCommunicationSession({
         viewer={viewer}
         attachments={attachments}
         onCancel={cancelCreation}
+        onUnavailable={returnToList}
         onSaved={() => showRecovered(recovered)}
       />
     );
@@ -202,6 +203,7 @@ function NewCommunicationSession({
       customerId={customerId}
       attachments={attachments}
       onCancel={cancelCreation}
+      onUnavailable={returnToList}
       onPendingCreation={(pending) => setRecovery({ recovery: pending })}
       onSaved={(id) => showSaved(id, customerId)}
     />
@@ -213,6 +215,7 @@ function NewCommunicationForm({
   customerId,
   attachments,
   onCancel,
+  onUnavailable,
   onPendingCreation,
   onSaved,
 }: {
@@ -220,6 +223,7 @@ function NewCommunicationForm({
   customerId?: string;
   attachments: AttachmentUploadQueue;
   onCancel: () => void;
+  onUnavailable: () => void;
   onPendingCreation: (recovery: CreationRecovery) => void;
   onSaved: (id: string) => Promise<void>;
 }) {
@@ -260,6 +264,7 @@ function NewCommunicationForm({
       viewer={viewer}
       attachments={attachments}
       onCancel={onCancel}
+      onUnavailable={onUnavailable}
       onPendingCreation={onPendingCreation}
       onSaved={onSaved}
     />

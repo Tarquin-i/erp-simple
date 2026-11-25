@@ -156,11 +156,16 @@ export function CommunicationForm({
   const [unavailable, setUnavailable] = useState(false);
   const [archiveInProgress, setArchiveInProgress] = useState(false);
   const [assignmentDenied, setAssignmentDenied] = useState(false);
-  const [savedId, setSavedId] = useState(recoveredCreation?.id);
+  const [saved, setSaved] = useState(
+    recoveredCreation
+      ? { id: recoveredCreation.id, recordSaved: true }
+      : undefined
+  );
   const saving = useRef(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
   const isEdit = Boolean(record);
+  const savedId = saved?.id;
   const savedCreationId = isEdit ? undefined : savedId;
   const fieldsLocked = pending || archiveInProgress || Boolean(savedCreationId);
   const attachmentBusy = pending || archiveInProgress || attachments.busy;
@@ -199,25 +204,27 @@ export function CommunicationForm({
     const unsubscribe = router.history.subscribe(() => {
       leftForm = true;
     });
-    async function finishSave(id: string) {
+    async function finishSave(id: string, recordSaved = false) {
       if (leftForm) return;
       setConflict(null);
       if (hasFiles) {
-        setSavedId(id);
+        setSaved({ id, recordSaved });
         if (!(await attachments.upload(id)) || leftForm) return;
       }
       await onSaved(id);
     }
     const changes = getChanges(toDraft(current), proposed);
     try {
-      let savedId: string;
+      let id: string;
+      let recordSaved = false;
       if (current) {
-        savedId = current.id;
+        id = current.id;
         if (Object.keys(changes).length) {
           await updateCommunication(current.id, {
             ...changes,
             expectedVersion: current.version,
           });
+          recordSaved = true;
         }
       } else {
         const started = startCreationSubmission(viewer.account.id, {
@@ -242,9 +249,10 @@ export function CommunicationForm({
           });
           return;
         }
-        savedId = result.communication.id;
+        id = result.communication.id;
+        recordSaved = true;
       }
-      await finishSave(savedId);
+      await finishSave(id, recordSaved);
     } catch (failure) {
       if (leftForm) return;
       if (
@@ -346,13 +354,15 @@ export function CommunicationForm({
     );
   }
 
-  if (isEdit && savedId) {
+  if (saved && (isEdit || attachments.communicationIssue)) {
     return (
       <SavedAttachmentUploads
-        communicationId={savedId}
+        communicationId={saved.id}
         queue={attachments}
+        recordSaved={saved.recordSaved}
         error={error}
-        onView={() => void onSaved(savedId)}
+        onView={() => void onSaved(saved.id)}
+        onUnavailable={onUnavailable ?? onCancel}
       />
     );
   }

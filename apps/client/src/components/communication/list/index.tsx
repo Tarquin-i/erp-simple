@@ -427,20 +427,21 @@ export function CommunicationList({
                   <TableCell className="max-w-0 px-2.5">
                     <TagBadges tags={communication.tags} />
                   </TableCell>
-                  <TableCell className="px-2.5">
-                    <Badge
-                      variant={
-                        communication.archiveStartedAt
-                          ? "outline"
-                          : communication.status === "urgent"
+                  <TableCell className="px-2.5 py-1">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Badge
+                        variant={
+                          communication.status === "urgent"
                             ? "destructive"
                             : "secondary"
-                      }
-                    >
-                      {communication.archiveStartedAt
-                        ? "归档中"
-                        : communicationStatusLabels[communication.status]}
-                    </Badge>
+                        }
+                      >
+                        {communicationStatusLabels[communication.status]}
+                      </Badge>
+                      {communication.archiveStartedAt && (
+                        <Badge variant="outline">归档中</Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell
                     className="truncate px-2.5"
