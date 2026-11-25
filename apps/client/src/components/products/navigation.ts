@@ -109,7 +109,8 @@ export function readNewProductSearch(search: Record<string, unknown>): {
 export function readProductListQuery(
   search: Record<string, unknown>
 ): ProductListQuery {
-  const query: ProductListQuery = {};
+  // 路由会合并原始搜索参数，显式清除旧链接里的排序方向。
+  const query: ProductListQuery = { sortDirection: undefined };
   const term =
     typeof search.search === "string" ? search.search.trim().slice(0, 256) : "";
   if (term) query.search = term;
@@ -147,7 +148,6 @@ export function readProductListQuery(
     );
     if (operator) query.productTypeOperator = operator;
   }
-  if (search.sortDirection === "asc") query.sortDirection = "asc";
   const page = readProductPage(search.page);
   const pageSize = positiveInteger(search.pageSize, 100);
   if (page) query.page = page;

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowDownUp, Package, Plus } from "lucide-react";
+import { Package, Plus } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
@@ -7,13 +7,6 @@ import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { ListPagination } from "@/components/shared/list-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Empty,
   EmptyDescription,
@@ -147,52 +140,18 @@ export function ProductList({
           />
         }
         actions={
-          <>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="创建时间排序"
-                  title="创建时间排序"
-                >
-                  <ArrowDownUp aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" aria-label="创建时间排序">
-                <DropdownMenuRadioGroup
-                  value={query.sortDirection ?? "desc"}
-                  onValueChange={(value) => {
-                    const sortDirection = value === "asc" ? "asc" : undefined;
-                    onQueryChange((previous) =>
-                      previous.sortDirection === sortDirection
-                        ? previous
-                        : { ...previous, sortDirection, page: undefined }
-                    );
-                  }}
-                >
-                  <DropdownMenuRadioItem value="desc">
-                    最新优先
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="asc">
-                    最早优先
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {canCreate && (
-              <Button asChild size="icon">
-                <Link
-                  to="/products/new"
-                  state={listOrigin}
-                  aria-label="新建产品"
-                  title="新建产品"
-                >
-                  <Plus aria-hidden="true" />
-                </Link>
-              </Button>
-            )}
-          </>
+          canCreate && (
+            <Button asChild size="icon">
+              <Link
+                to="/products/new"
+                state={listOrigin}
+                aria-label="新建产品"
+                title="新建产品"
+              >
+                <Plus aria-hidden="true" />
+              </Link>
+            </Button>
+          )
         }
       />
 
@@ -331,11 +290,11 @@ function ProductTable({ children }: { children: ReactNode }) {
     <Table className="min-w-160 table-fixed border-b">
       <TableCaption className="sr-only">产品列表</TableCaption>
       <colgroup>
-        <col className="w-[26%]" />
-        <col className="w-[15%]" />
-        <col className="w-[16%]" />
-        <col className="w-[25%]" />
-        <col className="w-[18%]" />
+        <col className="w-[24%]" />
+        <col className="w-[13%]" />
+        <col className="w-[14%]" />
+        <col className="w-[27%]" />
+        <col className="w-[22%]" />
       </colgroup>
       <TableHeader>
         <TableRow>
