@@ -179,7 +179,7 @@ export function ProductList({
             {Array.from({ length: 6 }, (_, rowIndex) => (
               <TableRow aria-hidden="true" key={rowIndex}>
                 {columns.map((column) => (
-                  <TableCell className="h-14 px-2.5" key={column}>
+                  <TableCell className="h-11" key={column}>
                     <Skeleton className="h-4 w-24 max-w-full" />
                   </TableCell>
                 ))}
@@ -226,7 +226,7 @@ export function ProductList({
                   onOpenProduct(product.id);
                 }}
               >
-                <TableCell className="h-14 max-w-0 px-2.5">
+                <TableCell className="max-w-0 py-3">
                   <Link
                     className={tableLinkClassName}
                     to="/products/$productId"
@@ -237,10 +237,10 @@ export function ProductList({
                     {product.name}
                   </Link>
                 </TableCell>
-                <TableCell className="px-2.5 tabular-nums">
+                <TableCell className="tabular-nums">
                   {product.productNo}
                 </TableCell>
-                <TableCell className="max-w-0 px-2.5">
+                <TableCell className="max-w-0">
                   <Badge variant="secondary" className="max-w-full">
                     <span className="truncate">
                       {product.customerDefinedType ??
@@ -248,7 +248,7 @@ export function ProductList({
                     </span>
                   </Badge>
                 </TableCell>
-                <TableCell className="max-w-0 px-2.5">
+                <TableCell className="max-w-0">
                   <Link
                     className={tableLinkClassName}
                     to="/customers/$customerId"
@@ -258,7 +258,7 @@ export function ProductList({
                     {product.customer.companyName}
                   </Link>
                 </TableCell>
-                <TableCell className="px-2.5 text-muted-foreground tabular-nums">
+                <TableCell className="text-muted-foreground tabular-nums">
                   <time dateTime={product.createdAt}>
                     {dateTime.format(new Date(product.createdAt))}
                   </time>
@@ -271,7 +271,7 @@ export function ProductList({
             page={result.page}
             pageCount={pageCount}
             total={result.total}
-            className="mt-4"
+            className="mt-5"
             onPageChange={(page) =>
               onQueryChange((previous) => ({
                 ...previous,
@@ -299,10 +299,7 @@ function ProductTable({ children }: { children: ReactNode }) {
       <TableHeader>
         <TableRow>
           {columns.map((column) => (
-            <TableHead
-              className="h-10 px-2.5 text-muted-foreground"
-              key={column}
-            >
+            <TableHead className="text-muted-foreground" key={column}>
               {column}
             </TableHead>
           ))}

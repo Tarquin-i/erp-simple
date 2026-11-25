@@ -162,8 +162,9 @@ export function CommunicationList({
   const origin = customerId
     ? { customerId, communicationPage: query.page }
     : {};
-  const columns = customerId ? customerColumns : defaultColumns;
-  const minWidth = customerId ? "min-w-160" : "min-w-180";
+  const customerView = Boolean(customerId);
+  const columns = customerView ? customerColumns : defaultColumns;
+  const cellPadding = customerView ? "px-2.5" : undefined;
   const [load, setLoad] = useState<ListState>();
   const [retry, setRetry] = useState(0);
   const [opening, setOpening] = useState(false);
@@ -350,11 +351,14 @@ export function CommunicationList({
       ) : !result || result.page > pageCount ? (
         <div role="status">
           <span className="sr-only">正在加载沟通记录…</span>
-          <CommunicationTable columns={columns} minWidth={minWidth}>
+          <CommunicationTable columns={columns} customerView={customerView}>
             {Array.from({ length: 4 }, (_, index) => (
               <TableRow aria-hidden="true" key={index}>
                 {columns.map(({ label }) => (
-                  <TableCell className="h-14 px-2.5" key={label}>
+                  <TableCell
+                    className={cn(customerView ? "h-14" : "h-11", cellPadding)}
+                    key={label}
+                  >
                     <Skeleton className="h-4 w-16" />
                   </TableCell>
                 ))}
@@ -385,7 +389,7 @@ export function CommunicationList({
         </Empty>
       ) : (
         <>
-          <CommunicationTable columns={columns} minWidth={minWidth}>
+          <CommunicationTable columns={columns} customerView={customerView}>
             {result.communications.map((communication) => {
               const updatedAt = new Date(communication.updatedAt);
               const destination = {
@@ -414,7 +418,9 @@ export function CommunicationList({
                     void navigate(destination);
                   }}
                 >
-                  <TableCell className="h-14 px-2.5">
+                  <TableCell
+                    className={cn(customerView ? "h-14" : "py-3", cellPadding)}
+                  >
                     <Link
                       {...destination}
                       preload={false}
@@ -425,7 +431,7 @@ export function CommunicationList({
                     </Link>
                   </TableCell>
                   {!customerId && (
-                    <TableCell className="max-w-0 truncate px-2.5">
+                    <TableCell className="max-w-0 truncate">
                       <CommunicationCustomerLink
                         className={tableLinkClassName}
                         customer={
@@ -436,10 +442,10 @@ export function CommunicationList({
                       />
                     </TableCell>
                   )}
-                  <TableCell className="max-w-0 px-2.5">
+                  <TableCell className={cn("max-w-0", cellPadding)}>
                     <TagBadges tags={communication.tags} />
                   </TableCell>
-                  <TableCell className="px-2.5 py-1">
+                  <TableCell className={cn("py-1", cellPadding)}>
                     <div className="flex flex-wrap items-center gap-1">
                       <Badge
                         variant={
@@ -456,12 +462,12 @@ export function CommunicationList({
                     </div>
                   </TableCell>
                   <TableCell
-                    className="truncate px-2.5"
+                    className={cn("truncate", cellPadding)}
                     title={communication.ownerName}
                   >
                     {communication.ownerName}
                   </TableCell>
-                  <TableCell className="px-2.5 tabular-nums">
+                  <TableCell className={cn("tabular-nums", cellPadding)}>
                     <time
                       dateTime={communication.updatedAt}
                       title={updatedAt.toLocaleString("zh-CN")}
@@ -478,7 +484,7 @@ export function CommunicationList({
             page={result.page}
             pageCount={pageCount}
             total={result.total}
-            className="mt-4"
+            className={customerView ? "mt-4" : "mt-5"}
             onPageChange={(page) =>
               onQueryChange((previous) => ({
                 ...previous,
@@ -534,21 +540,30 @@ function CommunicationSearch({
 
 function CommunicationTable({
   columns,
-  minWidth,
+  customerView,
   children,
 }: {
   columns: { label: string; width?: string }[];
-  minWidth: string;
+  customerView: boolean;
   children: ReactNode;
 }) {
   return (
-    <Table className={cn("table-fixed border-b", minWidth)}>
+    <Table
+      className={cn(
+        "table-fixed border-b",
+        customerView ? "min-w-160" : "min-w-180"
+      )}
+    >
       <TableCaption className="sr-only">沟通记录列表</TableCaption>
       <TableHeader>
         <TableRow>
           {columns.map(({ label, width }) => (
             <TableHead
-              className={cn("h-10 px-2.5 text-muted-foreground", width)}
+              className={cn(
+                "text-muted-foreground",
+                customerView && "px-2.5",
+                width
+              )}
               key={label}
             >
               {label}

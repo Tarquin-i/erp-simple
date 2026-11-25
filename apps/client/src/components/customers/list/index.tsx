@@ -166,7 +166,7 @@ export function CustomerList({
             {Array.from({ length: 6 }, (_, rowIndex) => (
               <TableRow aria-hidden="true" key={rowIndex}>
                 {columns.map(({ label }, columnIndex) => (
-                  <TableCell className="h-14" key={label}>
+                  <TableCell className="h-11" key={label}>
                     <Skeleton
                       className={columnIndex === 1 ? "h-4 w-28" : "h-4 w-16"}
                     />
@@ -217,10 +217,10 @@ export function CustomerList({
                   onOpenCustomer(customer.id);
                 }}
               >
-                <TableCell className="h-14 px-2.5 tabular-nums">
+                <TableCell className="py-3 tabular-nums">
                   {customer.customerNo}
                 </TableCell>
-                <TableCell className="max-w-0 px-2.5">
+                <TableCell className="max-w-0">
                   <Link
                     className={`${tableLinkClassName} font-medium`}
                     params={{ customerId: customer.id }}
@@ -231,16 +231,13 @@ export function CustomerList({
                     {customer.companyName}
                   </Link>
                 </TableCell>
-                <TableCell className="max-w-0 px-2.5">
+                <TableCell className="max-w-0">
                   <ListBadges values={customer.channels} />
                 </TableCell>
-                <TableCell className="max-w-0 px-2.5">
+                <TableCell className="max-w-0">
                   <ListBadges values={customer.tags} showTagColors />
                 </TableCell>
-                <TableCell
-                  className="truncate px-2.5"
-                  title={customer.ownerName}
-                >
+                <TableCell className="truncate" title={customer.ownerName}>
                   {customer.ownerName}
                 </TableCell>
               </TableRow>
@@ -251,7 +248,7 @@ export function CustomerList({
             page={customerPage.page}
             pageCount={pageCount}
             total={customerPage.total}
-            className="mt-4"
+            className="mt-5"
             onPageChange={(page) =>
               onQueryChange((previous) => ({
                 ...previous,
@@ -321,10 +318,7 @@ function CustomerTable({ children }: { children: ReactNode }) {
       <TableHeader>
         <TableRow>
           {columns.map(({ label }) => (
-            <TableHead
-              className="h-10 px-2.5 text-muted-foreground"
-              key={label}
-            >
+            <TableHead className="text-muted-foreground" key={label}>
               {label}
             </TableHead>
           ))}

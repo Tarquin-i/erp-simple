@@ -198,7 +198,7 @@ export function PayoutList({
             {Array.from({ length: 5 }, (_, index) => (
               <TableRow key={index} aria-hidden="true">
                 {columns.map(({ label }) => (
-                  <TableCell className="h-14 px-2.5" key={label}>
+                  <TableCell className="h-11" key={label}>
                     <Skeleton className="h-4 w-24 max-w-full" />
                   </TableCell>
                 ))}
@@ -224,7 +224,7 @@ export function PayoutList({
           <PayoutTable>
             {result.payouts.map((payout) => (
               <TableRow key={payout.id} className="relative cursor-pointer">
-                <TableCell className="h-14 max-w-0 px-2.5">
+                <TableCell className="max-w-0 py-3">
                   <Link
                     className={`${tableLinkClassName} after:absolute after:inset-0 after:content-['']`}
                     to="/payouts/$payoutId"
@@ -236,20 +236,17 @@ export function PayoutList({
                     {payout.name}
                   </Link>
                 </TableCell>
-                <TableCell
-                  className="max-w-0 px-2.5"
-                  title={payout.product.name}
-                >
+                <TableCell className="max-w-0" title={payout.product.name}>
                   <span className="block truncate">{payout.product.name}</span>
                 </TableCell>
-                <TableCell className="px-2.5 tabular-nums">
+                <TableCell className="tabular-nums">
                   {formatPayoutQuantity(payout.ticketCount)}
                 </TableCell>
-                <TableCell className="px-2.5 tabular-nums">
+                <TableCell className="tabular-nums">
                   {formatPayoutQuantity(payout.metrics.winningTicketCount)}
                 </TableCell>
                 <TableCell
-                  className="max-w-0 px-2.5 tabular-nums"
+                  className="max-w-0 tabular-nums"
                   title={`${payout.currencyCode} ${payout.metrics.payoutAmount}`}
                 >
                   <span className="block truncate">
@@ -260,14 +257,14 @@ export function PayoutList({
                   </span>
                 </TableCell>
                 <TableCell
-                  className="max-w-0 px-2.5 tabular-nums"
+                  className="max-w-0 tabular-nums"
                   title={formatPayoutPercent(payout.metrics.paybackPercent)}
                 >
                   <span className="block truncate">
                     {formatPayoutPercent(payout.metrics.paybackPercent)}
                   </span>
                 </TableCell>
-                <TableCell className="px-2.5 text-muted-foreground tabular-nums">
+                <TableCell className="text-muted-foreground tabular-nums">
                   <time dateTime={payout.createdAt}>
                     {dateTime.format(new Date(payout.createdAt))}
                   </time>
@@ -280,6 +277,7 @@ export function PayoutList({
             page={result.page}
             pageCount={pageCount}
             total={result.total}
+            className="mt-5"
             onPageChange={(next) =>
               onChangeQuery((previous) => ({
                 ...previous,
@@ -305,7 +303,7 @@ function PayoutTable({ children }: { children: ReactNode }) {
       <TableHeader>
         <TableRow>
           {columns.map(({ label }) => (
-            <TableHead key={label} className="px-2.5 text-muted-foreground">
+            <TableHead key={label} className="text-muted-foreground">
               {label}
             </TableHead>
           ))}
