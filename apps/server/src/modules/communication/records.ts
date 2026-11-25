@@ -90,7 +90,11 @@ const customerFields = {
   companyName: customer.companyName,
   status: customer.status,
 };
-const tagFields = { id: communicationTag.id, name: communicationTag.name };
+const tagFields = {
+  id: communicationTag.id,
+  name: communicationTag.name,
+  color: communicationTag.color,
+};
 const activeCommunication = isNull(communication.archivedAt);
 
 function visibleCustomerJoin(access: BusinessAccess) {
@@ -274,10 +278,7 @@ async function readCommunication(
         businessScopeWhere(access, communication)
       )
     );
-  const [record] = await readTags(tx, rows, {
-    ...tagFields,
-    color: communicationTag.color,
-  });
+  const [record] = await readTags(tx, rows, tagFields);
   if (!record) fail(404, "沟通记录不存在。");
   return { ...record, canViewCustomer: record.customer !== null };
 }

@@ -20,7 +20,7 @@ type CommunicationCustomer = {
   status?: "active" | "archived";
 };
 
-export type CommunicationListTag = Pick<CommunicationTag, "id" | "name">;
+export type CommunicationListTag = CommunicationTag;
 
 export type CommunicationListItem = {
   id: string;

@@ -21,6 +21,7 @@ import { createPortal } from "react-dom";
 import { readListQueryFromState } from "@/components/customers/list-query";
 import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { ListPagination } from "@/components/shared/list-pagination";
+import { TagBadge } from "@/components/shared/tag-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -555,9 +556,7 @@ function TagBadges({ tags }: { tags: CommunicationListTag[] }) {
       className="flex min-w-0 items-center gap-1.5"
       title={tags.map(({ name }) => name).join("、")}
     >
-      <Badge className="min-w-0 shrink">
-        <span className="truncate">{first.name}</span>
-      </Badge>
+      <TagBadge color={first.color} name={first.name} className="shrink" />
       {tags.length > 1 && (
         <span className="shrink-0 text-xs text-muted-foreground">
           等{tags.length - 1}个

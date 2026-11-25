@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
 import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { ListPagination } from "@/components/shared/list-pagination";
-import { Badge } from "@/components/ui/badge";
+import { TagBadge } from "@/components/shared/tag-badge";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -229,7 +229,7 @@ export function CustomerList({
                   <ListBadges values={customer.channels} />
                 </TableCell>
                 <TableCell className="max-w-0 px-2.5">
-                  <ListBadges values={customer.tags} />
+                  <ListBadges values={customer.tags} showTagColors />
                 </TableCell>
                 <TableCell
                   className="truncate px-2.5"
@@ -329,7 +329,13 @@ function CustomerTable({ children }: { children: ReactNode }) {
   );
 }
 
-function ListBadges({ values }: { values: Array<{ name: string }> }) {
+function ListBadges({
+  values,
+  showTagColors,
+}: {
+  values: Array<{ name: string; color?: string | null }>;
+  showTagColors?: boolean;
+}) {
   const first = values[0];
   if (!first) return <span className="text-muted-foreground">—</span>;
 
@@ -338,9 +344,11 @@ function ListBadges({ values }: { values: Array<{ name: string }> }) {
       className="flex min-w-0 items-center gap-1.5"
       title={values.map(({ name }) => name).join("、")}
     >
-      <Badge className="min-w-0 shrink">
-        <span className="truncate">{first.name}</span>
-      </Badge>
+      <TagBadge
+        name={first.name}
+        color={showTagColors ? first.color : undefined}
+        className="shrink"
+      />
       {values.length > 1 && (
         <span className="shrink-0 text-xs text-muted-foreground">
           等{values.length - 1}个

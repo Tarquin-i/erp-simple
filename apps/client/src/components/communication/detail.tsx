@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { readListQueryFromState } from "@/components/customers/list-query";
 import { DetailField } from "@/components/shared/detail-field";
+import { TagBadge } from "@/components/shared/tag-badge";
 import { ExpandableText } from "@/components/shared/expandable-text";
 import { toastManager } from "@/components/shared/toast";
 import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
@@ -422,7 +423,14 @@ export function CommunicationDetail({
         <DetailField label="标签">
           <div className="flex flex-wrap gap-1.5">
             {record.tags.length ? (
-              record.tags.map((tag) => <Badge key={tag.id}>{tag.name}</Badge>)
+              record.tags.map((tag) => (
+                <TagBadge
+                  key={tag.id}
+                  color={tag.color}
+                  name={tag.name}
+                  title={tag.name}
+                />
+              ))
             ) : (
               <span className="text-muted-foreground">—</span>
             )}

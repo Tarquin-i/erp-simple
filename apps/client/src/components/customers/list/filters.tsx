@@ -8,7 +8,12 @@ import type {
   FiltersState,
 } from "@/components/shared/data-table-filter/core/types";
 import { useDataTableFilters } from "@/components/shared/data-table-filter";
+import {
+  hasVisibleTagColor,
+  TagColorDot,
+} from "@/components/shared/tag-color-dot";
 import { TagListFilter } from "@/components/shared/tag-list-filter";
+import type { TagFilterOption } from "@/components/shared/tag-list-filter";
 import { Button } from "@/components/ui/button";
 import {
   CustomerApiError,
@@ -33,7 +38,7 @@ import {
 type QueryUpdater = (previous: CustomerListQuery) => CustomerListQuery;
 type CustomerOptionColumn = ColumnConfig<Customer, "option">;
 type DictionaryState = { options?: ColumnOption[]; failed?: boolean };
-type TagLabel = { label: string; retryable?: boolean };
+type TagLabel = { label: string; color?: string | null; retryable?: boolean };
 
 const channelField = {
   id: "channelCode",
@@ -212,7 +217,7 @@ export function useCustomerListFilters(
       missingIds.map(async (id): Promise<[string, TagLabel]> => {
         try {
           const { tag } = await getCustomerTag(id, controller.signal);
-          return [id, { label: tag.name }];
+          return [id, { label: tag.name, color: tag.color }];
         } catch (error) {
           const unavailable =
             error instanceof CustomerApiError && error.status === 404;
@@ -244,12 +249,16 @@ export function useCustomerListFilters(
     [onQueryChange]
   );
   const toggleTag = useCallback(
-    (tag: Pick<CustomerTag, "id" | "name">) => {
-      setTagLabels((previous) =>
-        previous.get(tag.id)?.label === tag.name
+    (tag: TagFilterOption) => {
+      setTagLabels((previous) => {
+        const current = previous.get(tag.id);
+        return current?.label === tag.name && current.color === tag.color
           ? previous
-          : new Map(previous).set(tag.id, { label: tag.name })
-      );
+          : new Map(previous).set(tag.id, {
+              label: tag.name,
+              color: tag.color,
+            });
+      });
       onQueryChange((previous) => {
         const selected = customerFilterValues(previous.tagId);
         const next = selected.includes(tag.id)
@@ -287,13 +296,18 @@ export function useCustomerListFilters(
       {
         ...tagField,
         accessor: (customer) => customer.tags.map(({ id }) => id),
-        options: tagIds.map((id) => ({
-          value: id,
-          label:
-            pageTags.get(id)?.name ??
-            tagLabels.get(id)?.label ??
-            "正在读取标签…",
-        })),
+        options: tagIds.map((id) => {
+          const tag = pageTags.get(id);
+          const cached = tagLabels.get(id);
+          const color = tag ? tag.color : cached?.color;
+          return {
+            value: id,
+            label: tag?.name ?? cached?.label ?? "正在读取标签…",
+            icon: hasVisibleTagColor(color) ? (
+              <TagColorDot color={color} />
+            ) : undefined,
+          };
+        }),
         renderFilterValue: (filter) => (
           <TagListFilter
             loadTags={listCustomerTags}

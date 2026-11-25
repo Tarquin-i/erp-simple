@@ -13,6 +13,7 @@ import { AddressCollectionPending } from "@/components/addresses/load-state";
 import { CustomerCommunicationTab } from "@/components/communication/list";
 import { DetailField } from "@/components/shared/detail-field";
 import { ExpandableText } from "@/components/shared/expandable-text";
+import { TagBadge } from "@/components/shared/tag-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -105,7 +106,14 @@ export function CustomerDetail({
         <DetailField label="标签">
           <div className="flex flex-wrap gap-1.5">
             {customer.tags.length ? (
-              customer.tags.map((tag) => <Badge key={tag.id}>{tag.name}</Badge>)
+              customer.tags.map((tag) => (
+                <TagBadge
+                  key={tag.id}
+                  color={tag.color}
+                  name={tag.name}
+                  title={tag.name}
+                />
+              ))
             ) : (
               <span className="text-muted-foreground">—</span>
             )}

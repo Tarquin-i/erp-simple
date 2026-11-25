@@ -2,9 +2,14 @@ import { useCallback } from "react";
 
 import { PaginatedFilterOptions } from "./paginated-filter-options";
 import type { PaginatedFilterOptionsQuery } from "./paginated-filter-options";
+import { TagColorDot } from "./tag-color-dot";
 
-type TagOption = { id: string; name: string };
-type TagPage = { tags: TagOption[]; total: number };
+export type TagFilterOption = {
+  id: string;
+  name: string;
+  color?: string | null;
+};
+type TagPage = { tags: TagFilterOption[]; total: number };
 
 const labels = {
   searchPlaceholder: "搜索标签",
@@ -29,7 +34,7 @@ export function TagListFilter({
   selected: string[];
   labelLookupFailed: boolean;
   onRetryLabels: () => void;
-  onToggle: (tag: TagOption) => void;
+  onToggle: (tag: TagFilterOption) => void;
 }) {
   const loadOptions = useCallback(
     async (query: PaginatedFilterOptionsQuery, signal: AbortSignal) => {
@@ -40,6 +45,18 @@ export function TagListFilter({
   );
 
   return (
-    <PaginatedFilterOptions {...props} loadOptions={loadOptions} labels={labels} />
+    <PaginatedFilterOptions
+      {...props}
+      loadOptions={loadOptions}
+      labels={labels}
+      renderOption={(tag) => (
+        <>
+          <TagColorDot color={tag.color} />
+          <span className="truncate" title={tag.name}>
+            {tag.name}
+          </span>
+        </>
+      )}
+    />
   );
 }

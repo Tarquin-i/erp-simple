@@ -9,7 +9,12 @@ import type {
   FiltersState,
 } from "@/components/shared/data-table-filter/core/types";
 import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
+import {
+  hasVisibleTagColor,
+  TagColorDot,
+} from "@/components/shared/tag-color-dot";
 import { TagListFilter } from "@/components/shared/tag-list-filter";
+import type { TagFilterOption } from "@/components/shared/tag-list-filter";
 import { Button } from "@/components/ui/button";
 import {
   listOptionLimit,
@@ -27,7 +32,6 @@ import {
 import type {
   CommunicationListItem,
   CommunicationListQuery,
-  CommunicationListTag,
 } from "@/request/communication";
 
 import { parseCommunicationListQuery } from "./query";
@@ -36,7 +40,7 @@ type QueryUpdater = (
   previous: CommunicationListQuery
 ) => CommunicationListQuery;
 type OptionColumn = ColumnConfig<CommunicationListItem, "option">;
-type TagLabel = { label: string; retryable?: boolean };
+type TagLabel = { label: string; color?: string | null; retryable?: boolean };
 
 const statusField = {
   id: "status",
@@ -144,7 +148,7 @@ export function CommunicationFilterToolbar({
     () =>
       new Map(
         records?.flatMap(({ tags }) =>
-          tags.map((tag) => [tag.id, tag.name] as const)
+          tags.map((tag) => [tag.id, tag] as const)
         )
       ),
     [records]
@@ -175,7 +179,7 @@ export function CommunicationFilterToolbar({
       missingIds.map(async (id): Promise<[string, TagLabel]> => {
         try {
           const { tag } = await getCommunicationTag(id, controller.signal);
-          return [id, { label: tag.name }];
+          return [id, { label: tag.name, color: tag.color }];
         } catch (error) {
           const unavailable =
             error instanceof CommunicationApiError && error.status === 404;
@@ -202,12 +206,16 @@ export function CommunicationFilterToolbar({
     [onQueryChange]
   );
   const toggleTag = useCallback(
-    (tag: CommunicationListTag) => {
-      setTagLabels((previous) =>
-        previous.get(tag.id)?.label === tag.name
+    (tag: TagFilterOption) => {
+      setTagLabels((previous) => {
+        const current = previous.get(tag.id);
+        return current?.label === tag.name && current.color === tag.color
           ? previous
-          : new Map(previous).set(tag.id, { label: tag.name })
-      );
+          : new Map(previous).set(tag.id, {
+              label: tag.name,
+              color: tag.color,
+            });
+      });
       onQueryChange((previous) => {
         const selected = listOptionValues(previous.tagId);
         const next = selected.includes(tag.id)
@@ -238,11 +246,18 @@ export function CommunicationFilterToolbar({
       },
       {
         ...tagField,
-        options: tagIds.map((id) => ({
-          value: id,
-          label:
-            pageTags.get(id) ?? tagLabels.get(id)?.label ?? "正在读取标签…",
-        })),
+        options: tagIds.map((id) => {
+          const tag = pageTags.get(id);
+          const cached = tagLabels.get(id);
+          const color = tag ? tag.color : cached?.color;
+          return {
+            value: id,
+            label: tag?.name ?? cached?.label ?? "正在读取标签…",
+            icon: hasVisibleTagColor(color) ? (
+              <TagColorDot color={color} />
+            ) : undefined,
+          };
+        }),
         renderFilterValue: (filter) => (
           <TagListFilter
             loadTags={listCommunicationTags}

@@ -78,7 +78,7 @@ export function ListFilterToolbar<TData>({
             : "grid-rows-[0fr] opacity-0"
         )}
       >
-        <div className="min-h-0 overflow-clip [overflow-clip-margin:4px]">
+        <div className="min-h-0 min-w-0 overflow-clip [overflow-clip-margin:4px]">
           <div
             ref={appliedContent}
             className={hasFilters ? "pb-1" : undefined}
