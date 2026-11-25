@@ -90,6 +90,10 @@ export const customer = pgTable(
       table.ownerUserId
     ),
     index("customer_owner_user_idx").on(table.ownerUserId),
+    index("customer_created_at_idx").on(
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst()
+    ),
     // 负责人必须属于客户部门，有客户归属的成员不能移除或转部。
     foreignKey({
       name: "customer_department_owner_member_fk",
