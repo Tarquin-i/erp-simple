@@ -309,7 +309,6 @@ export function CustomerForm({
               id="customer-form-name"
               ref={nameRef}
               name="companyName"
-              className="h-10 shadow-xs"
               placeholder="请输入客户名称"
               maxLength={256}
               aria-required="true"
@@ -332,7 +331,7 @@ export function CustomerForm({
             <FieldLabel htmlFor="customer-form-number">客户编号</FieldLabel>
             <Input
               id="customer-form-number"
-              className="h-10 bg-muted/25 text-muted-foreground shadow-xs"
+              className="bg-muted/25 text-muted-foreground"
               readOnly
               value={customer?.customerNo ?? ""}
               placeholder="保存后自动生成"
@@ -466,7 +465,7 @@ export function CustomerFormPending() {
         {fields.map((field) => (
           <div key={field} className="grid gap-2">
             <Skeleton className="h-[1.375em] w-14 text-sm" />
-            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-8 w-full" />
           </div>
         ))}
         <div className="grid gap-2 md:col-span-2">

@@ -1,18 +1,34 @@
 import { cn } from "cn";
-import { Search } from "lucide-react";
-import { type ComponentProps, type ReactNode, useRef, useState } from "react";
+import { Check, ChevronDown } from "lucide-react";
+import {
+  type ComponentProps,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useState,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
   ComboboxContent,
   ComboboxEmpty,
-  ComboboxInput,
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
 } from "@/components/ui/combobox";
-import { InputGroupAddon, InputGroupButton } from "@/components/ui/input-group";
+import { InputGroupButton } from "@/components/ui/input-group";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+import {
+  type DropdownAction,
+  DropdownFooter,
+  DropdownSearch,
+  formDropdownStyles,
+} from "./form-dropdown";
 
 type SelectOption = { name: string; keywords?: string; code?: string };
 
@@ -29,8 +45,10 @@ type SearchableSelectProps<Option extends SelectOption> = {
   value: Option | null;
   placeholder: string;
   searchPlaceholder: string;
+  showSearch?: boolean;
   emptyMessage: string;
   disabled?: boolean;
+  busy?: boolean;
   required?: boolean;
   container?: ComponentProps<typeof ComboboxContent>["container"];
   triggerClassName?: string;
@@ -43,6 +61,8 @@ type SearchableSelectProps<Option extends SelectOption> = {
   isOptionDisabled?: (option: Option) => boolean;
   renderOption?: (option: Option) => ReactNode;
   footer?: ReactNode;
+  action?: DropdownAction;
+  onClear?: () => void;
   onValueChange: (option: Option) => void;
 };
 
@@ -53,8 +73,10 @@ export function SearchableSelect<Option extends SelectOption>({
   value,
   placeholder,
   searchPlaceholder,
+  showSearch = true,
   emptyMessage,
   disabled,
+  busy,
   required,
   container,
   triggerClassName,
@@ -67,9 +89,11 @@ export function SearchableSelect<Option extends SelectOption>({
   isOptionDisabled,
   renderOption = (option) => option.name,
   footer,
+  action,
+  onClear,
   onValueChange,
 }: SearchableSelectProps<Option>) {
-  const composing = useRef(false);
+  const [localOpen, setLocalOpen] = useState(false);
   const [codeQuery, setCodeQuery] = useState("");
   const exactMatch = codeQuery
     ? items.find((option) => option.code?.toUpperCase() === codeQuery)
@@ -79,6 +103,199 @@ export function SearchableSelect<Option extends SelectOption>({
     exactMatch && exactMatch !== items[0]
       ? [exactMatch, ...items.filter((option) => option !== exactMatch)]
       : items;
+  const isOpen = remoteSearch?.open ?? open ?? localOpen;
+  function changeOpen(next: boolean) {
+    if (!remoteSearch && open === undefined) setLocalOpen(next);
+    if (!next && prioritizeCodeMatch) setCodeQuery("");
+    remoteSearch?.onOpenChange(next);
+    onOpenChange?.(next);
+  }
+
+  const triggerLabel = compactTrigger ? (
+    compactTrigger.label
+  ) : value ? (
+    <span className="truncate">{value.name}</span>
+  ) : (
+    <span className="truncate text-muted-foreground">{placeholder}</span>
+  );
+  const triggerStyles = cn(
+    formDropdownStyles.chevron,
+    !compactTrigger && formDropdownStyles.trigger,
+    triggerClassName
+  );
+  const dropdownFooter = (
+    <>
+      {footer}
+      <DropdownFooter
+        action={
+          action && {
+            label: action.label,
+            onClick: () => {
+              changeOpen(false);
+              action.onClick();
+            },
+          }
+        }
+        onClear={
+          value && onClear
+            ? () => {
+                onClear();
+                changeOpen(false);
+              }
+            : undefined
+        }
+        disabled={disabled}
+      />
+    </>
+  );
+
+  if (!showSearch) {
+    function openWithArrows(event: ReactKeyboardEvent<HTMLButtonElement>) {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      event.preventDefault();
+      changeOpen(true);
+    }
+
+    return (
+      <Popover open={isOpen} onOpenChange={changeOpen}>
+        <PopoverTrigger asChild>
+          {compactTrigger ? (
+            <InputGroupButton
+              id={id}
+              type="button"
+              role="combobox"
+              aria-label={compactTrigger.ariaLabel}
+              aria-required={required}
+              aria-busy={busy || undefined}
+              disabled={disabled}
+              className={triggerStyles}
+              onKeyDown={openWithArrows}
+            >
+              {triggerLabel}
+              <ChevronDown aria-hidden="true" />
+            </InputGroupButton>
+          ) : (
+            <Button
+              id={id}
+              type="button"
+              role="combobox"
+              variant="outline"
+              aria-required={required}
+              aria-busy={busy || undefined}
+              disabled={disabled}
+              className={triggerStyles}
+              onKeyDown={openWithArrows}
+            >
+              {triggerLabel}
+              <ChevronDown
+                className="text-muted-foreground"
+                aria-hidden="true"
+              />
+            </Button>
+          )}
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={4}
+          aria-label={placeholder}
+          className={cn(
+            "max-h-(--radix-popover-content-available-height) max-w-(--radix-popover-content-available-width) gap-0 overflow-hidden p-0",
+            formDropdownStyles.popup,
+            compactTrigger ? "w-64" : "w-(--radix-popover-trigger-width)"
+          )}
+        >
+          <div
+            className={cn(
+              formDropdownStyles.list,
+              "max-h-72 overflow-y-auto p-1"
+            )}
+            role="group"
+            aria-label="可选项"
+            onKeyDown={(event) => {
+              const buttons = Array.from(
+                event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                  "button:not(:disabled)"
+                )
+              );
+              const index = buttons.findIndex(
+                (button) => button === event.target
+              );
+              if (index < 0) return;
+              let next: number;
+              switch (event.key) {
+                case "ArrowDown":
+                  next = (index + 1) % buttons.length;
+                  break;
+                case "ArrowUp":
+                  next = (index + buttons.length - 1) % buttons.length;
+                  break;
+                case "Home":
+                  next = 0;
+                  break;
+                case "End":
+                  next = buttons.length - 1;
+                  break;
+                default: {
+                  if (
+                    event.key.length !== 1 ||
+                    event.key === " " ||
+                    event.ctrlKey ||
+                    event.altKey ||
+                    event.metaKey
+                  )
+                    return;
+                  const letter = event.key.toLocaleLowerCase();
+                  next = buttons.findIndex((button) =>
+                    button.textContent?.toLocaleLowerCase().startsWith(letter)
+                  );
+                  if (next < 0) return;
+                }
+              }
+              event.preventDefault();
+              buttons[next]?.focus();
+            }}
+          >
+            {items.length === 0 && (
+              <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
+                {emptyMessage}
+              </p>
+            )}
+            {items.map((option) => {
+              const selected = Boolean(
+                value &&
+                  (getOptionKey
+                    ? getOptionKey(option) === getOptionKey(value)
+                    : option === value)
+              );
+              return (
+                <Button
+                  key={getOptionKey?.(option) ?? option.name}
+                  type="button"
+                  variant="ghost"
+                  className={cn(
+                    formDropdownStyles.option,
+                    "w-full justify-between font-normal"
+                  )}
+                  disabled={isOptionDisabled?.(option)}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    onValueChange(option);
+                    changeOpen(false);
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate text-left">
+                    {renderOption(option)}
+                  </span>
+                  {selected && <Check aria-hidden="true" />}
+                </Button>
+              );
+            })}
+          </div>
+          {dropdownFooter}
+        </PopoverContent>
+      </Popover>
+    );
+  }
 
   return (
     <Combobox
@@ -86,16 +303,9 @@ export function SearchableSelect<Option extends SelectOption>({
       value={value}
       disabled={disabled}
       autoHighlight
-      open={remoteSearch?.open ?? open}
+      open={isOpen}
       inputValue={remoteSearch?.query}
-      onOpenChange={(open) => {
-        if (!open) {
-          composing.current = false;
-          if (prioritizeCodeMatch) setCodeQuery("");
-        }
-        remoteSearch?.onOpenChange(open);
-        onOpenChange?.(open);
-      }}
+      onOpenChange={changeOpen}
       onInputValueChange={(query, details) => {
         if (details.reason !== "input-change") return;
         if (prioritizeCodeMatch) setCodeQuery(query.trim().toUpperCase());
@@ -124,6 +334,7 @@ export function SearchableSelect<Option extends SelectOption>({
         id={id}
         aria-label={compactTrigger?.ariaLabel}
         aria-required={required}
+        aria-busy={busy || undefined}
         render={
           compactTrigger ? (
             <InputGroupButton />
@@ -131,79 +342,30 @@ export function SearchableSelect<Option extends SelectOption>({
             <Button type="button" variant="outline" />
           )
         }
-        className={cn(
-          "aria-expanded:[&>svg]:rotate-180 [&>svg]:transition-transform",
-          !compactTrigger &&
-            "w-full min-w-0 justify-between font-normal aria-expanded:bg-background",
-          triggerClassName
-        )}
+        className={triggerStyles}
       >
-        {compactTrigger ? (
-          compactTrigger.label
-        ) : value ? (
-          <span className="truncate">{value.name}</span>
-        ) : (
-          <span className="truncate text-muted-foreground">{placeholder}</span>
-        )}
+        {triggerLabel}
       </ComboboxTrigger>
       <ComboboxContent
         container={container}
         sideOffset={4}
-        className={cn(
-          "flex min-w-0 flex-col rounded-xl border bg-popover shadow-sm ring-0",
-          compactTrigger && "w-64"
-        )}
+        className={cn(formDropdownStyles.popup, compactTrigger && "w-64")}
       >
-        <div className="shrink-0 border-b px-2">
-          <ComboboxInput
-            aria-label={searchPlaceholder}
-            placeholder={searchPlaceholder}
-            showTrigger={false}
-            maxLength={256}
-            className="h-9 w-full rounded-none border-0 bg-transparent has-[[data-slot=input-group-control]:focus-visible]:ring-0 [&_[data-slot=input-group-addon]:empty]:hidden"
-            onCompositionStart={() => {
-              composing.current = true;
-            }}
-            onCompositionEnd={() => {
-              composing.current = false;
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              if (
-                composing.current ||
-                event.nativeEvent.isComposing ||
-                event.keyCode === 229
-              ) {
-                event.preventBaseUIHandler();
-              } else if (
-                !event.currentTarget.getAttribute("aria-activedescendant")
-              ) {
-                event.preventDefault();
-              }
-            }}
-          >
-            <InputGroupAddon align="inline-start">
-              <Search aria-hidden="true" />
-            </InputGroupAddon>
-          </ComboboxInput>
-        </div>
+        <DropdownSearch placeholder={searchPlaceholder} />
         <ComboboxEmpty>{emptyMessage}</ComboboxEmpty>
-        <ComboboxList
-          showScrollbar
-          className="min-h-0 w-full [scrollbar-width:thin]"
-        >
+        <ComboboxList showScrollbar className={formDropdownStyles.list}>
           {(option: Option) => (
             <ComboboxItem
               key={getOptionKey?.(option) ?? option.name}
               value={option}
               disabled={isOptionDisabled?.(option)}
-              className="min-h-8 pl-2.5"
+              className={formDropdownStyles.option}
             >
               {renderOption(option)}
             </ComboboxItem>
           )}
         </ComboboxList>
-        {footer}
+        {dropdownFooter}
       </ComboboxContent>
     </Combobox>
   );

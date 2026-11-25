@@ -72,7 +72,7 @@ export function CommunicationFormPending() {
             <div className="h-[1lh] text-sm leading-snug">
               <Skeleton className={`h-3 ${labelWidth}`} />
             </div>
-            <Skeleton className="h-10" />
+            <Skeleton className="h-8" />
           </Field>
         ))}
         <Field className="min-w-0 md:col-span-2">
@@ -388,7 +388,6 @@ export function CommunicationForm({
             <Input
               id="communication-form-title"
               ref={titleRef}
-              className="h-10 shadow-xs"
               required
               maxLength={128}
               disabled={fieldsLocked}
@@ -405,7 +404,7 @@ export function CommunicationForm({
             value={customerChoice}
             locked={isEdit || Boolean(initialCustomer)}
             disabled={fieldsLocked}
-            controlClassName="h-10 shadow-xs"
+            controlClassName="h-8 shadow-none"
             onChange={(selection) => {
               if (selection?.id === customer?.id) return;
               setCustomer(selection);

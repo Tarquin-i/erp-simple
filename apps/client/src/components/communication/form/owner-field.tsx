@@ -1,15 +1,9 @@
 import { useEffect, useState } from "react";
 
+import { SearchableSelect } from "@/components/shared/searchable-select";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { listAssignableCustomerOwners } from "@/request/customers";
 import type { CustomerOwner } from "@/request/customers";
 
@@ -53,7 +47,7 @@ export function CommunicationOwnerField({
       ) : (
         <Input
           id="communication-form-owner"
-          className="h-10 bg-muted/25 text-muted-foreground shadow-xs"
+          className="bg-muted/25 text-muted-foreground"
           value={value?.name ?? ""}
           readOnly
         />
@@ -107,29 +101,19 @@ function OwnerSelect({
 
   return (
     <>
-      <Select
-        value={value?.id ?? ""}
+      <SearchableSelect
+        id="communication-form-owner"
+        value={value ?? null}
+        items={roster?.owners ?? []}
         disabled={disabled || !roster?.owners?.length}
-        onValueChange={(id) => {
-          const selected = roster?.owners?.find((owner) => owner.id === id);
-          if (selected) onChange(selected);
-        }}
-      >
-        <SelectTrigger
-          id="communication-form-owner"
-          aria-busy={loading}
-          className="w-full shadow-xs data-[size=default]:h-10"
-        >
-          <SelectValue placeholder={placeholder}>{value?.name}</SelectValue>
-        </SelectTrigger>
-        <SelectContent position="popper" align="start">
-          {roster?.owners?.map(({ id, name }) => (
-            <SelectItem key={id} value={id}>
-              {name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        busy={loading}
+        placeholder={placeholder}
+        searchPlaceholder="搜索业务员"
+        emptyMessage={placeholder}
+        showSearch={false}
+        getOptionKey={({ id }) => id}
+        onValueChange={onChange}
+      />
       {roster?.error ? (
         <div className="flex items-center gap-2">
           <FieldError>{roster.error}</FieldError>

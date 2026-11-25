@@ -1,15 +1,9 @@
 import { useEffect, useState } from "react";
 
+import { SearchableSelect } from "@/components/shared/searchable-select";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { listAssignableCustomerOwners } from "@/request/customers";
 import type { CustomerOwner } from "@/request/customers";
 import type { Department } from "@/request/organization";
@@ -92,32 +86,23 @@ export function CustomerOwnerFields({
           >
             部门
           </FieldLabel>
-          <Select
+          <SearchableSelect
+            id="customer-form-department"
             required
             disabled={disabled || !departments.length}
-            value={departmentId}
-            onValueChange={(id) => {
+            items={departments}
+            value={departments.find(({ id }) => id === departmentId) ?? null}
+            placeholder={departments.length ? "请选择部门" : "暂无可选部门"}
+            searchPlaceholder="搜索部门"
+            emptyMessage="暂无可选部门"
+            showSearch={false}
+            getOptionKey={({ id }) => id}
+            onValueChange={({ id }) => {
               if (id === departmentId) return;
               setOwnerLookup(undefined);
               onDepartmentChange(id);
             }}
-          >
-            <SelectTrigger
-              id="customer-form-department"
-              className="w-full shadow-xs data-[size=default]:h-10"
-            >
-              <SelectValue
-                placeholder={departments.length ? "请选择部门" : "暂无可选部门"}
-              />
-            </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              {departments.map(({ id, name }) => (
-                <SelectItem key={id} value={id}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         </Field>
       )}
       <Field className="min-w-0">
@@ -128,38 +113,24 @@ export function CustomerOwnerFields({
           业务员
         </FieldLabel>
         {ownerOptions ? (
-          <Select
+          <SearchableSelect
+            id="customer-form-owner"
             required={Boolean(departments)}
             disabled={disabled || !ownerOptions.length}
-            value={owner?.id ?? ""}
-            onValueChange={(id) => {
-              const selected = ownerOptions.find((owner) => owner.id === id);
-              if (selected) {
-                onOwnerChange(selected);
-              }
-            }}
-          >
-            <SelectTrigger
-              id="customer-form-owner"
-              aria-busy={loadingOwners}
-              className="w-full shadow-xs data-[size=default]:h-10"
-            >
-              <SelectValue placeholder={ownerPlaceholder}>
-                {owner?.name}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              {ownerOptions.map(({ id, name }) => (
-                <SelectItem key={id} value={id}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            busy={loadingOwners}
+            items={ownerOptions}
+            value={owner ?? null}
+            placeholder={ownerPlaceholder}
+            searchPlaceholder="搜索业务员"
+            emptyMessage={ownerPlaceholder}
+            showSearch={false}
+            getOptionKey={({ id }) => id}
+            onValueChange={onOwnerChange}
+          />
         ) : (
           <Input
             id="customer-form-owner"
-            className="h-10 bg-muted/25 text-muted-foreground shadow-xs"
+            className="bg-muted/25 text-muted-foreground"
             readOnly
             value={owner?.name ?? ""}
           />
