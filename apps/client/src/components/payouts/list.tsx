@@ -233,8 +233,15 @@ export function PayoutList({
                     {payout.name}
                   </Link>
                 </TableCell>
-                <TableCell className="max-w-0" title={payout.product.name}>
-                  <span className="block truncate">{payout.product.name}</span>
+                <TableCell className="max-w-0">
+                  <Link
+                    className={`${tableLinkClassName} relative z-10`}
+                    to="/products/$productId"
+                    params={{ productId: payout.product.id }}
+                    title={payout.product.name}
+                  >
+                    {payout.product.name}
+                  </Link>
                 </TableCell>
                 <TableCell className="tabular-nums">
                   {formatPayoutQuantity(payout.ticketCount)}
