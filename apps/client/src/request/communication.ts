@@ -237,3 +237,14 @@ export function createCommunicationTag(input: {
 }) {
   return write<{ tag: CommunicationTag }>("/tags", "POST", input);
 }
+
+export function updateCommunicationTagColor(
+  id: string,
+  input: { color: string; expectedColor: string }
+) {
+  return write<{ tag: CommunicationTag }>(
+    `/tags/${encodeURIComponent(id)}`,
+    "PATCH",
+    input
+  );
+}

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Pencil, X } from "lucide-react";
 import { type ReactNode, type Ref, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,7 @@ type SearchableMultiSelectProps<Option extends MultiSelectOption> = {
   };
   isOptionDisabled?: (option: Option) => boolean;
   getOptionColor?: (option: Option) => string | undefined;
+  onEditOptionColor?: (option: Option) => void;
   allowClear?: boolean;
   action?: DropdownAction;
   footer?: ReactNode;
@@ -70,6 +71,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
   search,
   isOptionDisabled,
   getOptionColor,
+  onEditOptionColor,
   allowClear,
   action,
   footer,
@@ -200,6 +202,28 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
   );
 
   if (search) {
+    const optionsList = (
+      <ComboboxList
+        showScrollbar
+        className={cn(
+          formDropdownStyles.list,
+          onEditOptionColor && "max-h-none overflow-visible pr-0"
+        )}
+      >
+        {(option: Option) => (
+          <ComboboxItem
+            key={option.id}
+            value={option}
+            disabled={isOptionDisabled?.(option)}
+            className={formDropdownStyles.option}
+          >
+            <TagColorDot color={getOptionColor?.(option)} />
+            <span className="min-w-0 truncate">{option.name}</span>
+          </ComboboxItem>
+        )}
+      </ComboboxList>
+    );
+
     return (
       <Combobox
         multiple
@@ -248,19 +272,31 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
         >
           <SelectSearchInput placeholder={search.placeholder} maxLength={64} />
           <ComboboxEmpty className="shrink-0">{emptyMessage}</ComboboxEmpty>
-          <ComboboxList showScrollbar className={formDropdownStyles.list}>
-            {(option: Option) => (
-              <ComboboxItem
-                key={option.id}
-                value={option}
-                disabled={isOptionDisabled?.(option)}
-                className={formDropdownStyles.option}
-              >
-                <TagColorDot color={getOptionColor?.(option)} />
-                <span className="min-w-0 truncate">{option.name}</span>
-              </ComboboxItem>
-            )}
-          </ComboboxList>
+          {onEditOptionColor ? (
+            <div className="grid min-h-0 max-h-60 grid-cols-[minmax(0,1fr)_auto] overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+              {optionsList}
+              {/* 改色按钮与候选同列滚动，但在 listbox 外，可独立聚焦。 */}
+              <div className="flex flex-col py-1 pr-1 empty:p-0">
+                {items.map((option) => (
+                  <Button
+                    key={option.id}
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 text-muted-foreground"
+                    aria-label={`修改「${option.name}」的颜色`}
+                    title="修改标签颜色"
+                    disabled={disabled}
+                    onClick={() => onEditOptionColor(option)}
+                  >
+                    <Pencil aria-hidden="true" />
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            optionsList
+          )}
           {panelFooter}
         </ComboboxContent>
       </Combobox>

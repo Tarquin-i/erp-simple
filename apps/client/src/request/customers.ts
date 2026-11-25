@@ -247,6 +247,17 @@ export function createCustomerTag(input: { name: string; color?: string }) {
   return write<{ tag: CustomerTag }>("/tags", "POST", input);
 }
 
+export function updateCustomerTagColor(
+  id: string,
+  input: { color: string; expectedColor: string }
+) {
+  return write<{ tag: CustomerTag }>(
+    `/tags/${encodeURIComponent(id)}`,
+    "PATCH",
+    input
+  );
+}
+
 export function listCustomerOwners(signal?: AbortSignal) {
   return request<{ owners: CustomerOwner[] }>("/owners", { signal });
 }

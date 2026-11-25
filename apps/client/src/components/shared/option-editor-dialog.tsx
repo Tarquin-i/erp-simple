@@ -26,11 +26,12 @@ type OptionEditorDialogProps = {
   open: boolean;
   title: string;
   description: string;
+  showDescription?: boolean;
   inputId: string;
   inputLabel: string;
   value: string;
   maxLength: number;
-  onValueChange: (value: string) => void;
+  onValueChange?: (value: string) => void;
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
   onCloseAutoFocus?: ComponentProps<typeof DialogContent>["onCloseAutoFocus"];
@@ -42,13 +43,18 @@ type OptionEditorDialogProps = {
   submitDisabled?: boolean;
   submitLabel?: string;
   busyLabel?: string;
-  color?: { value: string | null; onChange: (color: string | null) => void };
+  color?: {
+    value: string | null;
+    onChange: (color: string | null) => void;
+    original?: string | null;
+  };
 };
 
 export function OptionEditorDialog({
   open,
   title,
   description,
+  showDescription,
   inputId,
   inputLabel,
   value,
@@ -68,7 +74,20 @@ export function OptionEditorDialog({
   color,
 }: OptionEditorDialogProps) {
   const input = useRef<HTMLInputElement>(null);
+  const palette = useRef<HTMLFieldSetElement>(null);
   const errorId = `${inputId}-error`;
+  const originalColor = color?.original;
+  const colorChoices =
+    originalColor && !presetColors.some(({ value }) => value === originalColor)
+      ? [
+          ...presetColors,
+          {
+            value: originalColor,
+            label: `原颜色（${originalColor}）`,
+            checkClassName: "rounded-sm bg-popover text-foreground",
+          },
+        ]
+      : presetColors;
 
   return (
     <Dialog
@@ -82,13 +101,18 @@ export function OptionEditorDialog({
         onOpenAutoFocus={(event) => {
           if (!input.current || disabled) return;
           event.preventDefault();
-          input.current.focus();
+          const currentColor = !onValueChange
+            ? palette.current?.querySelector<HTMLButtonElement>(
+                '[aria-pressed="true"]'
+              )
+            : undefined;
+          (currentColor ?? input.current).focus();
         }}
         onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="sr-only">
+          <DialogDescription className={showDescription ? undefined : "sr-only"}>
             {description}
           </DialogDescription>
         </DialogHeader>
@@ -111,11 +135,11 @@ export function OptionEditorDialog({
               maxLength={maxLength}
               inputMode={inputMode}
               disabled={disabled}
-              readOnly={busy}
-              aria-required="true"
+              readOnly={busy || !onValueChange}
+              aria-required={onValueChange ? true : undefined}
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
-              onChange={(event) => onValueChange(event.target.value)}
+              onChange={(event) => onValueChange?.(event.target.value)}
               onKeyDown={(event) => {
                 if (
                   event.key === "Enter" &&
@@ -129,7 +153,7 @@ export function OptionEditorDialog({
             {error && <FieldError id={errorId}>{error}</FieldError>}
           </Field>
           {color && (
-            <fieldset disabled={disabled || busy}>
+            <fieldset ref={palette} disabled={disabled || busy}>
               <legend className="mb-2 text-sm font-medium">颜色</legend>
               <div className="flex flex-wrap gap-1 sm:gap-2">
                 <Button
@@ -144,7 +168,7 @@ export function OptionEditorDialog({
                 >
                   <CircleOff aria-hidden="true" />
                 </Button>
-                {presetColors.map((preset) => (
+                {colorChoices.map((preset) => (
                   <Button
                     key={preset.value}
                     type="button"

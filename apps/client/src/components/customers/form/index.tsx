@@ -9,7 +9,10 @@ import { Check, Save } from "lucide-react";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import { FixedMultiSelectField, TagMultiSelectField } from "@/components/shared/multi-select-fields";
+import {
+  FixedMultiSelectField,
+  TagMultiSelectField,
+} from "@/components/shared/multi-select-fields";
 import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -23,6 +26,7 @@ import {
   CustomerApiError,
   listCustomerTags,
   updateCustomer,
+  updateCustomerTagColor,
 } from "@/request/customers";
 import type { Department } from "@/request/organization";
 import type {
@@ -65,6 +69,7 @@ export function CustomerForm({
   onSaved: () => Promise<void>;
 }) {
   const router = useRouter();
+  const { viewer } = useRouteContext({ from: "/_protected" });
   // 初始表单值用于判断用户改过的字段，写回旧值后也不替换表单里的草稿。
   const [openedDraft] = useState(() => customerDraft(customer, owner));
   const [baseline, setBaseline] = useState<CustomerFormBaseline>(() => ({
@@ -359,6 +364,11 @@ export function CustomerForm({
             onCreatingChange={setTagPending}
             loadTags={listCustomerTags}
             createTag={createCustomerTag}
+            updateTagColor={
+              viewer.role === "company-admin"
+                ? updateCustomerTagColor
+                : undefined
+            }
             tagLimitLabel="每个客户"
             disabled={pending}
           />
