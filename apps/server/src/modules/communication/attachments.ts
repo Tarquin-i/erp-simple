@@ -4,6 +4,7 @@ import {
   count,
   desc,
   eq,
+  exists,
   inArray,
   isNotNull,
   isNull,
@@ -24,6 +25,7 @@ import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { lockDepartment } from "../organization/departments";
 import { fail } from "../organization/errors";
+import { CommunicationArchiveInProgress } from "./archive-in-progress";
 import {
   attachmentUploadLimit,
   verifyAttachmentContent,
@@ -141,11 +143,15 @@ async function requireCommunication(
   lockedDepartmentId?: string
 ) {
   const query = tx
-    .select({ departmentId: communication.departmentId })
+    .select({
+      departmentId: communication.departmentId,
+      archiveStartedAt: communication.archiveStartedAt,
+    })
     .from(communication)
     .where(
       and(
         eq(communication.id, communicationId),
+        isNull(communication.archivedAt),
         businessScopeWhere(access, communication),
         lockedDepartmentId === undefined
           ? undefined
@@ -169,7 +175,8 @@ async function requireCommunication(
 function withAttachmentWrite<T>(
   access: BusinessAccess,
   communicationId: string,
-  write: (tx: DatabaseTransaction) => Promise<T>
+  write: (tx: DatabaseTransaction) => Promise<T>,
+  { allowDuringArchive = false } = {}
 ) {
   return database.db.transaction(async (tx) => {
     const { departmentId } = await requireCommunication(
@@ -179,7 +186,15 @@ function withAttachmentWrite<T>(
     );
     await lockDepartment(tx, departmentId, "share");
     const current = await readBusinessAccess(tx, access.userId);
-    await requireCommunication(tx, current, communicationId, departmentId);
+    const record = await requireCommunication(
+      tx,
+      current,
+      communicationId,
+      departmentId
+    );
+    if (record.archiveStartedAt && !allowDuringArchive) {
+      throw new CommunicationArchiveInProgress();
+    }
     return write(tx);
   });
 }
@@ -407,30 +422,44 @@ export async function initCommunicationAttachment(
       return { row: winner, existing: true, storage };
     }
   );
-  const upload =
-    storage && row.uploadState !== "ready"
-      ? await useStorage(async () => {
-          if (
-            existing &&
-            ((await storage.readSingleUploadMetadata(row.storageKey)) ??
-              (await storage.readMetadata(row.storageKey)))
-          ) {
-            return null;
-          }
-          if (storage.kind === "local") {
-            return {
-              url: `${attachmentPath(communicationId)}/uploads/${row.uploadClientId}/content`,
-              headers: { "content-type": row.mimeType },
-              expiresAt: null,
-            };
-          }
-          return storage.createSingleUploadRequest(
-            row.storageKey,
-            row.fileSize,
-            row.mimeType
+  const canUpload =
+    storage &&
+    row.uploadState !== "ready" &&
+    !(
+      existing &&
+      (await useStorage(
+        async () =>
+          (await storage.readSingleUploadMetadata(row.storageKey)) ??
+          (await storage.readMetadata(row.storageKey))
+      ))
+    );
+  const upload = !canUpload
+    ? null
+    : storage.kind === "local"
+      ? {
+          url: `${attachmentPath(communicationId)}/uploads/${row.uploadClientId}/content`,
+          headers: { "content-type": row.mimeType },
+          expiresAt: null,
+        }
+      : await withAttachmentWrite(access, communicationId, async (tx) => {
+          // 元数据请求在事务外。签名前重新持锁确认沟通和会话仍可上传。
+          const current = await lockUpload(
+            tx,
+            access,
+            communicationId,
+            row.uploadClientId
           );
-        })
-      : null;
+          if (!current) fail(404, "附件上传已关闭。");
+          assertSameUpload(current, access, file);
+          if (current.uploadState === "ready") return null;
+          return useStorage(() =>
+            storage.createSingleUploadRequest(
+              current.storageKey,
+              current.fileSize,
+              current.mimeType
+            )
+          );
+        });
   return {
     attachmentId: row.id,
     mode: "single" as const,
@@ -613,36 +642,112 @@ async function cleanupArchived(row: Attachment, storage: AttachmentStorage) {
   await database.db
     .update(communicationAttachment)
     .set({
-      objectDeletedAt: sql`greatest(now(), ${communicationAttachment.archivedAt})`,
+      objectDeletedAt: sql`greatest(now(), ${communicationAttachment.archivedAt}, ${communicationAttachment.objectDeletedAt})`,
     })
     .where(
       and(
         eq(communicationAttachment.id, row.id),
-        isNotNull(communicationAttachment.archivedAt),
-        isNull(communicationAttachment.objectDeletedAt)
+        isNotNull(communicationAttachment.archivedAt)
       )
     );
 }
 
+export async function closeCommunicationUploads(
+  tx: DatabaseTransaction,
+  communicationId: string,
+  archivedByUserId: string,
+  archivedAt: Date
+) {
+  await tx
+    .update(communicationAttachment)
+    .set({ archivedAt, archivedByUserId })
+    .where(
+      and(
+        eq(communicationAttachment.communicationId, communicationId),
+        eq(communicationAttachment.uploadState, "pending"),
+        isNull(communicationAttachment.archivedAt)
+      )
+    );
+}
+
+export function readClosedCommunicationUploads(
+  tx: DatabaseTransaction,
+  communicationId: string,
+  limit?: number
+) {
+  const query = tx
+    .select()
+    .from(communicationAttachment)
+    .where(
+      and(
+        eq(communicationAttachment.communicationId, communicationId),
+        eq(communicationAttachment.uploadState, "pending"),
+        isNotNull(communicationAttachment.archivedAt),
+        isNull(communicationAttachment.objectDeletedAt)
+      )
+    )
+    .orderBy(communicationAttachment.id);
+  return limit === undefined ? query : query.limit(limit);
+}
+
+export async function cleanupClosedCommunicationUploads(
+  uploads: Attachment[],
+  getStorage: GetStorage
+) {
+  const storage = await useStorage(getStorage);
+  for (const row of uploads) await cleanupArchived(row, storage);
+}
+
 /**
- * 回收已创建超过 24 小时的本地未完成上传，每次最多处理 100 条。
- * @param getStorage 创建当前的本地附件存储适配器。
+ * 回收过期的本地上传，并复查沟通归档前已发上传地址可能留下的临时文件。
+ * @param getStorage 创建当前的附件存储适配器。
  * @returns 本批回收结束，单条清理失败时保留记录供下次重试。
  * @throws 存储配置无效或数据库查询失败时抛出异常。
  */
 export async function cleanupExpiredAttachmentUploads(getStorage: GetStorage) {
-  const storage = requireLocalStorage(getStorage);
+  const storage = await useStorage(getStorage);
   const expired = await database.db.transaction(async (tx) => {
+    const expiredAt = sql`now() - interval '24 hours'`;
+    // 已发出的 OSS 上传签名仍可能写入暂存路径。到期后再复查已关闭的会话。
+    const closedByArchive = and(
+      isNotNull(communicationAttachment.archivedAt),
+      lt(communicationAttachment.archivedAt, expiredAt),
+      or(
+        isNull(communicationAttachment.objectDeletedAt),
+        lt(
+          communicationAttachment.objectDeletedAt,
+          sql`${communicationAttachment.archivedAt} + interval '24 hours'`
+        )
+      ),
+      exists(
+        tx
+          .select({ id: communication.id })
+          .from(communication)
+          .where(
+            and(
+              eq(communication.id, communicationAttachment.communicationId),
+              or(
+                isNotNull(communication.archiveStartedAt),
+                isNotNull(communication.archivedAt)
+              )
+            )
+          )
+      )
+    );
     const rows = await tx
       .select()
       .from(communicationAttachment)
       .where(
         and(
-          sql`${communicationAttachment.uploadState} = 'pending'`,
-          isNull(communicationAttachment.objectDeletedAt),
-          lt(
-            communicationAttachment.createdAt,
-            sql`now() - interval '24 hours'`
+          eq(communicationAttachment.uploadState, "pending"),
+          or(
+            storage.kind === "local"
+              ? and(
+                  isNull(communicationAttachment.objectDeletedAt),
+                  lt(communicationAttachment.createdAt, expiredAt)
+                )
+              : undefined,
+            closedByArchive
           )
         )
       )
@@ -678,10 +783,12 @@ const cleanupRuntime = globalThis as typeof globalThis & {
   communicationAttachmentCleanupTimer?: ReturnType<typeof setInterval>;
 };
 
-/** 启动本地附件过期回收，服务启动时立即执行，之后每 15 分钟一次。 */
+/** 启动附件过期回收，服务启动时立即执行，之后每 15 分钟一次。 */
 export function startAttachmentUploadCleanup() {
   clearInterval(cleanupRuntime.communicationAttachmentCleanupTimer);
-  if (process.env.COMMUNICATION_ATTACHMENT_STORAGE?.trim() !== "local") return;
+  const kind = process.env.COMMUNICATION_ATTACHMENT_STORAGE?.trim() || "oss";
+  if (kind !== "local" && kind !== "oss") return;
+  if (kind === "oss" && !process.env.OSS_BUCKET?.trim()) return;
 
   let running = false;
   async function runCleanup() {
@@ -746,7 +853,8 @@ export async function cancelCommunicationAttachmentUpload(
         .where(eq(communicationAttachment.id, current.id))
         .returning();
       return { state: "missing" as const, row: archived };
-    }
+    },
+    { allowDuringArchive: true }
   );
   if (row) await cleanupArchived(row, await useStorage(getStorage));
   return { state };
@@ -772,7 +880,8 @@ async function archivePendingUpload(access: BusinessAccess, row: Attachment) {
 
 function isUploadInaccessible(error: unknown) {
   return (
-    error instanceof HTTPException && [401, 403, 404].includes(error.status)
+    error instanceof CommunicationArchiveInProgress ||
+    (error instanceof HTTPException && [401, 403, 404].includes(error.status))
   );
 }
 
@@ -786,6 +895,7 @@ async function cleanupArchivedUpload(
     .where(
       and(
         eq(communicationAttachment.id, row.id),
+        eq(communicationAttachment.uploadState, "pending"),
         isNotNull(communicationAttachment.archivedAt)
       )
     );

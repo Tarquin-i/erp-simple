@@ -1,5 +1,6 @@
 import { communicationStatus } from "@repo/db/schema";
 import { Hono } from "hono";
+import { getBunServer } from "hono/bun";
 
 import { requireBusinessAccess } from "../business/access";
 import type { BusinessAccessEnv } from "../business/access";
@@ -13,8 +14,10 @@ import {
 } from "../customer/input";
 import { fail } from "../organization/errors";
 import { communicationAttachmentRoutes } from "./attachment-routes";
+import { attachmentStorageFromEnv } from "./attachment-storage";
 import { communicationDictionaryRoutes } from "./dictionaries";
 import {
+  archiveCommunication,
   createCommunication,
   getCommunication,
   listCommunicationOwners,
@@ -168,6 +171,23 @@ communicationRoutes.patch("/:communicationId", async (c) => {
       status: body.status === undefined ? undefined : readStatus(body.status),
     },
     readExpectedVersion(body.expectedVersion)
+  );
+  return c.json({ communication });
+});
+
+communicationRoutes.delete("/:communicationId", async (c) => {
+  const id = readUuid(c.req.param("communicationId"), "沟通 ID");
+  const version = c.req.query("expectedVersion");
+  const expectedVersion = readExpectedVersion(
+    version && /^\d+$/.test(version) ? Number(version) : undefined
+  );
+  // 批量清理未完成上传可能超过 Bun 默认的 HTTP 空闲时间。
+  if (c.env) getBunServer<Bun.Server<unknown>>(c)?.timeout?.(c.req.raw, 0);
+  const communication = await archiveCommunication(
+    c.get("businessAccess"),
+    id,
+    expectedVersion,
+    attachmentStorageFromEnv
   );
   return c.json({ communication });
 });

@@ -14,6 +14,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { user } from "./auth";
 import { customer } from "./customer";
 import { member } from "./organization";
 
@@ -40,6 +41,11 @@ export const communication = pgTable(
     creationRequestHash: varchar("creation_request_hash", { length: 64 }),
     // 后端保存时用版本号核对并发修改。
     version: integer("version").default(1).notNull(),
+    archiveStartedAt: timestamp("archive_started_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedByUserId: text("archived_by_user_id").references(() => user.id, {
+      onDelete: "restrict",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -90,6 +96,12 @@ export const communication = pgTable(
       sql`${table.summary} ~ '[^[:space:]]' and char_length(${table.summary}) <= 20000`
     ),
     check("communication_version_positive", sql`${table.version} > 0`),
+    check(
+      "communication_archive_state_check",
+      sql`(${table.archivedAt} is null and ${table.archivedByUserId} is null)
+        or (${table.archivedAt} is not null and ${table.archivedByUserId} is not null
+          and ${table.archiveStartedAt} is null)`
+    ),
   ]
 );
 

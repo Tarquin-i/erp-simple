@@ -14,6 +14,7 @@ import {
   eq,
   exists,
   inArray,
+  isNull,
   notExists,
   notInArray,
   or,
@@ -39,6 +40,13 @@ import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { lockDepartment } from "../organization/departments";
 import { fail } from "../organization/errors";
+import { CommunicationArchiveInProgress } from "./archive-in-progress";
+import type { AttachmentStorage } from "./attachment-storage";
+import {
+  cleanupClosedCommunicationUploads,
+  closeCommunicationUploads,
+  readClosedCommunicationUploads,
+} from "./attachments";
 
 type CommunicationStatus = typeof communication.$inferSelect.status;
 
@@ -71,11 +79,18 @@ const listFields = {
   title: communication.title,
   ownerName: user.name,
   status: communication.status,
+  archiveStartedAt: communication.archiveStartedAt,
+  archivedAt: communication.archivedAt,
   updatedAt: communication.updatedAt,
 };
 
-const customerFields = { id: customer.id, companyName: customer.companyName };
+const customerFields = {
+  id: customer.id,
+  companyName: customer.companyName,
+  status: customer.status,
+};
 const tagFields = { id: communicationTag.id, name: communicationTag.name };
+const activeCommunication = isNull(communication.archivedAt);
 
 function visibleCustomerJoin(access: BusinessAccess) {
   // 沟通归属和客户归属可能不同。客户权限不足时，不从数据库取出名称和编号。
@@ -151,6 +166,7 @@ export function listCommunications(
     }
 
     const filter = and(
+      activeCommunication,
       businessScopeWhere(freshAccess, communication),
       customerId === undefined
         ? undefined
@@ -234,7 +250,8 @@ export function listCommunications(
 async function readCommunication(
   tx: DatabaseTransaction,
   access: BusinessAccess,
-  id: string
+  id: string,
+  includeArchived = false
 ) {
   const rows = await tx
     .select({
@@ -250,7 +267,11 @@ async function readCommunication(
     .innerJoin(user, eq(user.id, communication.ownerUserId))
     .leftJoin(customer, visibleCustomerJoin(access))
     .where(
-      and(eq(communication.id, id), businessScopeWhere(access, communication))
+      and(
+        eq(communication.id, id),
+        includeArchived ? undefined : activeCommunication,
+        businessScopeWhere(access, communication)
+      )
     );
   const [record] = await readTags(tx, rows, {
     ...tagFields,
@@ -284,7 +305,9 @@ export function listCommunicationOwners(access: BusinessAccess) {
       .selectDistinct({ id: user.id, name: user.name })
       .from(communication)
       .innerJoin(user, eq(user.id, communication.ownerUserId))
-      .where(businessScopeWhere(freshAccess, communication))
+      .where(
+        and(activeCommunication, businessScopeWhere(freshAccess, communication))
+      )
       .orderBy(asc(user.name), asc(user.id))
   );
 }
@@ -299,6 +322,48 @@ async function insertTags(
       .insert(communicationTagAssignment)
       .values(tagIds.map((tagId) => ({ communicationId: id, tagId })));
   }
+}
+
+async function lockCommunicationForWrite(
+  tx: DatabaseTransaction,
+  access: BusinessAccess,
+  id: string,
+  includeArchived = false
+) {
+  const [target] = await tx
+    .select({ departmentId: communication.departmentId })
+    .from(communication)
+    .where(
+      and(
+        eq(communication.id, id),
+        includeArchived ? undefined : activeCommunication,
+        businessScopeWhere(access, communication)
+      )
+    );
+  if (!target) fail(404, "沟通记录不存在。");
+
+  await lockDepartment(tx, target.departmentId, "share");
+  // 等待部门锁或记录锁期间可能发生主管降级或记录改派，按最新权限锁定记录。
+  const freshAccess = await readBusinessAccess(tx, access.userId);
+  const [record] = await tx
+    .select({
+      departmentId: communication.departmentId,
+      version: communication.version,
+      archiveStartedAt: communication.archiveStartedAt,
+      archivedAt: communication.archivedAt,
+    })
+    .from(communication)
+    .where(
+      and(
+        eq(communication.id, id),
+        eq(communication.departmentId, target.departmentId),
+        includeArchived ? undefined : activeCommunication,
+        businessScopeWhere(freshAccess, communication)
+      )
+    )
+    .for("update");
+  if (!record) fail(404, "沟通记录不存在。");
+  return { freshAccess, record };
 }
 
 /**
@@ -466,29 +531,12 @@ export function updateCommunication(
   expectedVersion: number
 ) {
   return writeCommunication(async (tx) => {
-    const [target] = await tx
-      .select({ departmentId: communication.departmentId })
-      .from(communication)
-      .where(
-        and(eq(communication.id, id), businessScopeWhere(access, communication))
-      );
-    if (!target) fail(404, "沟通记录不存在。");
-
-    await lockDepartment(tx, target.departmentId, "share");
-    // 等待部门锁或记录锁期间可能发生主管降级或记录改派，按最新权限锁定记录。
-    const freshAccess = await readBusinessAccess(tx, access.userId);
-    const [record] = await tx
-      .select({ version: communication.version })
-      .from(communication)
-      .where(
-        and(
-          eq(communication.id, id),
-          eq(communication.departmentId, target.departmentId),
-          businessScopeWhere(freshAccess, communication)
-        )
-      )
-      .for("update");
-    if (!record) fail(404, "沟通记录不存在。");
+    const { freshAccess, record } = await lockCommunicationForWrite(
+      tx,
+      access,
+      id
+    );
+    if (record.archiveStartedAt) throw new CommunicationArchiveInProgress();
     if (input.ownerUserId !== undefined && freshAccess.scope === "own") {
       fail(403, "只有部门主管或公司管理员可更换沟通业务员。");
     }
@@ -496,7 +544,7 @@ export function updateCommunication(
       failVersionConflict(await readCommunication(tx, freshAccess, id));
     }
     if (input.ownerUserId !== undefined) {
-      await requireAssignableOwner(tx, target.departmentId, input.ownerUserId);
+      await requireAssignableOwner(tx, record.departmentId, input.ownerUserId);
     }
 
     await tx
@@ -517,5 +565,105 @@ export function updateCommunication(
       await insertTags(tx, id, input.tagIds);
     }
     return readCommunication(tx, freshAccess, id);
+  });
+}
+
+async function finishCommunicationArchive(
+  tx: DatabaseTransaction,
+  access: BusinessAccess,
+  id: string
+) {
+  const archivedAt = new Date();
+  await tx
+    .update(communication)
+    .set({
+      archiveStartedAt: null,
+      archivedAt,
+      archivedByUserId: access.userId,
+      version: sql`${communication.version} + 1`,
+      updatedAt: archivedAt,
+    })
+    .where(eq(communication.id, id));
+  return readCommunication(tx, access, id, true);
+}
+
+async function lockCommunicationForArchive(
+  tx: DatabaseTransaction,
+  access: BusinessAccess,
+  id: string,
+  expectedVersion: number
+) {
+  const locked = await lockCommunicationForWrite(tx, access, id, true);
+  const { freshAccess, record } = locked;
+  if (record.archivedAt) {
+    if (record.version !== expectedVersion + 1) fail(404, "沟通记录不存在。");
+  } else if (record.version !== expectedVersion) {
+    failVersionConflict(await readCommunication(tx, freshAccess, id));
+  }
+  return locked;
+}
+
+/** 关闭未完成的上传，在事务外清理后归档沟通。可重试同一版本以继续清理或确认结果。 */
+export async function archiveCommunication(
+  access: BusinessAccess,
+  id: string,
+  expectedVersion: number,
+  getStorage: () => AttachmentStorage
+) {
+  const started = await writeCommunication(async (tx) => {
+    const { freshAccess, record } = await lockCommunicationForArchive(
+      tx,
+      access,
+      id,
+      expectedVersion
+    );
+    if (record.archivedAt) {
+      return {
+        communication: await readCommunication(tx, freshAccess, id, true),
+      };
+    }
+    if (!record.archiveStartedAt) {
+      const startedAt = new Date();
+      await tx
+        .update(communication)
+        .set({
+          archiveStartedAt: startedAt,
+          updatedAt: communication.updatedAt,
+        })
+        .where(eq(communication.id, id));
+      await closeCommunicationUploads(tx, id, freshAccess.userId, startedAt);
+    }
+    const uploads = await readClosedCommunicationUploads(tx, id);
+    return uploads.length
+      ? { uploads }
+      : {
+          communication: await finishCommunicationArchive(tx, freshAccess, id),
+        };
+  });
+  if (!started.uploads) return started.communication;
+
+  await cleanupClosedCommunicationUploads(started.uploads, getStorage);
+  return writeCommunication(async (tx) => {
+    const { freshAccess, record } = await lockCommunicationForArchive(
+      tx,
+      access,
+      id,
+      expectedVersion
+    );
+    if (record.archivedAt) {
+      return readCommunication(tx, freshAccess, id, true);
+    }
+    if ((await readClosedCommunicationUploads(tx, id, 1)).length) {
+      throw new HTTPException(409, {
+        res: Response.json(
+          {
+            code: "archive_cleanup_pending",
+            message: "还有未完成上传需要清理，请重试归档。",
+          },
+          { status: 409 }
+        ),
+      });
+    }
+    return finishCommunicationArchive(tx, freshAccess, id);
   });
 }
