@@ -1,7 +1,7 @@
 import { Link, createFileRoute, useRouterState } from "@tanstack/react-router";
 import { MapPin, Plus, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 
 import { useAddressListFilters } from "@/components/addresses/list-filters";
 import { readAddressListQuery } from "@/components/addresses/navigation";
@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -36,6 +37,14 @@ type DirectoryLoad = { query: AddressListQuery } & (
   | { status: "loaded"; result: DirectoryPage }
   | { status: "failed"; error: unknown }
 );
+
+const columns = [
+  { label: "客户名称", width: "w-[21%]" },
+  { label: "客户编号", width: "w-[13%]" },
+  { label: "收货地址", width: "w-[34%]" },
+  { label: "收货人", width: "w-[14%]" },
+  { label: "联系电话", width: "w-[18%]" },
+];
 
 export const Route = createFileRoute("/_protected/addresses/")({
   validateSearch: readAddressListQuery,
@@ -183,10 +192,20 @@ function AddressDirectory() {
       ) : !result ? (
         <div role="status">
           <span className="sr-only">正在加载地址</span>
-          <Skeleton className="h-36 w-full" />
+          <AddressTable>
+            {Array.from({ length: 5 }, (_, index) => (
+              <TableRow aria-hidden="true" key={index}>
+                {columns.map(({ label }) => (
+                  <TableCell className="h-11" key={label}>
+                    <Skeleton className="h-4 w-24 max-w-full" />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </AddressTable>
         </div>
       ) : result.addresses.length === 0 ? (
-        <Empty className="border border-dashed">
+        <Empty className="min-h-52 border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <MapPin />
@@ -200,86 +219,69 @@ function AddressDirectory() {
         </Empty>
       ) : (
         <>
-          <Table
-            aria-label="默认地址列表"
-            className="min-w-[640px] table-fixed"
-          >
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[21%]">客户名称</TableHead>
-                <TableHead className="w-[13%]">客户编号</TableHead>
-                <TableHead className="w-[34%]">收货地址</TableHead>
-                <TableHead className="w-[14%]">收货人</TableHead>
-                <TableHead className="w-[18%]">联系电话</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {result.addresses.map((address) => {
-                const destination = {
-                  to: "/addresses/$addressId" as const,
-                  params: { addressId: address.id },
-                  search: {},
-                  state: { addressListQuery: query },
-                };
+          <AddressTable>
+            {result.addresses.map((address) => {
+              const destination = {
+                to: "/addresses/$addressId" as const,
+                params: { addressId: address.id },
+                search: {},
+                state: { addressListQuery: query },
+              };
 
-                return (
-                  <TableRow
-                    key={address.id}
-                    className="cursor-pointer"
-                    onClick={(event) => {
-                      if (
-                        event.defaultPrevented ||
-                        event.ctrlKey ||
-                        event.metaKey ||
-                        event.shiftKey ||
-                        event.altKey ||
-                        window.getSelection()?.toString() ||
-                        !(event.target instanceof Element) ||
-                        !event.currentTarget.contains(event.target) ||
-                        event.target.closest("a,button,[role='button']")
-                      )
-                        return;
-                      void navigate(destination);
-                    }}
-                  >
-                    <TableCell className="py-3">
-                      <Link
-                        to="/customers/$customerId"
-                        params={{ customerId: address.customer.id }}
-                        preload={false}
-                        title={address.customer.companyName}
-                        className={tableLinkClassName}
-                      >
-                        {address.customer.companyName}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {address.customer.customerNo}
-                    </TableCell>
-                    <TableCell>
-                      <Link
-                        {...destination}
-                        preload={false}
-                        title={address.formattedAddress}
-                        className={tableLinkClassName}
-                      >
-                        {address.formattedAddress}
-                      </Link>
-                    </TableCell>
-                    <TableCell
-                      className="truncate"
-                      title={address.recipientName}
+              return (
+                <TableRow
+                  key={address.id}
+                  className="cursor-pointer"
+                  onClick={(event) => {
+                    if (
+                      event.defaultPrevented ||
+                      event.ctrlKey ||
+                      event.metaKey ||
+                      event.shiftKey ||
+                      event.altKey ||
+                      window.getSelection()?.toString() ||
+                      !(event.target instanceof Element) ||
+                      !event.currentTarget.contains(event.target) ||
+                      event.target.closest("a,button,[role='button']")
+                    )
+                      return;
+                    void navigate(destination);
+                  }}
+                >
+                  <TableCell className="py-3">
+                    <Link
+                      to="/customers/$customerId"
+                      params={{ customerId: address.customer.id }}
+                      preload={false}
+                      title={address.customer.companyName}
+                      className={tableLinkClassName}
                     >
-                      {address.recipientName}
-                    </TableCell>
-                    <TableCell className="tabular-nums">
-                      <AddressPhoneValue phone={address.phone} />
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                      {address.customer.companyName}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {address.customer.customerNo}
+                  </TableCell>
+                  <TableCell>
+                    <Link
+                      {...destination}
+                      preload={false}
+                      title={address.formattedAddress}
+                      className={tableLinkClassName}
+                    >
+                      {address.formattedAddress}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="truncate" title={address.recipientName}>
+                    {address.recipientName}
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    <AddressPhoneValue phone={address.phone} />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </AddressTable>
           <ListPagination
             label="地址目录分页"
             page={result.page}
@@ -296,5 +298,28 @@ function AddressDirectory() {
         </>
       )}
     </main>
+  );
+}
+
+function AddressTable({ children }: { children: ReactNode }) {
+  return (
+    <Table className="min-w-160 table-fixed border-b">
+      <TableCaption className="sr-only">默认地址列表</TableCaption>
+      <colgroup>
+        {columns.map(({ label, width }) => (
+          <col className={width} key={label} />
+        ))}
+      </colgroup>
+      <TableHeader>
+        <TableRow>
+          {columns.map(({ label }) => (
+            <TableHead className="text-muted-foreground" key={label}>
+              {label}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>{children}</TableBody>
+    </Table>
   );
 }
