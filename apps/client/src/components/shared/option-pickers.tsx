@@ -1,49 +1,10 @@
-import { ChevronDown, Plus, X } from "lucide-react";
-import {
-  type ComponentPropsWithRef,
-  type FormEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-  ComboboxValue,
-  useComboboxAnchor,
-} from "@/components/ui/combobox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+
+import { DropdownEntryDialog } from "./dropdown-entry-dialog";
+import { SearchableMultiSelect } from "./searchable-multi-select";
 
 export type PickerOption = { id: string; name: string };
 
@@ -55,147 +16,22 @@ type PickerProps = {
   disabled: boolean;
 };
 
-function optionLabel(option: PickerOption) {
-  return option.name;
-}
-
-function isSameOption(item: PickerOption, selected: PickerOption) {
-  return item.id === selected.id;
-}
-
-function SelectionControl({
-  id,
-  label,
-  value,
-  anchor,
-  inputProps,
-  triggerRef,
-}: Pick<PickerProps, "id" | "label" | "value"> & {
-  anchor: ReturnType<typeof useComboboxAnchor>;
-  inputProps?: Pick<
-    ComponentPropsWithRef<typeof ComboboxChipsInput>,
-    | "ref"
-    | "aria-describedby"
-    | "onCompositionStart"
-    | "onCompositionEnd"
-    | "onKeyDown"
-  >;
-  triggerRef?: ComponentPropsWithRef<typeof ComboboxTrigger>["ref"];
-}) {
-  return (
-    <ComboboxChips ref={anchor} className="min-h-10 gap-y-1 pr-2 shadow-xs">
-      <ComboboxValue>
-        {value.map((option) => (
-          <ComboboxChip
-            key={option.id}
-            className="max-w-full rounded-lg bg-primary text-primary-foreground [&_[data-slot=combobox-chip-remove]]:text-inherit [&_[data-slot=combobox-chip-remove]]:opacity-80 [&_[data-slot=combobox-chip-remove]:hover]:bg-primary-foreground/15 [&_[data-slot=combobox-chip-remove]:hover]:opacity-100"
-          >
-            <span className="truncate">{option.name}</span>
-          </ComboboxChip>
-        ))}
-      </ComboboxValue>
-      <ComboboxChipsInput
-        id={id}
-        maxLength={64}
-        placeholder={value.length ? "" : `选择${label}`}
-        className="min-w-0 px-1 placeholder:text-muted-foreground"
-        {...inputProps}
-      />
-      <ComboboxTrigger
-        ref={triggerRef}
-        className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label={`打开${label}选项`}
-      />
-    </ComboboxChips>
-  );
-}
-
 export function OptionPicker({
-  id,
-  label,
-  value,
-  onChange,
-  disabled,
   items,
   emptyMessage,
+  ...props
 }: PickerProps & { items: PickerOption[]; emptyMessage: string }) {
-  function removeOption(id: string) {
-    onChange(value.filter((option) => option.id !== id));
-  }
-
   return (
     <Field className="min-w-0">
-      <FieldLabel htmlFor={id} preventControlActivation>
-        {label}
+      <FieldLabel htmlFor={props.id} preventControlActivation>
+        {props.label}
       </FieldLabel>
-      <Popover>
-        <PopoverAnchor className="flex min-h-10 flex-wrap items-center gap-1 rounded-lg border border-input px-1 py-1 shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
-          {value.map((option) => (
-            <Badge
-              key={option.id}
-              className="h-auto max-w-full rounded-lg pr-0"
-            >
-              <span className="truncate">{option.name}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className="text-inherit opacity-80 hover:bg-primary-foreground/15 hover:text-inherit hover:opacity-100"
-                aria-label={`移除${option.name}`}
-                disabled={disabled}
-                onClick={() => removeOption(option.id)}
-              >
-                <X aria-hidden="true" />
-              </Button>
-            </Badge>
-          ))}
-          <PopoverTrigger asChild>
-            <Button
-              id={id}
-              type="button"
-              variant="ghost"
-              className="h-auto min-h-7 min-w-8 flex-1 justify-end px-1.5 py-1 font-normal text-muted-foreground hover:bg-transparent aria-expanded:[&>svg]:rotate-180"
-              aria-label={`打开${label}选项`}
-              disabled={disabled}
-            >
-              {value.length === 0 && (
-                <span className="mr-auto">选择{label}</span>
-              )}
-              <ChevronDown aria-hidden="true" />
-            </Button>
-          </PopoverTrigger>
-        </PopoverAnchor>
-        <PopoverContent
-          aria-label={`${label}选项`}
-          align="start"
-          className="max-h-(--radix-popover-content-available-height) w-(--radix-popover-trigger-width) gap-0 overflow-y-auto p-1"
-        >
-          {items.length === 0 && (
-            <p className="px-2 py-1.5 text-muted-foreground">{emptyMessage}</p>
-          )}
-          {items.map((option) => {
-            const optionId = `${id}-${option.id}`;
-            return (
-              <FieldLabel
-                key={option.id}
-                htmlFor={optionId}
-                className="min-h-8 cursor-pointer gap-2 rounded-md px-2 font-normal hover:bg-accent"
-              >
-                <Checkbox
-                  id={optionId}
-                  checked={value.some((selected) => selected.id === option.id)}
-                  disabled={disabled}
-                  onCheckedChange={(checked) => {
-                    if (checked) onChange([...value, option]);
-                    else removeOption(option.id);
-                  }}
-                />
-                {option.name}
-              </FieldLabel>
-            );
-          })}
-        </PopoverContent>
-      </Popover>
+      <SearchableMultiSelect
+        {...props}
+        items={items}
+        emptyMessage={emptyMessage}
+        allowClear
+      />
     </Field>
   );
 }
@@ -211,13 +47,7 @@ type TagPage = {
   total: number;
 };
 
-/**
- * 渲染可搜索、可分页的标签多选框，并按配置提供新建弹窗。
- * @param props `id` 和 `label` 用于关联标签字段。`value` 是已选标签，`onChange` 接收更新后的选项。
- * `loadTags` 加载标签目录，提供 `createTag` 时显示新建入口。
- * `onCreatingChange` 通知父表单创建开始和结束，供父表单在创建期间暂停保存。
- * @returns 标签选择器和新建弹窗。创建成功后自动选中新标签，失败时保留输入并显示错误。
- */
+/** 为公共复选框接入标签目录、分页和创建接口。 */
 export function TagPicker({
   onCreatingChange,
   loadTags,
@@ -233,13 +63,8 @@ export function TagPicker({
   createTag?: (input: { name: string }) => Promise<{ tag: PickerOption }>;
   tagLimitLabel?: string;
 }) {
-  const anchor = useComboboxAnchor();
-  // 将浮层挂在标签字段内，让 Tab 能按文档顺序进入底栏。
-  const popupContainer = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const returnToOptions = useRef(false);
-  const composing = useRef(false);
   const [open, setOpen] = useState(false);
   const [tagName, setTagName] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -250,8 +75,7 @@ export function TagPicker({
   const [searchError, setSearchError] = useState("");
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
-  const tagNameId = `${props.id}-new-name`;
-  const tagLimitId = `${props.id}-limit`;
+  const tagLimitId = props.id + "-limit";
   const atTagLimit = props.value.length >= maxTags;
   const keyword = search.trim();
   const currentResult = results?.keyword === keyword ? results : null;
@@ -315,27 +139,11 @@ export function TagPicker({
   }, [keyword, loadTags, open, page, reload]);
 
   function changeSearch(value: string) {
-    if (creating) return;
     if (value.trim() !== keyword) setPage(1);
     setSearch(value);
   }
 
-  function openCreateDialog() {
-    setOpen(false);
-    changeSearch("");
-    setCreateError("");
-    setTagName(keyword);
-  }
-
-  /**
-   * 提交标签弹窗，创建成功后自动选中新标签并回到标签下拉。
-   * @param event 标签弹窗表单的提交事件。
-   * @returns 处理结束后完成，无业务数据。创建失败时在弹窗内显示错误并保留输入。
-   */
-  async function submitTag(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    // Portal 内的提交事件会冒泡，阻止父表单同时保存。
-    event.stopPropagation();
+  async function submitTag() {
     const name = tagName?.trim();
     if (!createTag || !name || creating || atTagLimit) return;
 
@@ -344,7 +152,10 @@ export function TagPicker({
     onCreatingChange?.(true);
     try {
       const { tag } = await createTag({ name });
-      props.onChange([...props.value, { id: tag.id, name: tag.name }]);
+      if (!props.value.some(({ id }) => id === tag.id)) {
+        props.onChange([...props.value, { id: tag.id, name: tag.name }]);
+      }
+      setPage(1);
       setReload((attempt) => attempt + 1);
       returnToOptions.current = true;
       setTagName(null);
@@ -358,242 +169,109 @@ export function TagPicker({
     }
   }
 
+  const hasMore =
+    currentResult && currentResult.page * tagPageSize < currentResult.total;
+
   return (
-    <Field
-      ref={popupContainer}
-      className="min-w-0"
-      onBlur={(event) => {
-        if (
-          open &&
-          event.relatedTarget &&
-          !event.currentTarget.contains(event.relatedTarget)
-        ) {
-          setOpen(false);
-          changeSearch("");
-        }
-      }}
-    >
+    <Field className="min-w-0">
       <FieldLabel htmlFor={props.id} preventControlActivation>
         {props.label}
       </FieldLabel>
-      <Combobox
-        multiple
+      <SearchableMultiSelect
+        {...props}
         items={matchingTags}
-        filter={null}
-        inputValue={search}
-        value={props.value}
-        disabled={props.disabled}
+        emptyMessage={
+          searchError ||
+          (loading || !currentResult ? "正在加载标签…" : "没有匹配的标签")
+        }
+        disabled={props.disabled || creating}
+        descriptionId={atTagLimit ? tagLimitId : undefined}
         open={open}
-        onInputValueChange={(value, details) => {
-          if (details.isItemPress) details.cancel();
-          else changeSearch(value);
-        }}
-        onValueChange={(selected, details) => {
-          // 下拉关闭后，Base UI 会把 Esc 解释为清空已选项。
-          if (
-            creating ||
-            details.reason === "escape-key" ||
-            (selected.length > maxTags && selected.length >= props.value.length)
-          ) {
-            details.cancel();
-            return;
-          }
-          props.onChange(selected);
-        }}
-        itemToStringLabel={optionLabel}
-        isItemEqualToValue={isSameOption}
-        onOpenChange={(next, details) => {
-          if (!next && details.reason === "item-press") {
-            details.cancel();
-            return;
-          }
+        onOpenChange={(next) => {
           setOpen(next);
-          if (!next) {
-            changeSearch("");
-            if (details.reason === "escape-key") {
-              trigger.current?.focus({ preventScroll: true });
-            }
-          }
+          if (!next) changeSearch("");
         }}
-      >
-        <SelectionControl
-          {...props}
-          anchor={anchor}
-          triggerRef={trigger}
-          inputProps={{
-            ref: input,
-            "aria-describedby": atTagLimit ? tagLimitId : undefined,
-            onCompositionStart: () => {
-              composing.current = true;
-            },
-            onCompositionEnd: () => {
-              composing.current = false;
-            },
-            onKeyDown: (event) => {
-              if (event.key !== "Enter" || !open) return;
-              // 输入法选字时的回车应留给输入法，避免选中标签或提交表单。
-              if (
-                composing.current ||
-                event.nativeEvent.isComposing ||
-                event.nativeEvent.keyCode === 229
-              ) {
-                event.preventBaseUIHandler();
-                return;
+        triggerRef={trigger}
+        search={{
+          placeholder: "搜索标签",
+          query: search,
+          onQueryChange: changeSearch,
+        }}
+        isOptionDisabled={(option) =>
+          atTagLimit && !props.value.some(({ id }) => id === option.id)
+        }
+        allowClear
+        action={
+          showCreate
+            ? {
+                label: keyword ? "新建标签「" + keyword + "」" : "新建标签",
+                onClick: () => {
+                  setCreateError("");
+                  setTagName(keyword);
+                },
               }
-              if (!event.currentTarget.getAttribute("aria-activedescendant")) {
-                event.preventDefault();
-              }
-            },
-          }}
-        />
-        <ComboboxContent
-          anchor={anchor}
-          container={popupContainer}
-          className="flex flex-col"
-        >
-          <ComboboxEmpty className="shrink-0">
-            {searchError ||
-              (loading || !currentResult ? "正在加载标签…" : "没有匹配的标签")}
-          </ComboboxEmpty>
-          <ComboboxList className="min-h-0">
-            {(option: PickerOption) => (
-              <ComboboxItem
-                key={option.id}
-                value={option}
-                disabled={
-                  creating ||
-                  (atTagLimit &&
-                    !props.value.some(({ id }) => id === option.id))
-                }
-              >
-                {option.name}
-              </ComboboxItem>
-            )}
-          </ComboboxList>
-          {searchError ? (
-            <div className="shrink-0 border-t p-1">
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={() => setReload((attempt) => attempt + 1)}
-              >
-                重试加载标签
-              </Button>
-            </div>
-          ) : currentResult &&
-            currentResult.page * tagPageSize < currentResult.total ? (
+            : undefined
+        }
+        footer={
+          (searchError || hasMore) && (
             <div className="shrink-0 border-t p-1">
               <Button
                 type="button"
                 variant="ghost"
                 className="w-full"
                 disabled={loading || creating}
-                onClick={() => setPage(currentResult.page + 1)}
+                onClick={() => {
+                  if (searchError) setReload((attempt) => attempt + 1);
+                  else if (currentResult) setPage(currentResult.page + 1);
+                }}
               >
-                {loading ? "正在加载…" : "加载更多标签"}
+                {searchError
+                  ? "重试加载标签"
+                  : loading
+                    ? "正在加载…"
+                    : "加载更多标签"}
               </Button>
             </div>
-          ) : null}
-          {showCreate && (
-            <div className="shrink-0 border-t p-1">
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full min-w-0 justify-start font-normal"
-                disabled={creating || props.disabled}
-                onClick={openCreateDialog}
-              >
-                <Plus aria-hidden="true" />
-                <span className="truncate">
-                  {keyword ? `新建标签「${keyword}」` : "新建标签"}
-                </span>
-              </Button>
-            </div>
-          )}
-        </ComboboxContent>
-      </Combobox>
+          )
+        }
+      />
       {atTagLimit && (
         <FieldDescription id={tagLimitId} role="status">
           {tagLimitLabel}最多可选 {maxTags} 个标签。移除已有标签后可继续选择。
         </FieldDescription>
       )}
-      <Dialog
+      <DropdownEntryDialog
         open={tagName !== null}
-        onOpenChange={(next) => {
-          if (!next && !creating) setTagName(null);
+        title="新建标签"
+        description="创建后会自动选中这个标签。"
+        inputId={props.id + "-new-name"}
+        inputLabel="标签名称"
+        placeholder="输入标签名称"
+        maxLength={64}
+        value={tagName ?? ""}
+        busy={creating}
+        disabled={props.disabled}
+        submitDisabled={atTagLimit || !tagName?.trim()}
+        submitLabel="创建"
+        busyLabel="正在创建…"
+        error={createError}
+        onValueChange={(value) => {
+          setTagName(value);
+          setCreateError("");
         }}
-      >
-        <DialogContent
-          showCloseButton={false}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            if (returnToOptions.current) {
-              returnToOptions.current = false;
-              setOpen(true);
-              input.current?.focus({ preventScroll: true });
-            } else {
-              trigger.current?.focus({ preventScroll: true });
-            }
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>新建标签</DialogTitle>
-            <DialogDescription className="sr-only">
-              创建后会自动选中这个标签。
-            </DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={submitTag}>
-            <Field data-invalid={Boolean(createError)}>
-              <FieldLabel htmlFor={tagNameId}>标签名称</FieldLabel>
-              <Input
-                id={tagNameId}
-                placeholder="输入标签名称"
-                maxLength={64}
-                value={tagName ?? ""}
-                readOnly={creating}
-                aria-required="true"
-                aria-invalid={Boolean(createError)}
-                aria-describedby={
-                  createError ? `${tagNameId}-error` : undefined
-                }
-                onChange={(event) => {
-                  setTagName(event.target.value);
-                  setCreateError("");
-                }}
-                onKeyDown={(event) => {
-                  if (
-                    event.key === "Enter" &&
-                    (event.nativeEvent.isComposing ||
-                      event.nativeEvent.keyCode === 229)
-                  ) {
-                    event.preventDefault();
-                  }
-                }}
-              />
-              {createError && (
-                <FieldError id={`${tagNameId}-error`}>{createError}</FieldError>
-              )}
-            </Field>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={creating}
-                onClick={() => setTagName(null)}
-              >
-                取消
-              </Button>
-              <Button
-                type="submit"
-                disabled={creating || atTagLimit || !tagName?.trim()}
-              >
-                {creating ? "正在创建…" : "创建"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        onConfirm={submitTag}
+        onOpenChange={(next) => {
+          if (!next) setTagName(null);
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          trigger.current?.focus({ preventScroll: true });
+          if (returnToOptions.current) {
+            returnToOptions.current = false;
+            setOpen(true);
+          }
+        }}
+      />
     </Field>
   );
 }

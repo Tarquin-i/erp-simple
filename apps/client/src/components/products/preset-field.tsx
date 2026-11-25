@@ -1,18 +1,8 @@
-import { Plus } from "lucide-react";
-import { type FormEvent, useRef, useState } from "react";
+import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { DropdownEntryDialog } from "@/components/shared/dropdown-entry-dialog";
 import { SearchableSelect } from "@/components/shared/searchable-select";
+import { Field, FieldLabel } from "@/components/ui/field";
 
 export type ProductPresetOption = { name: string; value: string };
 
@@ -42,8 +32,6 @@ export function ProductPresetField({
   onChange,
   custom,
 }: ProductPresetFieldProps) {
-  const customInput = useRef<HTMLInputElement>(null);
-  const [open, setOpen] = useState(false);
   const [customValue, setCustomValue] = useState<string | null>(null);
   const [error, setError] = useState("");
   const legacyValue =
@@ -54,15 +42,11 @@ export function ProductPresetField({
   const inputLabel = custom?.label ?? label;
 
   function openCustomDialog() {
-    setOpen(false);
     setError("");
     setCustomValue(custom?.initialValue ?? "");
   }
 
-  function submitCustomValue(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    // Portal 里的表单事件仍会冒泡到产品表单。
-    event.stopPropagation();
+  function submitCustomValue() {
     if (!custom || customValue === null || disabled) return;
     const nextValue = customValue.trim();
     const problem = !nextValue
@@ -90,100 +74,38 @@ export function ProductPresetField({
         placeholder={`请选择${label}`}
         searchPlaceholder={`搜索${label}`}
         emptyMessage={`没有匹配的${label}`}
-        open={open}
-        onOpenChange={setOpen}
         disabled={disabled}
         required
         getOptionKey={(option) => option.value}
         isOptionDisabled={(option) => option.value === legacyValue?.value}
         onValueChange={onChange}
-        footer={
-          custom && (
-            <div className="shrink-0 border-t p-1">
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full justify-start font-normal"
-                disabled={disabled}
-                onClick={openCustomDialog}
-              >
-                <Plus aria-hidden="true" />
-                自定义
-              </Button>
-            </div>
-          )
-        }
+        action={custom && { label: "自定义", onClick: openCustomDialog }}
       />
       {custom && (
-        <Dialog
+        <DropdownEntryDialog
           open={customValue !== null}
+          title={`自定义${label}`}
+          description={`确认后将填入当前产品的${label}。`}
+          inputId={inputId}
+          inputLabel={inputLabel}
+          value={customValue ?? ""}
+          maxLength={custom.maxLength}
+          inputMode={custom.inputMode}
+          error={error}
+          disabled={disabled}
+          onValueChange={(nextValue) => {
+            setCustomValue(nextValue);
+            setError("");
+          }}
+          onConfirm={submitCustomValue}
           onOpenChange={(next) => {
             if (!next) setCustomValue(null);
           }}
-        >
-          <DialogContent
-            showCloseButton={false}
-            onOpenAutoFocus={(event) => {
-              event.preventDefault();
-              customInput.current?.focus();
-            }}
-            onCloseAutoFocus={(event) => {
-              event.preventDefault();
-              document.getElementById(id)?.focus({ preventScroll: true });
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle>自定义{label}</DialogTitle>
-              <DialogDescription className="sr-only">
-                确认后将填入当前产品的{label}。
-              </DialogDescription>
-            </DialogHeader>
-            <form className="space-y-4" onSubmit={submitCustomValue}>
-              <Field data-invalid={Boolean(error)}>
-                <FieldLabel htmlFor={inputId}>{inputLabel}</FieldLabel>
-                <Input
-                  id={inputId}
-                  ref={customInput}
-                  value={customValue ?? ""}
-                  maxLength={custom.maxLength}
-                  inputMode={custom.inputMode}
-                  disabled={disabled}
-                  aria-required="true"
-                  aria-invalid={Boolean(error)}
-                  aria-describedby={error ? `${inputId}-error` : undefined}
-                  onChange={(event) => {
-                    setCustomValue(event.target.value);
-                    setError("");
-                  }}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === "Enter" &&
-                      (event.nativeEvent.isComposing ||
-                        event.nativeEvent.keyCode === 229)
-                    ) {
-                      event.preventDefault();
-                    }
-                  }}
-                />
-                {error && (
-                  <FieldError id={`${inputId}-error`}>{error}</FieldError>
-                )}
-              </Field>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setCustomValue(null)}
-                >
-                  取消
-                </Button>
-                <Button type="submit" disabled={disabled}>
-                  确认
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            document.getElementById(id)?.focus({ preventScroll: true });
+          }}
+        />
       )}
     </Field>
   );
