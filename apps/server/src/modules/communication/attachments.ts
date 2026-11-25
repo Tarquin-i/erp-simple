@@ -51,6 +51,10 @@ const visibleAttachment = and(
   isNull(communicationAttachment.objectDeletedAt),
   eq(communicationAttachment.uploadState, "ready")
 );
+const awaitingAttachmentCleanup = and(
+  isNotNull(communicationAttachment.archivedAt),
+  isNull(communicationAttachment.objectDeletedAt)
+);
 const attachmentMetadata = {
   id: communicationAttachment.id,
   fileName: communicationAttachment.fileName,
@@ -573,13 +577,17 @@ export async function writeLocalCommunicationAttachment(
   } catch (error) {
     // 写文件期间可能发生改派或删除，回收已不可完成的这次上传。
     if (isUploadInaccessible(error)) {
-      await cleanupPendingLocalUpload(row, storage).catch(() => {});
+      await cleanupPendingLocalUpload(row, storage, true).catch(() => {});
     }
     throw error;
   }
 }
 
-async function inspectUpload(row: Attachment, storage: AttachmentStorage) {
+async function inspectUpload(
+  row: Attachment,
+  storage: AttachmentStorage,
+  beforePromotion: () => void
+) {
   return useStorage(async () => {
     let metadata = await storage.readMetadata(row.storageKey);
     if (!metadata) {
@@ -587,6 +595,7 @@ async function inspectUpload(row: Attachment, storage: AttachmentStorage) {
       if (staged) {
         if (staged.contentLength !== row.fileSize)
           fail(400, "附件实际大小与声明不一致。");
+        beforePromotion();
         try {
           await storage.promoteSingleUpload(row.storageKey);
         } catch (error) {
@@ -618,27 +627,13 @@ async function inspectUpload(row: Attachment, storage: AttachmentStorage) {
 }
 
 async function cleanupArchived(row: Attachment, storage: AttachmentStorage) {
-  try {
-    await useStorage(async () => {
-      try {
-        await storage.removeSingleUpload(row.storageKey);
-      } finally {
-        await storage.remove(row.storageKey);
-      }
-    });
-  } catch (error) {
-    // 完成请求可能在并发删除后才拿到结果。若补偿清理失败，让该条重新可重试。
-    await database.db
-      .update(communicationAttachment)
-      .set({ objectDeletedAt: null })
-      .where(
-        and(
-          eq(communicationAttachment.id, row.id),
-          isNotNull(communicationAttachment.archivedAt)
-        )
-      );
-    throw error;
-  }
+  await useStorage(async () => {
+    try {
+      await storage.removeSingleUpload(row.storageKey);
+    } finally {
+      await storage.remove(row.storageKey);
+    }
+  });
   await database.db
     .update(communicationAttachment)
     .set({
@@ -647,7 +642,8 @@ async function cleanupArchived(row: Attachment, storage: AttachmentStorage) {
     .where(
       and(
         eq(communicationAttachment.id, row.id),
-        isNotNull(communicationAttachment.archivedAt)
+        isNotNull(communicationAttachment.archivedAt),
+        eq(communicationAttachment.cleanupGeneration, row.cleanupGeneration)
       )
     );
 }
@@ -670,7 +666,7 @@ export async function closeCommunicationUploads(
     );
 }
 
-export function readClosedCommunicationUploads(
+export function readCommunicationAttachmentsToClean(
   tx: DatabaseTransaction,
   communicationId: string,
   limit?: number
@@ -681,25 +677,23 @@ export function readClosedCommunicationUploads(
     .where(
       and(
         eq(communicationAttachment.communicationId, communicationId),
-        eq(communicationAttachment.uploadState, "pending"),
-        isNotNull(communicationAttachment.archivedAt),
-        isNull(communicationAttachment.objectDeletedAt)
+        awaitingAttachmentCleanup
       )
     )
     .orderBy(communicationAttachment.id);
   return limit === undefined ? query : query.limit(limit);
 }
 
-export async function cleanupClosedCommunicationUploads(
-  uploads: Attachment[],
+export async function cleanupCommunicationAttachments(
+  attachments: Attachment[],
   getStorage: GetStorage
 ) {
   const storage = await useStorage(getStorage);
-  for (const row of uploads) await cleanupArchived(row, storage);
+  for (const row of attachments) await cleanupArchived(row, storage);
 }
 
 /**
- * 回收过期的本地上传，并复查沟通归档前已发上传地址可能留下的临时文件。
+ * 续做附件删除，回收过期的本地上传，并复查归档前已发上传地址留下的临时文件。
  * @param getStorage 创建当前的附件存储适配器。
  * @returns 本批回收结束，单条清理失败时保留记录供下次重试。
  * @throws 存储配置无效或数据库查询失败时抛出异常。
@@ -710,14 +704,10 @@ export async function cleanupExpiredAttachmentUploads(getStorage: GetStorage) {
     const expiredAt = sql`now() - interval '24 hours'`;
     // 已发出的 OSS 上传签名仍可能写入暂存路径。到期后再复查已关闭的会话。
     const closedByArchive = and(
-      isNotNull(communicationAttachment.archivedAt),
       lt(communicationAttachment.archivedAt, expiredAt),
-      or(
-        isNull(communicationAttachment.objectDeletedAt),
-        lt(
-          communicationAttachment.objectDeletedAt,
-          sql`${communicationAttachment.archivedAt} + interval '24 hours'`
-        )
+      lt(
+        communicationAttachment.objectDeletedAt,
+        sql`${communicationAttachment.archivedAt} + interval '24 hours'`
       ),
       exists(
         tx
@@ -738,16 +728,19 @@ export async function cleanupExpiredAttachmentUploads(getStorage: GetStorage) {
       .select()
       .from(communicationAttachment)
       .where(
-        and(
-          eq(communicationAttachment.uploadState, "pending"),
-          or(
-            storage.kind === "local"
-              ? and(
-                  isNull(communicationAttachment.objectDeletedAt),
-                  lt(communicationAttachment.createdAt, expiredAt)
-                )
-              : undefined,
-            closedByArchive
+        or(
+          awaitingAttachmentCleanup,
+          and(
+            eq(communicationAttachment.uploadState, "pending"),
+            or(
+              storage.kind === "local"
+                ? and(
+                    isNull(communicationAttachment.objectDeletedAt),
+                    lt(communicationAttachment.createdAt, expiredAt)
+                  )
+                : undefined,
+              closedByArchive
+            )
           )
         )
       )
@@ -755,7 +748,7 @@ export async function cleanupExpiredAttachmentUploads(getStorage: GetStorage) {
       .limit(100)
       .for("update", { skipLocked: true });
 
-    // 完成上传也锁定同一行。先归档才能删文件，已发布的行不会被选中。
+    // 完成上传也锁定同一行。只有过期的本地暂存会话需要先标记关闭。
     const pendingIds = rows
       .filter((row) => !row.archivedAt)
       .map((row) => row.id);
@@ -887,25 +880,32 @@ function isUploadInaccessible(error: unknown) {
 
 async function cleanupArchivedUpload(
   row: Attachment,
-  storage: AttachmentStorage
+  storage: AttachmentStorage,
+  mayHaveWritten: boolean
 ) {
-  const [archived] = await database.db
-    .select()
-    .from(communicationAttachment)
-    .where(
-      and(
-        eq(communicationAttachment.id, row.id),
-        eq(communicationAttachment.uploadState, "pending"),
-        isNotNull(communicationAttachment.archivedAt)
-      )
-    );
-  if (archived) await cleanupArchived(archived, storage).catch(() => {});
+  const id = eq(communicationAttachment.id, row.id);
+  // 已发出的写入可能在删除之后落盘，先登记补偿，再访问存储。
+  const [archived] = mayHaveWritten
+    ? await database.db
+        .update(communicationAttachment)
+        .set({
+          objectDeletedAt: null,
+          cleanupGeneration: sql`${communicationAttachment.cleanupGeneration} + 1`,
+        })
+        .where(and(id, isNotNull(communicationAttachment.archivedAt)))
+        .returning()
+    : await database.db
+        .select()
+        .from(communicationAttachment)
+        .where(and(id, awaitingAttachmentCleanup));
+  if (archived) await cleanupArchived(archived, storage);
 }
 
 /** 回收权限变化前已接收的文件，只归档仍未完成的上传。 */
 async function cleanupPendingLocalUpload(
   row: Attachment,
-  storage: AttachmentStorage
+  storage: AttachmentStorage,
+  mayHaveWritten: boolean
 ) {
   await database.db
     .update(communicationAttachment)
@@ -917,7 +917,7 @@ async function cleanupPendingLocalUpload(
         isNull(communicationAttachment.archivedAt)
       )
     );
-  await cleanupArchivedUpload(row, storage);
+  await cleanupArchivedUpload(row, storage, mayHaveWritten);
 }
 
 /**
@@ -950,8 +950,11 @@ export async function completeCommunicationAttachment(
 
   const row = start.row;
   const storage = await useStorage(getStorage);
+  let mayHavePromoted = false;
   try {
-    const verifiedHash = await inspectUpload(row, storage);
+    const verifiedHash = await inspectUpload(row, storage, () => {
+      mayHavePromoted = true;
+    });
     const result = await withAttachmentWrite(
       access,
       communicationId,
@@ -983,13 +986,17 @@ export async function completeCommunicationAttachment(
     const duplicate = isConstraintError(error, "23505", activeHashConstraint);
     const invalid = error instanceof HTTPException && error.status === 400;
     if (storage.kind === "local" && isUploadInaccessible(error)) {
-      await cleanupPendingLocalUpload(row, storage).catch(() => {});
+      await cleanupPendingLocalUpload(row, storage, mayHavePromoted).catch(
+        () => {}
+      );
     } else {
       if (duplicate || invalid) {
         await archivePendingUpload(access, row).catch(() => {});
       }
       // 完成与删除重叠时，补偿清理晚到的正式文件。
-      await cleanupArchivedUpload(row, storage).catch(() => {});
+      await cleanupArchivedUpload(row, storage, mayHavePromoted).catch(
+        () => {}
+      );
     }
     if (duplicate) duplicateAttachment();
     throw error;

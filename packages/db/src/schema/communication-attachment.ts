@@ -4,6 +4,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   pgEnum,
   pgTable,
   text,
@@ -52,6 +53,8 @@ export const communicationAttachment = pgTable(
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     archivedByUserId: text("archived_by_user_id"),
     objectDeletedAt: timestamp("object_deleted_at", { withTimezone: true }),
+    // 迟到写入需要重新清理时推进代次，让旧清理的响应无法提前标记完成。
+    cleanupGeneration: integer("cleanup_generation").default(0).notNull(),
   },
   (table) => [
     // 避免数据库级联删除附件记录后，失去可用于清理 OSS 对象的路径。

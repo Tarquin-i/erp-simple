@@ -43,9 +43,9 @@ import { fail } from "../organization/errors";
 import { CommunicationArchiveInProgress } from "./archive-in-progress";
 import type { AttachmentStorage } from "./attachment-storage";
 import {
-  cleanupClosedCommunicationUploads,
+  cleanupCommunicationAttachments,
   closeCommunicationUploads,
-  readClosedCommunicationUploads,
+  readCommunicationAttachmentsToClean,
 } from "./attachments";
 
 type CommunicationStatus = typeof communication.$inferSelect.status;
@@ -603,7 +603,7 @@ async function lockCommunicationForArchive(
   return locked;
 }
 
-/** 关闭未完成的上传，在事务外清理后归档沟通。可重试同一版本以继续清理或确认结果。 */
+/** 关闭未完成的上传，在事务外清理待删除附件后归档沟通。可用同一版本续做或确认结果。 */
 export async function archiveCommunication(
   access: BusinessAccess,
   id: string,
@@ -633,16 +633,23 @@ export async function archiveCommunication(
         .where(eq(communication.id, id));
       await closeCommunicationUploads(tx, id, freshAccess.userId, startedAt);
     }
-    const uploads = await readClosedCommunicationUploads(tx, id);
-    return uploads.length
-      ? { uploads }
+    const attachments = await readCommunicationAttachmentsToClean(tx, id);
+    return attachments.length
+      ? { attachments }
       : {
           communication: await finishCommunicationArchive(tx, freshAccess, id),
         };
   });
-  if (!started.uploads) return started.communication;
+  if (!started.attachments) return started.communication;
 
-  await cleanupClosedCommunicationUploads(started.uploads, getStorage);
+  let cleanupError: HTTPException | undefined;
+  try {
+    await cleanupCommunicationAttachments(started.attachments, getStorage);
+  } catch (error) {
+    if (!(error instanceof HTTPException) || error.status !== 503) throw error;
+    // 另一个归档请求可能已经清理成功，仍按当前权限和版本核对结果。
+    cleanupError = error;
+  }
   return writeCommunication(async (tx) => {
     const { freshAccess, record } = await lockCommunicationForArchive(
       tx,
@@ -653,12 +660,13 @@ export async function archiveCommunication(
     if (record.archivedAt) {
       return readCommunication(tx, freshAccess, id, true);
     }
-    if ((await readClosedCommunicationUploads(tx, id, 1)).length) {
+    if ((await readCommunicationAttachmentsToClean(tx, id, 1)).length) {
+      if (cleanupError) throw cleanupError;
       throw new HTTPException(409, {
         res: Response.json(
           {
             code: "archive_cleanup_pending",
-            message: "还有未完成上传需要清理，请重试归档。",
+            message: "还有附件需要清理，请重试归档。",
           },
           { status: 409 }
         ),
