@@ -68,6 +68,7 @@ type SubmittedMethod = MethodInput & { id?: string };
 
 const methodFields = ["type", "value", "isPrimary"] as const;
 const aggregateMethodFields = ["id", ...methodFields] as const;
+const methodChangeFields = ["add", "update", "remove"] as const;
 const duplicateEmailMessage = "同一联系人不能重复添加相同邮箱。";
 const duplicateTypeMessage = "除邮箱外，同一联系人每种联系方式最多一条。";
 const versionedMethodFields = [...methodFields, "expectedVersion"] as const;
@@ -134,6 +135,17 @@ function methodKey({ type, value }: MethodInput) {
   return type === "email" ? `email:${value.trim().toLowerCase()}` : type;
 }
 
+function readMethodFields(value: unknown, fields: readonly string[]) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail(400, "请检查填写的联系方式。");
+  }
+  const input = value as Record<string, unknown>;
+  if (Object.keys(input).some((key) => !fields.includes(key))) {
+    fail(400, "联系方式含有不支持的字段。");
+  }
+  return input;
+}
+
 /**
  * 校验整组联系方式。新建时默认首项为主要；编辑时保留未修改的历史资料。
  * @param value 原始联系方式数组。
@@ -155,13 +167,7 @@ function readContactMethods(
   const seenIds = new Set<string>();
   const seenKeys = new Set<string>();
   const methods = value.map((item: unknown) => {
-    if (item === null || typeof item !== "object" || Array.isArray(item)) {
-      fail(400, "请检查填写的联系方式。");
-    }
-    const input = item as Record<string, unknown>;
-    if (Object.keys(input).some((key) => !fields.includes(key))) {
-      fail(400, "联系方式含有不支持的字段。");
-    }
+    const input = readMethodFields(item, fields);
     const id =
       input.id === undefined ? undefined : readUuid(input.id, "联系方式 ID");
     const existing = id === undefined ? undefined : current?.get(id);
@@ -202,6 +208,52 @@ function readContactMethods(
     ...method,
     isPrimary: primaryCount === 0 ? index === 0 : method.isPrimary === true,
   }));
+}
+
+function readMethodChangeList(value: unknown): unknown[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) fail(400, "请提交有效的联系方式变更列表。");
+  return value;
+}
+
+/** 将变更合入加锁后的资料，由整组保存统一校验最终状态。 */
+function mergeMethodChanges(value: unknown, current: Method[]) {
+  const changes = readMethodFields(value, methodChangeFields);
+  const added = readMethodChangeList(changes.add);
+  const updated = readMethodChangeList(changes.update);
+  const removed = readMethodChangeList(changes.remove);
+  if (!added.length && !updated.length && !removed.length) return;
+
+  const methods = new Map<string, Record<string, unknown>>(
+    current.map(({ id, type, value, isPrimary }) => [
+      id,
+      { id, type, value, isPrimary },
+    ])
+  );
+  const changedIds = new Set<string>();
+
+  function readChangedId(value: unknown) {
+    const id = readUuid(value, "联系方式 ID");
+    if (changedIds.has(id)) fail(400, "同一条联系方式不能重复提交。");
+    if (!methods.has(id)) fail(400, "包含不属于该联系人的联系方式。");
+    changedIds.add(id);
+    return id;
+  }
+
+  for (const item of updated) {
+    const input = readMethodFields(item, aggregateMethodFields);
+    const id = readChangedId(input.id);
+    if (methodFields.every((field) => input[field] === undefined)) {
+      fail(400, "请填写要修改的联系方式字段。");
+    }
+    methods.set(id, { ...methods.get(id), ...input, id });
+  }
+  for (const item of removed) methods.delete(readChangedId(item));
+
+  return [
+    ...methods.values(),
+    ...added.map((item) => readMethodFields(item, methodFields)),
+  ];
 }
 
 /**
@@ -661,24 +713,40 @@ customerContactRoutes.patch(
   async (c) => {
     const customerId = readUuid(c.req.param("customerId"), "客户 ID");
     const contactId = readUuid(c.req.param("contactId"), "联系人 ID");
-    const body = await readObject(c, ["name", "expectedVersion", "methods"]);
-    const name = readString(body.name, "联系人姓名", 128);
+    const body = await readObject(c, [
+      "name",
+      "expectedVersion",
+      "methods",
+      "methodChanges",
+    ]);
+    const { methods, methodChanges } = body;
+    if (methods !== undefined && methodChanges !== undefined) {
+      fail(400, "请使用同一种联系方式提交方式。");
+    }
+    const name =
+      body.name === undefined && methodChanges !== undefined
+        ? undefined
+        : readString(body.name, "联系人姓名", 128);
     const contact = await changeContact(
       c.get("businessAccess"),
       customerId,
       contactId,
       readExpectedVersion(body.expectedVersion),
       async (tx, lockedContact) => {
-        if (body.methods === undefined) return { name };
+        const nextName = name ?? lockedContact.name;
+        if (methods === undefined && methodChanges === undefined) {
+          return { name: nextName };
+        }
         const current = await listMethods(tx, contactId);
-        const changed = await replaceContactMethods(
-          tx,
-          contactId,
-          current,
-          body.methods
-        );
-        return changed || name !== lockedContact.name
-          ? { name }
+        const nextMethods =
+          methodChanges === undefined
+            ? methods
+            : mergeMethodChanges(methodChanges, current);
+        const changed =
+          nextMethods !== undefined &&
+          (await replaceContactMethods(tx, contactId, current, nextMethods));
+        return changed || nextName !== lockedContact.name
+          ? { name: nextName }
           : { methods: current };
       }
     );
