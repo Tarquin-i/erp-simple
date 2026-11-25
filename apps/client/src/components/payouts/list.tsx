@@ -44,13 +44,13 @@ type ListState = {
 };
 
 const columns = [
-  { label: "Payout 名称", width: "w-[23%]" },
-  { label: "产品", width: "w-[21%]" },
+  { label: "Payout 名称", width: "w-[20%]" },
+  { label: "产品", width: "w-[20%]" },
   { label: "总张数", width: "w-[10%]" },
   { label: "中奖张数", width: "w-[10%]" },
-  { label: "预计赔付", width: "w-[15%]" },
+  { label: "预计赔付", width: "w-[16%]" },
   { label: "赔付率", width: "w-[9%]" },
-  { label: "创建时间", width: "w-[12%]" },
+  { label: "创建时间", width: "w-[15%]" },
 ];
 const dateTime = new Intl.DateTimeFormat("zh-CN", {
   dateStyle: "short",

@@ -39,7 +39,13 @@ type ListState = {
   error?: string;
 };
 
-const columnNames = ["客户编号", "客户名称", "渠道", "标签", "业务员"];
+const columns = [
+  { label: "客户编号", width: "w-[13%]" },
+  { label: "客户名称", width: "w-[32%]" },
+  { label: "渠道", width: "w-[21%]" },
+  { label: "标签", width: "w-[18%]" },
+  { label: "业务员", width: "w-[16%]" },
+];
 
 /**
  * 根据路由查询条件加载客户列表，并提供搜索、筛选和分页操作。
@@ -159,8 +165,8 @@ export function CustomerList({
           <CustomerTable>
             {Array.from({ length: 6 }, (_, rowIndex) => (
               <TableRow aria-hidden="true" key={rowIndex}>
-                {columnNames.map((column, columnIndex) => (
-                  <TableCell className="h-14" key={column}>
+                {columns.map(({ label }, columnIndex) => (
+                  <TableCell className="h-14" key={label}>
                     <Skeleton
                       className={columnIndex === 1 ? "h-4 w-28" : "h-4 w-16"}
                     />
@@ -308,18 +314,18 @@ function CustomerTable({ children }: { children: ReactNode }) {
     <Table className="min-w-160 table-fixed border-b">
       <TableCaption className="sr-only">客户列表</TableCaption>
       <colgroup>
-        {columnNames.map((column) => (
-          <col className="w-1/5" key={column} />
+        {columns.map(({ label, width }) => (
+          <col className={width} key={label} />
         ))}
       </colgroup>
       <TableHeader>
         <TableRow>
-          {columnNames.map((column) => (
+          {columns.map(({ label }) => (
             <TableHead
               className="h-10 px-2.5 text-muted-foreground"
-              key={column}
+              key={label}
             >
-              {column}
+              {label}
             </TableHead>
           ))}
         </TableRow>

@@ -6,6 +6,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
+import { cn } from "cn";
 import { Clock, LoaderCircle, MessagesSquare, Plus } from "lucide-react";
 import {
   type ReactNode,
@@ -71,8 +72,17 @@ type ListState = {
   error?: string;
 };
 
-const defaultColumns = ["主题", "客户", "标签", "状态", "业务员", "最近更新"];
-const customerColumns = defaultColumns.filter((name) => name !== "客户");
+const defaultColumns = [
+  { label: "主题", width: "w-[30%]" },
+  { label: "客户", width: "w-[19%]" },
+  { label: "标签", width: "w-[12%]" },
+  { label: "状态", width: "w-[11%]" },
+  { label: "业务员", width: "w-[14%]" },
+  { label: "最近更新", width: "w-[14%]" },
+];
+const customerColumns = defaultColumns
+  .filter(({ label }) => label !== "客户")
+  .map(({ label }) => ({ label }));
 const pendingCreationLabel = "处理待确认提交";
 const noPendingCreation = () => false;
 const customerDetailRoute = getRouteApi("/_protected/customers/$customerId/");
@@ -153,6 +163,7 @@ export function CommunicationList({
     ? { customerId, communicationPage: query.page }
     : {};
   const columns = customerId ? customerColumns : defaultColumns;
+  const minWidth = customerId ? "min-w-160" : "min-w-180";
   const [load, setLoad] = useState<ListState>();
   const [retry, setRetry] = useState(0);
   const [opening, setOpening] = useState(false);
@@ -339,11 +350,11 @@ export function CommunicationList({
       ) : !result || result.page > pageCount ? (
         <div role="status">
           <span className="sr-only">正在加载沟通记录…</span>
-          <CommunicationTable columns={columns}>
+          <CommunicationTable columns={columns} minWidth={minWidth}>
             {Array.from({ length: 4 }, (_, index) => (
               <TableRow aria-hidden="true" key={index}>
-                {columns.map((column) => (
-                  <TableCell className="h-14 px-2.5" key={column}>
+                {columns.map(({ label }) => (
+                  <TableCell className="h-14 px-2.5" key={label}>
                     <Skeleton className="h-4 w-16" />
                   </TableCell>
                 ))}
@@ -374,7 +385,7 @@ export function CommunicationList({
         </Empty>
       ) : (
         <>
-          <CommunicationTable columns={columns}>
+          <CommunicationTable columns={columns} minWidth={minWidth}>
             {result.communications.map((communication) => {
               const updatedAt = new Date(communication.updatedAt);
               const destination = {
@@ -523,22 +534,24 @@ function CommunicationSearch({
 
 function CommunicationTable({
   columns,
+  minWidth,
   children,
 }: {
-  columns: string[];
+  columns: { label: string; width?: string }[];
+  minWidth: string;
   children: ReactNode;
 }) {
   return (
-    <Table className="min-w-160 table-fixed border-b">
+    <Table className={cn("table-fixed border-b", minWidth)}>
       <TableCaption className="sr-only">沟通记录列表</TableCaption>
       <TableHeader>
         <TableRow>
-          {columns.map((column) => (
+          {columns.map(({ label, width }) => (
             <TableHead
-              className="h-10 px-2.5 text-muted-foreground"
-              key={column}
+              className={cn("h-10 px-2.5 text-muted-foreground", width)}
+              key={label}
             >
-              {column}
+              {label}
             </TableHead>
           ))}
         </TableRow>
