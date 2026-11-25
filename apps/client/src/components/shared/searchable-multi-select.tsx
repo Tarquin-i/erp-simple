@@ -24,10 +24,10 @@ import {
 
 import {
   type DropdownAction,
-  DropdownFooter,
-  DropdownSearch,
+  SelectFooter,
+  SelectSearchInput,
   formDropdownStyles,
-} from "./form-dropdown";
+} from "./select-popup-parts";
 
 type MultiSelectOption = { id: string; name: string };
 
@@ -163,7 +163,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
   const panelFooter = (
     <>
       {footer}
-      <DropdownFooter
+      <SelectFooter
         disabled={disabled}
         action={
           action && {
@@ -226,7 +226,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
           sideOffset={4}
           className={formDropdownStyles.popup}
         >
-          <DropdownSearch placeholder={search.placeholder} maxLength={64} />
+          <SelectSearchInput placeholder={search.placeholder} maxLength={64} />
           <ComboboxEmpty className="shrink-0">{emptyMessage}</ComboboxEmpty>
           <ComboboxList showScrollbar className={formDropdownStyles.list}>
             {(option: Option) => (

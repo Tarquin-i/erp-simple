@@ -1,4 +1,4 @@
-import type { PickerOption } from "@/components/shared/option-pickers";
+import type { PickerOption } from "@/components/shared/multi-select-fields";
 import type {
   Customer,
   CustomerOwner,

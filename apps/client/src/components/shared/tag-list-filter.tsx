@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 
-import { PagedListFilter } from "./paged-list-filter";
-import type { PagedListFilterQuery } from "./paged-list-filter";
+import { PaginatedFilterOptions } from "./paginated-filter-options";
+import type { PaginatedFilterOptionsQuery } from "./paginated-filter-options";
 
 type TagOption = { id: string; name: string };
 type TagPage = { tags: TagOption[]; total: number };
@@ -22,7 +22,7 @@ export function TagListFilter({
   ...props
 }: {
   loadTags: (
-    query: PagedListFilterQuery,
+    query: PaginatedFilterOptionsQuery,
     signal: AbortSignal
   ) => Promise<TagPage>;
   selectionLimit: number;
@@ -32,7 +32,7 @@ export function TagListFilter({
   onToggle: (tag: TagOption) => void;
 }) {
   const loadOptions = useCallback(
-    async (query: PagedListFilterQuery, signal: AbortSignal) => {
+    async (query: PaginatedFilterOptionsQuery, signal: AbortSignal) => {
       const { tags, total } = await loadTags(query, signal);
       return { options: tags, total };
     },
@@ -40,6 +40,6 @@ export function TagListFilter({
   );
 
   return (
-    <PagedListFilter {...props} loadOptions={loadOptions} labels={labels} />
+    <PaginatedFilterOptions {...props} loadOptions={loadOptions} labels={labels} />
   );
 }

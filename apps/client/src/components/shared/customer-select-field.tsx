@@ -30,7 +30,7 @@ const renderCustomerOption = (customer: CustomerChoice) => (
   </>
 );
 
-export function CommunicationCustomerField({
+export function CustomerSelectField({
   value,
   locked,
   disabled,

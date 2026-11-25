@@ -25,10 +25,10 @@ import {
 
 import {
   type DropdownAction,
-  DropdownFooter,
-  DropdownSearch,
+  SelectFooter,
+  SelectSearchInput,
   formDropdownStyles,
-} from "./form-dropdown";
+} from "./select-popup-parts";
 
 type SelectOption = { name: string; keywords?: string; code?: string };
 
@@ -126,7 +126,7 @@ export function SearchableSelect<Option extends SelectOption>({
   const dropdownFooter = (
     <>
       {footer}
-      <DropdownFooter
+      <SelectFooter
         action={
           action && {
             label: action.label,
@@ -351,7 +351,7 @@ export function SearchableSelect<Option extends SelectOption>({
         sideOffset={4}
         className={cn(formDropdownStyles.popup, compactTrigger && "w-64")}
       >
-        <DropdownSearch placeholder={searchPlaceholder} />
+        <SelectSearchInput placeholder={searchPlaceholder} />
         <ComboboxEmpty>{emptyMessage}</ComboboxEmpty>
         <ComboboxList showScrollbar className={formDropdownStyles.list}>
           {(option: Option) => (

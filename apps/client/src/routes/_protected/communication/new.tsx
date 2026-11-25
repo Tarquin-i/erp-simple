@@ -11,7 +11,7 @@ import {
 import { CommunicationCreationRecovery } from "@/components/communication/form/creation-recovery";
 import { readCreationRecovery } from "@/components/communication/form/creation-submission";
 import type { CreationRecovery } from "@/components/communication/form/creation-submission";
-import type { CustomerChoice } from "@/components/shared/customer-field";
+import type { CustomerChoice } from "@/components/shared/customer-select-field";
 import { readCommunicationListQueryFromState } from "@/components/communication/list/query";
 import { readCommunicationCreationSearch } from "@/components/communication/navigation";
 import { readListQueryFromState } from "@/components/customers/list-query";

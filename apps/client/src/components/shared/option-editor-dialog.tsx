@@ -22,7 +22,7 @@ const presetColors = [
   { value: "purple", label: "紫色", className: "bg-purple-600" },
 ] as const;
 
-type DropdownEntryDialogProps = {
+type OptionEditorDialogProps = {
   open: boolean;
   title: string;
   description: string;
@@ -45,7 +45,7 @@ type DropdownEntryDialogProps = {
   color?: { value: string | null; onChange: (color: string) => void };
 };
 
-export function DropdownEntryDialog({
+export function OptionEditorDialog({
   open,
   title,
   description,
@@ -66,7 +66,7 @@ export function DropdownEntryDialog({
   submitLabel = "确认",
   busyLabel = "正在保存…",
   color,
-}: DropdownEntryDialogProps) {
+}: OptionEditorDialogProps) {
   const input = useRef<HTMLInputElement>(null);
   const errorId = `${inputId}-error`;
 

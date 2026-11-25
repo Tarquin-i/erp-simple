@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { DropdownEntryDialog } from "@/components/shared/dropdown-entry-dialog";
+import { OptionEditorDialog } from "@/components/shared/option-editor-dialog";
 import { SearchableSelect } from "@/components/shared/searchable-select";
 import { Field, FieldLabel } from "@/components/ui/field";
 
@@ -82,7 +82,7 @@ export function ProductPresetField({
         action={custom && { label: "自定义", onClick: openCustomDialog }}
       />
       {custom && (
-        <DropdownEntryDialog
+        <OptionEditorDialog
           open={customValue !== null}
           title={`自定义${label}`}
           description={`确认后将填入当前产品的${label}。`}

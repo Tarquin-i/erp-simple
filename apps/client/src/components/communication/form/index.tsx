@@ -10,9 +10,9 @@ import {
   SavedAttachmentUploadStatus,
 } from "@/components/communication/attachments/saved-uploads";
 import type { AttachmentUploadQueue } from "@/components/communication/attachments/use-upload-queue";
-import { CommunicationCustomerField } from "@/components/shared/customer-field";
-import type { CustomerChoice } from "@/components/shared/customer-field";
-import { TagPicker } from "@/components/shared/option-pickers";
+import { CustomerSelectField } from "@/components/shared/customer-select-field";
+import type { CustomerChoice } from "@/components/shared/customer-select-field";
+import { TagMultiSelectField } from "@/components/shared/multi-select-fields";
 import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -400,7 +400,7 @@ export function CommunicationForm({
               }
             />
           </Field>
-          <CommunicationCustomerField
+          <CustomerSelectField
             value={customerChoice}
             locked={isEdit || Boolean(initialCustomer)}
             disabled={fieldsLocked}
@@ -412,7 +412,7 @@ export function CommunicationForm({
               setDraft((previous) => ({ ...previous, owner: defaultOwner }));
             }}
           />
-          <TagPicker
+          <TagMultiSelectField
             id="communication-form-tags"
             label="标签"
             value={draft.tags}

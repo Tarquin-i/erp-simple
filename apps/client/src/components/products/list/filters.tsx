@@ -7,8 +7,8 @@ import type {
   ColumnConfig,
   FiltersState,
 } from "@/components/shared/data-table-filter/core/types";
-import { PagedListFilter } from "@/components/shared/paged-list-filter";
-import type { PagedListFilterQuery } from "@/components/shared/paged-list-filter";
+import { PaginatedFilterOptions } from "@/components/shared/paginated-filter-options";
+import type { PaginatedFilterOptionsQuery } from "@/components/shared/paginated-filter-options";
 import {
   listOptionLimit,
   listOptionOperator,
@@ -66,7 +66,7 @@ const customerPickerLabels = {
 };
 
 async function loadCustomerOptions(
-  query: PagedListFilterQuery,
+  query: PaginatedFilterOptionsQuery,
   signal: AbortSignal
 ) {
   const { customers, total } = await listCustomers(query, signal);
@@ -221,7 +221,7 @@ export function useProductListFilters(
               pageCustomers.get(id) ?? labels.get(id)?.label ?? "正在读取客户…",
           })),
           renderFilterValue: (filter) => (
-            <PagedListFilter
+            <PaginatedFilterOptions
               loadOptions={loadCustomerOptions}
               labels={customerPickerLabels}
               searchMaxLength={256}

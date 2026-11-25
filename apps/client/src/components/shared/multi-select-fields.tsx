@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 
-import { DropdownEntryDialog } from "./dropdown-entry-dialog";
+import { OptionEditorDialog } from "./option-editor-dialog";
 import { SearchableMultiSelect } from "./searchable-multi-select";
 
 export type PickerOption = { id: string; name: string };
@@ -16,7 +16,7 @@ type PickerProps = {
   disabled: boolean;
 };
 
-export function OptionPicker({
+export function FixedMultiSelectField({
   items,
   emptyMessage,
   ...props
@@ -48,7 +48,7 @@ type TagPage = {
 };
 
 /** 为公共复选框接入标签目录、分页和创建接口。 */
-export function TagPicker({
+export function TagMultiSelectField({
   onCreatingChange,
   loadTags,
   createTag,
@@ -240,7 +240,7 @@ export function TagPicker({
           {tagLimitLabel}最多可选 {maxTags} 个标签。移除已有标签后可继续选择。
         </FieldDescription>
       )}
-      <DropdownEntryDialog
+      <OptionEditorDialog
         open={tagName !== null}
         title="新建标签"
         description="创建后会自动选中这个标签。"

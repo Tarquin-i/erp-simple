@@ -9,7 +9,7 @@ import { Check, Save } from "lucide-react";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import { OptionPicker, TagPicker } from "@/components/shared/option-pickers";
+import { FixedMultiSelectField, TagMultiSelectField } from "@/components/shared/multi-select-fields";
 import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -338,7 +338,7 @@ export function CustomerForm({
             />
           </Field>
 
-          <OptionPicker
+          <FixedMultiSelectField
             id="customer-form-channels"
             label="渠道"
             emptyMessage="暂无渠道"
@@ -349,7 +349,7 @@ export function CustomerForm({
             }
             disabled={pending}
           />
-          <TagPicker
+          <TagMultiSelectField
             id="customer-form-tags"
             label="标签"
             value={draft.tags}

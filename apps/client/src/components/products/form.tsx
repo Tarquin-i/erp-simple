@@ -1,8 +1,8 @@
 import { Save } from "lucide-react";
 import { type FormEvent, useEffect, useId, useState } from "react";
 
-import { CommunicationCustomerField } from "@/components/shared/customer-field";
-import type { CustomerChoice } from "@/components/shared/customer-field";
+import { CustomerSelectField } from "@/components/shared/customer-select-field";
+import type { CustomerChoice } from "@/components/shared/customer-select-field";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -399,7 +399,7 @@ export function ProductForm({
           <div className="grid gap-4 sm:grid-cols-2">
             {textField("name", 128)}
             {textField("englishName", 128)}
-            <CommunicationCustomerField
+            <CustomerSelectField
               value={draft.customer}
               locked={customerLocked}
               disabled={controlsDisabled}

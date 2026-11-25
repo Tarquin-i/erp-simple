@@ -7,7 +7,7 @@ import {
 import { CircleAlert, Save } from "lucide-react";
 import { type FormEvent, useId, useMemo, useRef, useState } from "react";
 
-import { CommunicationCustomerField } from "@/components/shared/customer-field";
+import { CustomerSelectField } from "@/components/shared/customer-select-field";
 import {
   PhoneNumberInput,
   readPhoneDraft,
@@ -496,7 +496,7 @@ function AddressForm({
 
   const fields = (
     <>
-      <CommunicationCustomerField
+      <CustomerSelectField
         value={selectedCustomer}
         locked={Boolean(address || customer)}
         disabled={disabled}

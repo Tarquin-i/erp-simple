@@ -7,8 +7,8 @@ import type {
   ColumnConfig,
   FiltersState,
 } from "@/components/shared/data-table-filter/core/types";
-import { PagedListFilter } from "@/components/shared/paged-list-filter";
-import type { PagedListFilterQuery } from "@/components/shared/paged-list-filter";
+import { PaginatedFilterOptions } from "@/components/shared/paginated-filter-options";
+import type { PaginatedFilterOptionsQuery } from "@/components/shared/paginated-filter-options";
 import {
   listOptionLimit,
   listOptionOperator,
@@ -46,7 +46,7 @@ const pickerLabels = {
 };
 
 async function loadProductOptions(
-  query: PagedListFilterQuery,
+  query: PaginatedFilterOptionsQuery,
   signal: AbortSignal
 ) {
   const { products, total } = await listProducts(query, signal);
@@ -175,7 +175,7 @@ export function usePayoutListFilters(
               pageProducts.get(id) ?? labels.get(id)?.label ?? "正在读取产品…",
           })),
           renderFilterValue: (filter) => (
-            <PagedListFilter
+            <PaginatedFilterOptions
               loadOptions={loadProductOptions}
               labels={pickerLabels}
               searchMaxLength={256}

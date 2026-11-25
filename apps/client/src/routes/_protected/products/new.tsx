@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 
-import type { CustomerChoice } from "@/components/shared/customer-field";
+import type { CustomerChoice } from "@/components/shared/customer-select-field";
 import { ProductForm, readProductDraft } from "@/components/products/form";
 import {
   ProductFormPending,

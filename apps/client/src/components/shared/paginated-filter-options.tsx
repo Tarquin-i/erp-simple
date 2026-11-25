@@ -18,13 +18,13 @@ import {
 type ListOption = { id: string; name: string };
 type OptionPage<TOption> = { options: TOption[]; total: number };
 
-export type PagedListFilterQuery = {
+export type PaginatedFilterOptionsQuery = {
   search?: string;
   page: number;
   pageSize: number;
 };
 
-type PagedListFilterLabels = {
+type PaginatedFilterOptionsLabels = {
   searchPlaceholder: string;
   loadingText: string;
   emptyText: string;
@@ -43,7 +43,7 @@ function handleActionKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
 }
 
 /** 提供服务端分页和搜索，已选项由当前列表的筛选条件控制。 */
-export function PagedListFilter<TOption extends ListOption>({
+export function PaginatedFilterOptions<TOption extends ListOption>({
   loadOptions,
   labels,
   searchMaxLength = 64,
@@ -59,10 +59,10 @@ export function PagedListFilter<TOption extends ListOption>({
   ),
 }: {
   loadOptions: (
-    query: PagedListFilterQuery,
+    query: PaginatedFilterOptionsQuery,
     signal: AbortSignal
   ) => Promise<OptionPage<TOption>>;
-  labels: PagedListFilterLabels;
+  labels: PaginatedFilterOptionsLabels;
   searchMaxLength?: number;
   selectionLimit: number;
   selected: string[];

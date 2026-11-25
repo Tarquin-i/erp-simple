@@ -19,7 +19,7 @@ export type DropdownAction = {
   onClick: () => void;
 };
 
-export function DropdownSearch({
+export function SelectSearchInput({
   placeholder,
   maxLength = 256,
 }: {
@@ -66,7 +66,7 @@ export function DropdownSearch({
   );
 }
 
-export function DropdownFooter({
+export function SelectFooter({
   action,
   onClear,
   disabled,
