@@ -95,10 +95,30 @@ export const communicationAttachment = pgTable(
       table.uploadedAt,
       table.id
     ),
-    index("communication_attachment_pending_cleanup_idx")
-      .on(table.createdAt, table.id)
+    // 后台从三种互斥资格分别领取，再按实际重试时间合并排序。
+    index("communication_attachment_waiting_cleanup_idx")
+      .on(
+        sql`coalesce(${table.cleanupNextAttemptAt}, ${table.createdAt})`,
+        table.id
+      )
       .where(
-        sql`${table.uploadState} = 'pending' and ${table.objectDeletedAt} is null`
+        sql`${table.archivedAt} is not null and ${table.objectDeletedAt} is null`
+      ),
+    index("communication_attachment_pending_cleanup_idx")
+      .on(
+        sql`coalesce(${table.cleanupNextAttemptAt}, ${table.createdAt})`,
+        table.id
+      )
+      .where(
+        sql`${table.uploadState} = 'pending' and ${table.archivedAt} is null and ${table.objectDeletedAt} is null`
+      ),
+    index("communication_attachment_rescan_cleanup_idx")
+      .on(
+        sql`coalesce(${table.cleanupNextAttemptAt}, ${table.createdAt})`,
+        table.id
+      )
+      .where(
+        sql`${table.uploadState} = 'pending' and ${table.objectDeletedAt} - ${table.archivedAt} < interval '24 hours'`
       ),
     check(
       "communication_attachment_storage_key_check",
