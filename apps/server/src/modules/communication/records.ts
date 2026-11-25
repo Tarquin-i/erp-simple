@@ -46,6 +46,7 @@ import {
   cleanupCommunicationAttachments,
   closeCommunicationUploads,
   readCommunicationAttachmentsToClean,
+  requestAttachmentUploadCleanup,
 } from "./attachments";
 
 type CommunicationStatus = typeof communication.$inferSelect.status;
@@ -603,7 +604,9 @@ async function lockCommunicationForArchive(
   return locked;
 }
 
-/** 关闭未完成的上传，在事务外清理待删除附件后归档沟通。可用同一版本续做或确认结果。 */
+const archiveCleanupBatchSize = 3;
+
+/** 关闭未完成的上传并分批清理。可用同一版本续做或确认归档结果。 */
 export async function archiveCommunication(
   access: BusinessAccess,
   id: string,
@@ -633,7 +636,11 @@ export async function archiveCommunication(
         .where(eq(communication.id, id));
       await closeCommunicationUploads(tx, id, freshAccess.userId, startedAt);
     }
-    const attachments = await readCommunicationAttachmentsToClean(tx, id);
+    const attachments = await readCommunicationAttachmentsToClean(
+      tx,
+      id,
+      archiveCleanupBatchSize
+    );
     return attachments.length
       ? { attachments }
       : {
@@ -650,7 +657,7 @@ export async function archiveCommunication(
     // 另一个归档请求可能已经清理成功，仍按当前权限和版本核对结果。
     cleanupError = error;
   }
-  return writeCommunication(async (tx) => {
+  const archived = await writeCommunication(async (tx) => {
     const { freshAccess, record } = await lockCommunicationForArchive(
       tx,
       access,
@@ -660,18 +667,20 @@ export async function archiveCommunication(
     if (record.archivedAt) {
       return readCommunication(tx, freshAccess, id, true);
     }
-    if ((await readCommunicationAttachmentsToClean(tx, id, 1)).length) {
-      if (cleanupError) throw cleanupError;
-      throw new HTTPException(409, {
-        res: Response.json(
-          {
-            code: "archive_cleanup_pending",
-            message: "还有附件需要清理，请重试归档。",
-          },
-          { status: 409 }
-        ),
-      });
-    }
+    if ((await readCommunicationAttachmentsToClean(tx, id, 1)).length) return;
     return finishCommunicationArchive(tx, freshAccess, id);
+  });
+  if (archived) return archived;
+
+  requestAttachmentUploadCleanup();
+  if (cleanupError) throw cleanupError;
+  throw new HTTPException(409, {
+    res: Response.json(
+      {
+        code: "archive_cleanup_pending",
+        message: "后台正在清理剩余附件，请稍后继续归档。",
+      },
+      { status: 409 }
+    ),
   });
 }

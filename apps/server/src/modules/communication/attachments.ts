@@ -700,9 +700,9 @@ export async function closeCommunicationUploads(
 export function readCommunicationAttachmentsToClean(
   tx: DatabaseTransaction,
   communicationId: string,
-  limit?: number
+  limit: number
 ) {
-  const query = tx
+  return tx
     .select()
     .from(communicationAttachment)
     .where(
@@ -711,16 +711,23 @@ export function readCommunicationAttachmentsToClean(
         awaitingAttachmentCleanup
       )
     )
-    .orderBy(communicationAttachment.id);
-  return limit === undefined ? query : query.limit(limit);
+    .orderBy(communicationAttachment.id)
+    .limit(limit);
 }
+
+const archiveCleanupBudgetMs = 2_000;
 
 export async function cleanupCommunicationAttachments(
   attachments: Attachment[],
   getStorage: GetStorage
 ) {
   const storage = await useStorage(getStorage);
-  for (const row of attachments) await cleanupArchived(row, storage);
+  const deadline = performance.now() + archiveCleanupBudgetMs;
+  for (const row of attachments) {
+    // 已开始的存储操作完成后，再决定是否处理下一件。
+    if (performance.now() >= deadline) break;
+    await cleanupArchived(row, storage);
+  }
 }
 
 /**
@@ -732,14 +739,21 @@ export async function cleanupCommunicationAttachments(
 export async function cleanupExpiredAttachmentUploads(getStorage: GetStorage) {
   const storage = await useStorage(getStorage);
   const expired = await database.db.transaction(async (tx) => {
+    const attachment = communicationAttachment;
     const expiredAt = sql`now() - interval '24 hours'`;
+    // 常量谓词与部分索引一致，预备语句也能使用这些索引。
+    const pending = sql`${attachment.uploadState} = 'pending'`;
+    const abandonedLocalUpload = and(
+      pending,
+      isNull(attachment.archivedAt),
+      isNull(attachment.objectDeletedAt),
+      lt(attachment.createdAt, expiredAt)
+    );
     // 已发出的 OSS 上传签名仍可能写入暂存路径。到期后再复查已关闭的会话。
     const closedByArchive = and(
-      lt(communicationAttachment.archivedAt, expiredAt),
-      lt(
-        communicationAttachment.objectDeletedAt,
-        sql`${communicationAttachment.archivedAt} + interval '24 hours'`
-      ),
+      pending,
+      lt(attachment.archivedAt, expiredAt),
+      sql`${attachment.objectDeletedAt} - ${attachment.archivedAt} < interval '24 hours'`,
       exists(
         tx
           .select({ id: communication.id })
@@ -755,36 +769,40 @@ export async function cleanupExpiredAttachmentUploads(getStorage: GetStorage) {
           )
       )
     );
-    const nextAttemptAt = communicationAttachment.cleanupNextAttemptAt;
-    const rows = await tx
-      .select({ id: communicationAttachment.id })
-      .from(communicationAttachment)
-      .where(
-        and(
-          or(isNull(nextAttemptAt), lte(nextAttemptAt, sql`now()`)),
-          or(
-            awaitingAttachmentCleanup,
-            and(
-              eq(communicationAttachment.uploadState, "pending"),
-              or(
-                storage.kind === "local"
-                  ? and(
-                      isNull(communicationAttachment.objectDeletedAt),
-                      lt(communicationAttachment.createdAt, expiredAt)
-                    )
-                  : undefined,
-                closedByArchive
-              )
-            )
-          )
-        )
-      )
-      .orderBy(
-        sql`coalesce(${nextAttemptAt}, ${communicationAttachment.createdAt})`,
-        communicationAttachment.id
-      )
-      .limit(100)
-      .for("update", { skipLocked: true });
+    const nextAttemptAt = attachment.cleanupNextAttemptAt;
+    const due = or(isNull(nextAttemptAt), lte(nextAttemptAt, sql`now()`));
+    const cleanupTime = sql`coalesce(${nextAttemptAt}, ${attachment.createdAt})`;
+    const eligibility = [awaitingAttachmentCleanup, closedByArchive];
+    if (storage.kind === "local") eligibility.push(abandonedLocalUpload);
+    const candidates = sql.join(
+      eligibility.map(
+        (condition) => sql`
+          (select ${attachment.id} as id, ${cleanupTime} as cleanup_time
+           from ${attachment}
+           where ${and(due, condition)}
+           order by cleanup_time, id)
+        `
+      ),
+      sql` union all `
+    );
+    // 先合并各索引的顺序，再逐行复核并加锁。遇到已锁的行继续取下一条。
+    const rows = await tx.execute<{ id: string }>(sql`
+      select locked.id
+      from (${candidates} order by cleanup_time, id) candidate
+      cross join lateral (
+        select ${attachment.id} as id
+        from ${attachment}
+        where ${and(
+          sql`${attachment.id} = candidate.id`,
+          sql`${cleanupTime} = candidate.cleanup_time`,
+          due,
+          or(...eligibility)
+        )}
+        for update skip locked
+      ) locked
+      order by candidate.cleanup_time, candidate.id
+      limit 100
+    `);
 
     if (!rows.length) return [];
     // 领取期内其他实例跳过这些记录。过期的本地会话同时标记关闭。
@@ -840,28 +858,44 @@ async function deferAttachmentCleanup(row: Attachment) {
 const cleanupTimerMs = 15 * 60 * 1000;
 const cleanupRuntime = globalThis as typeof globalThis & {
   communicationAttachmentCleanupTimer?: ReturnType<typeof setInterval>;
+  wakeCommunicationAttachmentCleanup?: () => void;
 };
+
+export function requestAttachmentUploadCleanup() {
+  cleanupRuntime.wakeCommunicationAttachmentCleanup?.();
+}
 
 /** 启动附件过期回收，服务启动时立即执行，之后每 15 分钟一次。 */
 export function startAttachmentUploadCleanup() {
   clearInterval(cleanupRuntime.communicationAttachmentCleanupTimer);
+  cleanupRuntime.wakeCommunicationAttachmentCleanup = undefined;
   const kind = process.env.COMMUNICATION_ATTACHMENT_STORAGE?.trim() || "oss";
   if (kind !== "local" && kind !== "oss") return;
   if (kind === "oss" && !process.env.OSS_BUCKET?.trim()) return;
 
   let running = false;
+  let wakeRequested = false;
   async function runCleanup() {
     if (running) return;
     running = true;
     try {
-      await cleanupExpiredAttachmentUploads(attachmentStorageFromEnv);
-    } catch {
-      console.warn("无法执行沟通附件上传过期回收，下次将重试。");
+      do {
+        wakeRequested = false;
+        try {
+          await cleanupExpiredAttachmentUploads(attachmentStorageFromEnv);
+        } catch {
+          console.warn("无法执行沟通附件上传过期回收，下次将重试。");
+        }
+      } while (wakeRequested);
     } finally {
       running = false;
     }
   }
 
+  cleanupRuntime.wakeCommunicationAttachmentCleanup = () => {
+    wakeRequested = true;
+    void runCleanup();
+  };
   void runCleanup();
   cleanupRuntime.communicationAttachmentCleanupTimer = setInterval(
     runCleanup,
