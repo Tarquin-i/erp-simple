@@ -288,7 +288,7 @@ function PayoutAwardGroup({
         <ul className="ml-4 pl-4" aria-hidden={!expanded}>
           {group.prizes.map((prize) => (
             <li key={prize.id} className={branchClass}>
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 py-1.5">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-sm">
                 <Badge
                   variant="outline"
                   className="h-auto min-h-5 max-w-full shrink py-0.5 whitespace-normal wrap-anywhere"

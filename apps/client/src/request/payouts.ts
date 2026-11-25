@@ -93,6 +93,17 @@ export class PayoutApiError extends Error {
   }
 }
 
+export function isConfirmedPayoutError(
+  error: unknown
+): error is PayoutApiError {
+  return (
+    error instanceof PayoutApiError &&
+    error.status < 500 &&
+    error.status !== 408 &&
+    error.status !== 429
+  );
+}
+
 async function request<T>(path: string, options: RequestInit = {}) {
   const response = await fetch(`/api/payouts${path}`, {
     cache: "no-store",

@@ -25,46 +25,23 @@ import {
 } from "@/lib/payouts";
 import {
   archivePayout,
+  isConfirmedPayoutError,
   isPayoutSnapshot,
   PayoutApiError,
   updatePayout,
 } from "@/request/payouts";
-import type {
-  PayoutDefinition,
-  PayoutDetailRecord,
-  PayoutPatch,
-} from "@/request/payouts";
+import type { PayoutDefinition, PayoutDetailRecord } from "@/request/payouts";
 
+import { PayoutArchiveDialog } from "./archive-dialog";
 import { PayoutAwards } from "./awards";
-import {
-  PayoutArchiveDialog,
-  PayoutBasicsDialog,
-} from "./detail-dialogs";
-import type { PayoutBasics } from "./detail-dialogs";
 
-type SaveKind = "basics" | "awards";
-type WriteKind = SaveKind | "archive";
-type SaveConflict = {
-  kind: SaveKind;
+type WriteKind = "awards" | "archive";
+type AwardConflict = {
   current: PayoutDetailRecord;
-  patch: PayoutPatch;
+  proposed: PayoutDefinition;
 };
 
 const uncertainArchive = "暂时无法确认归档结果，请重试。";
-const basicLabels = {
-  name: "Payout 名称",
-  unitPrice: "每张售价",
-  remark: "备注",
-} as const;
-const basicFields = Object.keys(basicLabels) as (keyof PayoutBasics)[];
-
-function uncertainFailure(error: unknown) {
-  return (
-    !(error instanceof PayoutApiError) ||
-    error.status >= 500 ||
-    [408, 429].includes(error.status)
-  );
-}
 
 function matchesDefinition(left: PayoutDefinition, right: PayoutDefinition) {
   return (
@@ -89,24 +66,6 @@ function matchesDefinition(left: PayoutDefinition, right: PayoutDefinition) {
   );
 }
 
-function equalBasic(field: keyof PayoutBasics, left: string, right: string) {
-  return field === "unitPrice"
-    ? Number(left) === Number(right)
-    : left === right;
-}
-
-function matchesPatch(payout: PayoutDetailRecord, patch: PayoutPatch) {
-  return (
-    basicFields.every(
-      (field) =>
-        patch[field] === undefined ||
-        equalBasic(field, payout[field], patch[field])
-    ) &&
-    (patch.definition === undefined ||
-      matchesDefinition(payout.definition, patch.definition))
-  );
-}
-
 function describeDefinition(
   definition: PayoutDefinition,
   currencyCode: string
@@ -126,54 +85,29 @@ function describeDefinition(
   );
 }
 
-function conflictDifferences({ current, patch }: SaveConflict) {
-  const rows = basicFields.flatMap((field) => {
-    const proposed = patch[field];
-    return proposed !== undefined &&
-      !equalBasic(field, current[field], proposed)
-      ? [{ label: basicLabels[field], current: current[field], proposed }]
-      : [];
-  });
-  return patch.definition
-    ? [
-        ...rows,
-        {
-          label: "奖项",
-          current: describeDefinition(current.definition, current.currencyCode),
-          proposed: describeDefinition(patch.definition, current.currencyCode),
-        },
-      ]
-    : rows;
-}
-
 export function PayoutDetail({
   payout,
+  onEdit,
   onReturn,
 }: {
   payout: PayoutDetailRecord;
+  onEdit: () => void;
   onReturn: (discard: boolean) => void;
 }) {
   const router = useRouter();
   const [latest, setLatest] = useState<PayoutDetailRecord>();
   const [awardDraft, setAwardDraft] = useState<{
     definition: PayoutDefinition;
-    baseDefinition: PayoutDefinition;
     version: number;
-  }>();
-  const [basicEdit, setBasicEdit] = useState<{
-    draft: PayoutBasics;
-    base: PayoutDetailRecord;
   }>();
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveRetryVersion, setArchiveRetryVersion] = useState<number>();
-  const [conflict, setConflict] = useState<SaveConflict>();
+  const [conflict, setConflict] = useState<AwardConflict>();
   const [issues, setIssues] = useState<Partial<Record<WriteKind, string>>>({});
   const [pending, setPending] = useState<WriteKind>();
   const inFlight = useRef(false);
-  const editButton = useRef<HTMLButtonElement>(null);
   const archiveButton = useRef<HTMLButtonElement>(null);
   const saveAwardsButton = useRef<HTMLButtonElement>(null);
-  const conflictKind = useRef<SaveKind>(undefined);
   const leaveWithDraft = useBlocker({
     disabled: !awardDraft,
     shouldBlockFn: ({ current, next }) =>
@@ -231,35 +165,18 @@ export function PayoutDetail({
     }
   }
 
-  function confirmSaved(
-    kind: SaveKind,
-    record: PayoutDetailRecord,
-    version: number
-  ) {
+  function confirmAwardsSaved(record: PayoutDetailRecord) {
     setLatest(record);
     setConflict(undefined);
-    if (kind === "awards") {
-      setAwardDraft(undefined);
-    } else {
-      setBasicEdit(undefined);
-      // 本次只保存基础信息，保留同一版本上已有的奖项草稿。
-      setAwardDraft((draft) =>
-        draft?.version === version &&
-        matchesDefinition(draft.baseDefinition, record.definition)
-          ? { ...draft, version: record.version }
-          : draft
-      );
-    }
-    toastManager.add({
-      title: kind === "awards" ? "奖项已保存" : "Payout 已保存",
-    });
+    setAwardDraft(undefined);
+    toastManager.add({ title: "奖项已保存" });
   }
 
-  function save(kind: SaveKind, patch: PayoutPatch, version: number) {
+  function saveAwards(proposed: PayoutDefinition, version: number) {
     void runWrite(
-      kind,
-      () => updatePayout(current.id, version, patch),
-      (record) => confirmSaved(kind, record, version),
+      "awards",
+      () => updatePayout(current.id, version, { definition: proposed }),
+      confirmAwardsSaved,
       (error) => {
         if (
           error instanceof PayoutApiError &&
@@ -267,39 +184,24 @@ export function PayoutDetail({
           isPayoutSnapshot(error.current, current.id)
         ) {
           const saved = error.current;
-          if (matchesPatch(saved, patch)) {
+          if (matchesDefinition(saved.definition, proposed)) {
             // 保存已提交但响应丢失时，重试会返回包含已保存内容的版本冲突。
-            confirmSaved(kind, saved, version);
+            confirmAwardsSaved(saved);
             return;
           }
           setLatest(saved);
-          conflictKind.current = kind;
-          setConflict({ kind, current: saved, patch });
+          setConflict({ current: saved, proposed });
           return;
         }
         setConflict(undefined);
         showIssue(
-          kind,
-          uncertainFailure(error)
-            ? "暂时无法确认保存结果，请重试。"
-            : (error as PayoutApiError).message
+          "awards",
+          isConfirmedPayoutError(error)
+            ? error.message
+            : "暂时无法确认保存结果，请重试。"
         );
       }
     );
-  }
-
-  function saveBasics(values: PayoutBasics) {
-    if (!basicEdit) return;
-    const changes = basicFields.filter(
-      (field) => !equalBasic(field, basicEdit.base[field], values[field])
-    );
-    if (!changes.length) {
-      setBasicEdit(undefined);
-      return;
-    }
-    const patch: PayoutPatch = {};
-    for (const field of changes) patch[field] = values[field];
-    save("basics", patch, basicEdit.base.version);
   }
 
   function submitArchive() {
@@ -312,14 +214,13 @@ export function PayoutDetail({
         toastManager.add({ title: "Payout 已归档" });
         onReturn(true);
       },
-      (error) => {
-        if (uncertainFailure(error)) {
+      (failure) => {
+        if (!isConfirmedPayoutError(failure)) {
           setArchiveRetryVersion(version);
           showIssue("archive", uncertainArchive);
           return;
         }
         setArchiveRetryVersion(undefined);
-        const failure = error as PayoutApiError;
         if (
           failure.code === "version_conflict" &&
           isPayoutSnapshot(failure.current, current.id)
@@ -347,16 +248,8 @@ export function PayoutDetail({
           <Button
             type="button"
             variant="outline"
-            ref={editButton}
             disabled={Boolean(pending)}
-            onClick={() => {
-              showIssue("basics");
-              const { name, unitPrice, remark } = current;
-              setBasicEdit({
-                draft: { name, unitPrice, remark },
-                base: current,
-              });
-            }}
+            onClick={onEdit}
           >
             <Pencil data-icon="inline-start" />
             编辑
@@ -454,8 +347,6 @@ export function PayoutDetail({
               ? undefined
               : {
                   definition: next,
-                  baseDefinition:
-                    awardDraft?.baseDefinition ?? current.definition,
                   version: awardDraft?.version ?? current.version,
                 }
           );
@@ -480,11 +371,7 @@ export function PayoutDetail({
                 ref={saveAwardsButton}
                 disabled={Boolean(pending)}
                 onClick={() =>
-                  save(
-                    "awards",
-                    { definition: awardDraft.definition },
-                    awardDraft.version
-                  )
+                  saveAwards(awardDraft.definition, awardDraft.version)
                 }
               >
                 <Save data-icon="inline-start" />
@@ -524,25 +411,6 @@ export function PayoutDetail({
         </AlertDialogContent>
       </AlertDialog>
 
-      {basicEdit && (
-        <PayoutBasicsDialog
-          open={conflict?.kind !== "basics"}
-          draft={basicEdit.draft}
-          currencyCode={current.currencyCode}
-          pending={pending === "basics"}
-          issue={issues.basics}
-          onChange={(draft) => {
-            showIssue("basics");
-            setBasicEdit({ ...basicEdit, draft });
-          }}
-          onClose={() => setBasicEdit(undefined)}
-          onSubmit={saveBasics}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            if (!conflict) editButton.current?.focus();
-          }}
-        />
-      )}
       <PayoutArchiveDialog
         open={archiveOpen}
         name={current.name}
@@ -558,20 +426,31 @@ export function PayoutDetail({
         }}
       />
       <VersionConflictDialog
-        differences={conflict ? conflictDifferences(conflict) : null}
-        description={
-          conflict?.kind === "awards"
-            ? "取消会保留奖项草稿。覆盖保存会使用你的完整奖项列表。"
-            : "取消会保留你的修改。覆盖保存会提交下方列出的字段。"
+        differences={
+          conflict
+            ? [
+                {
+                  label: "奖项",
+                  current: describeDefinition(
+                    conflict.current.definition,
+                    conflict.current.currencyCode
+                  ),
+                  proposed: describeDefinition(
+                    conflict.proposed,
+                    conflict.current.currencyCode
+                  ),
+                },
+              ]
+            : null
         }
+        description="取消会保留奖项草稿。覆盖保存会使用你的完整奖项列表。"
         pending={Boolean(pending)}
         onCancel={() => setConflict(undefined)}
         onOverwrite={() => {
-          if (conflict)
-            save(conflict.kind, conflict.patch, conflict.current.version);
+          if (conflict) saveAwards(conflict.proposed, conflict.current.version);
         }}
         onCloseAutoFocus={(event) => {
-          if (conflictKind.current === "awards" && saveAwardsButton.current) {
+          if (saveAwardsButton.current) {
             event.preventDefault();
             saveAwardsButton.current.focus();
           }

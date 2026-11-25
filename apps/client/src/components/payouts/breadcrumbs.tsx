@@ -10,12 +10,13 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 
-import { payoutListSearchFromOrigin } from "./navigation";
+import { payoutListSearchFromOrigin, readPayoutListOrigin } from "./navigation";
 
 export function PayoutBreadcrumbs() {
-  const { pathname, search } = useLocation();
-  const [, module, payoutId] = pathname.split("/");
+  const { pathname, search, state } = useLocation();
+  const [, module, payoutId, action] = pathname.split("/");
   if (module !== "payouts") return null;
+  const isEdit = action === "edit";
 
   return (
     <>
@@ -40,9 +41,35 @@ export function PayoutBreadcrumbs() {
             <>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
-                <BreadcrumbPage>
-                  {payoutId === "new" ? "新建 Payout" : "Payout 详情"}
-                </BreadcrumbPage>
+                {isEdit ? (
+                  <BreadcrumbLink asChild>
+                    <Link
+                      to="/payouts/$payoutId"
+                      params={{ payoutId }}
+                      search={readPayoutListOrigin(search)}
+                      state={{
+                        payoutListEntryIndex: state.payoutListEntryIndex,
+                      }}
+                      activeOptions={{ exact: true }}
+                      preload={false}
+                      replace
+                    >
+                      Payout 详情
+                    </Link>
+                  </BreadcrumbLink>
+                ) : (
+                  <BreadcrumbPage>
+                    {payoutId === "new" ? "新建 Payout" : "Payout 详情"}
+                  </BreadcrumbPage>
+                )}
+              </BreadcrumbItem>
+            </>
+          )}
+          {isEdit && (
+            <>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>编辑 Payout</BreadcrumbPage>
               </BreadcrumbItem>
             </>
           )}

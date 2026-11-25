@@ -1,4 +1,9 @@
-import { readProductPage } from "@/components/products/navigation";
+import { useLocation, useRouter } from "@tanstack/react-router";
+
+import {
+  readProductPage,
+  replaceProductEntryAndGoBack,
+} from "@/components/products/navigation";
 import {
   listOptionOperator,
   listOptionValue,
@@ -7,6 +12,12 @@ import {
 import type { PayoutListQuery } from "@/request/payouts";
 
 const uuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu;
+
+declare module "@tanstack/react-router" {
+  interface HistoryState {
+    payoutListEntryIndex?: number;
+  }
+}
 
 export type PayoutListSearch = Omit<PayoutListQuery, "pageSize">;
 
@@ -50,4 +61,33 @@ export function payoutListSearchFromOrigin(search: Record<string, unknown>) {
 
 export function readPayoutListOrigin(search: Record<string, unknown>) {
   return payoutListOrigin(payoutListSearchFromOrigin(search));
+}
+
+export function useReturnToPayoutList() {
+  const router = useRouter();
+  const { search, state } = useLocation();
+
+  return (discard = false) => {
+    const destination = {
+      to: "/payouts",
+      search: payoutListSearchFromOrigin(search),
+    } as const;
+    if (
+      state.payoutListEntryIndex === state.__TSR_index - 1 &&
+      router.history.canGoBack()
+    ) {
+      if (discard) {
+        const { publicHref } = router.buildLocation(destination);
+        replaceProductEntryAndGoBack(router.history, publicHref);
+      } else {
+        router.history.back();
+      }
+      return;
+    }
+    void router.navigate({
+      ...destination,
+      replace: true,
+      ignoreBlocker: discard,
+    });
+  };
 }
