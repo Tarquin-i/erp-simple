@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useRouterState } from "@tanstack/react-router";
-import { MapPin, Plus, Search } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { MapPin, Plus } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 
 import { useAddressListFilters } from "@/components/addresses/list-filters";
@@ -59,17 +59,51 @@ function AddressDirectory() {
   const query = Route.useSearch();
   const [load, setLoad] = useState<DirectoryLoad>();
   const [retry, setRetry] = useState(0);
+  const searchTerm = query.search ?? "";
+  const [searchDraft, setSearchDraft] = useState(searchTerm);
+  const [composing, setComposing] = useState(false);
+  const lastSubmittedSearch = useRef<string | undefined>(undefined);
+  const searchTimer = useRef<number | undefined>(undefined);
+  const normalizedSearch = readAddressListQuery({ search: searchDraft }).search;
   const loadingDirectory = useRouterState({
     select: ({ isLoading, location, resolvedLocation }) =>
       isLoading && location.pathname === resolvedLocation?.pathname,
   });
   const current = !loadingDirectory && load?.query === query ? load : undefined;
   const updateQuery = useCallback(
-    (update: QueryUpdater) =>
-      void navigate({ search: update, resetScroll: false }),
+    (update: QueryUpdater, replace?: boolean) =>
+      void navigate({ search: update, replace, resetScroll: false }),
     [navigate]
   );
   const filterModel = useAddressListFilters(query, updateQuery);
+
+  const applySearch = useCallback(
+    (value: string | undefined, replace?: boolean) => {
+      window.clearTimeout(searchTimer.current);
+      lastSubmittedSearch.current = value ?? "";
+      updateQuery(
+        (previous) => ({ ...previous, search: value, page: undefined }),
+        replace
+      );
+    },
+    [updateQuery]
+  );
+
+  useEffect(() => {
+    const submitted = lastSubmittedSearch.current;
+    lastSubmittedSearch.current = undefined;
+    if (submitted !== searchTerm) setSearchDraft(searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (composing || (normalizedSearch ?? "") === searchTerm) return;
+    const timer = window.setTimeout(
+      () => applySearch(normalizedSearch, true),
+      300
+    );
+    searchTimer.current = timer;
+    return () => window.clearTimeout(timer);
+  }, [applySearch, composing, normalizedSearch, searchTerm]);
 
   // 条件变化时只替换结果区，保留工具栏和筛选浮层，避免旧地址在刷新中仍可点击。
   useEffect(() => {
@@ -100,16 +134,11 @@ function AddressDirectory() {
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const value = new FormData(event.currentTarget).get("search");
-    const next = readAddressListQuery({
-      ...query,
-      search: value,
-      page: undefined,
-    });
-    if (next.search === query.search && query.page === undefined) {
+    if (composing) return;
+    if (normalizedSearch === query.search && query.page === undefined) {
       reload();
     } else {
-      updateQuery(() => next);
+      applySearch(normalizedSearch);
     }
   }
 
@@ -123,33 +152,23 @@ function AddressDirectory() {
         search={
           <form onSubmit={search} className="flex min-w-0 items-center gap-2">
             <ListSearchInput
-              key={query.search ?? ""}
               name="search"
               aria-label="搜索地址"
               placeholder="客户、编号或收货人"
-              defaultValue={query.search ?? ""}
               maxLength={128}
+              value={searchDraft}
+              onChange={(event) => setSearchDraft(event.target.value)}
+              onCompositionStart={() => setComposing(true)}
+              onCompositionEnd={() => setComposing(false)}
             />
-            <Button
-              type="submit"
-              size="icon"
-              variant="outline"
-              aria-label="搜索"
-              title="搜索"
-            >
-              <Search aria-hidden="true" />
-            </Button>
             {query.search && (
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() =>
-                  updateQuery((previous) => ({
-                    ...previous,
-                    search: undefined,
-                    page: undefined,
-                  }))
-                }
+                onClick={() => {
+                  setSearchDraft("");
+                  applySearch(undefined);
+                }}
               >
                 清除
               </Button>
