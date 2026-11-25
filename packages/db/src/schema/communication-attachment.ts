@@ -55,6 +55,10 @@ export const communicationAttachment = pgTable(
     objectDeletedAt: timestamp("object_deleted_at", { withTimezone: true }),
     // 迟到写入需要重新清理时推进代次，让旧清理的响应无法提前标记完成。
     cleanupGeneration: integer("cleanup_generation").default(0).notNull(),
+    cleanupFailureCount: integer("cleanup_failure_count").default(0).notNull(),
+    cleanupNextAttemptAt: timestamp("cleanup_next_attempt_at", {
+      withTimezone: true,
+    }),
   },
   (table) => [
     // 避免数据库级联删除附件记录后，失去可用于清理 OSS 对象的路径。

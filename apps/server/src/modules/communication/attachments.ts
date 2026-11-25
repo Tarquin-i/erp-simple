@@ -9,6 +9,7 @@ import {
   isNotNull,
   isNull,
   lt,
+  lte,
   or,
   sql,
 } from "drizzle-orm";
@@ -634,10 +635,12 @@ async function cleanupArchived(row: Attachment, storage: AttachmentStorage) {
       await storage.remove(row.storageKey);
     }
   });
-  await database.db
+  const [cleaned] = await database.db
     .update(communicationAttachment)
     .set({
       objectDeletedAt: sql`greatest(now(), ${communicationAttachment.archivedAt}, ${communicationAttachment.objectDeletedAt})`,
+      cleanupFailureCount: 0,
+      cleanupNextAttemptAt: null,
     })
     .where(
       and(
@@ -645,7 +648,35 @@ async function cleanupArchived(row: Attachment, storage: AttachmentStorage) {
         isNotNull(communicationAttachment.archivedAt),
         eq(communicationAttachment.cleanupGeneration, row.cleanupGeneration)
       )
-    );
+    )
+    .returning({ id: communicationAttachment.id });
+  return Boolean(cleaned);
+}
+
+/** 用户收到成功前，确认当前清理代次已经完成。 */
+async function confirmAttachmentCleanup(
+  row: Attachment,
+  getStorage: GetStorage
+) {
+  let cleanupError: HTTPException | undefined;
+  try {
+    if (await cleanupArchived(row, await useStorage(getStorage))) return;
+  } catch (error) {
+    if (!(error instanceof HTTPException) || error.status !== 503) throw error;
+    cleanupError = error;
+  }
+
+  const [current] = await database.db
+    .select({ objectDeletedAt: communicationAttachment.objectDeletedAt })
+    .from(communicationAttachment)
+    .where(eq(communicationAttachment.id, row.id));
+  if (current?.objectDeletedAt) return;
+  if (cleanupError) throw cleanupError;
+  return attachmentError(
+    503,
+    "attachment_storage_unavailable",
+    "附件仍在清理，请稍后重试。"
+  );
 }
 
 export async function closeCommunicationUploads(
@@ -724,51 +755,86 @@ export async function cleanupExpiredAttachmentUploads(getStorage: GetStorage) {
           )
       )
     );
+    const nextAttemptAt = communicationAttachment.cleanupNextAttemptAt;
     const rows = await tx
-      .select()
+      .select({ id: communicationAttachment.id })
       .from(communicationAttachment)
       .where(
-        or(
-          awaitingAttachmentCleanup,
-          and(
-            eq(communicationAttachment.uploadState, "pending"),
-            or(
-              storage.kind === "local"
-                ? and(
-                    isNull(communicationAttachment.objectDeletedAt),
-                    lt(communicationAttachment.createdAt, expiredAt)
-                  )
-                : undefined,
-              closedByArchive
+        and(
+          or(isNull(nextAttemptAt), lte(nextAttemptAt, sql`now()`)),
+          or(
+            awaitingAttachmentCleanup,
+            and(
+              eq(communicationAttachment.uploadState, "pending"),
+              or(
+                storage.kind === "local"
+                  ? and(
+                      isNull(communicationAttachment.objectDeletedAt),
+                      lt(communicationAttachment.createdAt, expiredAt)
+                    )
+                  : undefined,
+                closedByArchive
+              )
             )
           )
         )
       )
-      .orderBy(communicationAttachment.createdAt, communicationAttachment.id)
+      .orderBy(
+        sql`coalesce(${nextAttemptAt}, ${communicationAttachment.createdAt})`,
+        communicationAttachment.id
+      )
       .limit(100)
       .for("update", { skipLocked: true });
 
-    // 完成上传也锁定同一行。只有过期的本地暂存会话需要先标记关闭。
-    const pendingIds = rows
-      .filter((row) => !row.archivedAt)
-      .map((row) => row.id);
-    if (pendingIds.length) {
-      await tx
-        .update(communicationAttachment)
-        .set({
-          archivedAt: sql`now()`,
-          archivedByUserId: communicationAttachment.uploaderUserId,
-        })
-        .where(inArray(communicationAttachment.id, pendingIds));
-    }
-    return rows;
+    if (!rows.length) return [];
+    // 领取期内其他实例跳过这些记录。过期的本地会话同时标记关闭。
+    return tx
+      .update(communicationAttachment)
+      .set({
+        archivedAt: sql`coalesce(${communicationAttachment.archivedAt}, now())`,
+        archivedByUserId: sql`coalesce(${communicationAttachment.archivedByUserId}, ${communicationAttachment.uploaderUserId})`,
+        cleanupNextAttemptAt: sql`date_trunc('milliseconds', now()) + interval '30 minutes'`,
+      })
+      .where(
+        inArray(
+          communicationAttachment.id,
+          rows.map(({ id }) => id)
+        )
+      )
+      .returning();
   });
 
   for (const row of expired) {
-    await cleanupArchived(row, storage).catch(() => {
+    try {
+      await cleanupArchived(row, storage);
+    } catch {
       console.warn("回收过期的沟通附件上传失败，下次将重试。", row.id);
-    });
+      await deferAttachmentCleanup(row);
+    }
   }
+}
+
+async function deferAttachmentCleanup(row: Attachment) {
+  if (!row.cleanupNextAttemptAt) return;
+  const failureCount = Math.min(row.cleanupFailureCount + 1, 5);
+  const retryMinutes = Math.min(30 * 2 ** (failureCount - 1), 360);
+  // 只修改本次领取的代次和时间，期间成功清理或登记新补偿时保留新状态。
+  await database.db
+    .update(communicationAttachment)
+    .set({
+      cleanupFailureCount: failureCount,
+      cleanupNextAttemptAt: sql`now() + ${retryMinutes} * interval '1 minute'`,
+    })
+    .where(
+      and(
+        eq(communicationAttachment.id, row.id),
+        eq(communicationAttachment.cleanupGeneration, row.cleanupGeneration),
+        eq(
+          communicationAttachment.cleanupNextAttemptAt,
+          row.cleanupNextAttemptAt
+        )
+      )
+    );
 }
 
 const cleanupTimerMs = 15 * 60 * 1000;
@@ -831,15 +897,12 @@ export async function cancelCommunicationAttachmentUpload(
       if (!current || current.objectDeletedAt) {
         return { state: "missing" as const, row: null };
       }
-      // 与完成请求竞争同一行锁。附件已发布时，不能通过取消上传删掉它。
-      if (current.uploadState === "ready") {
-        return {
-          state: current.archivedAt ? ("missing" as const) : ("ready" as const),
-          row: null,
-        };
-      }
       if (current.archivedAt)
         return { state: "missing" as const, row: current };
+      // 与完成请求竞争同一行锁，正常发布的附件继续保留。
+      if (current.uploadState === "ready") {
+        return { state: "ready" as const, row: null };
+      }
       const [archived] = await tx
         .update(communicationAttachment)
         .set({ archivedAt: sql`now()`, archivedByUserId: access.userId })
@@ -849,7 +912,7 @@ export async function cancelCommunicationAttachmentUpload(
     },
     { allowDuringArchive: true }
   );
-  if (row) await cleanupArchived(row, await useStorage(getStorage));
+  if (row) await confirmAttachmentCleanup(row, getStorage);
   return { state };
 }
 
@@ -891,6 +954,8 @@ async function cleanupArchivedUpload(
         .set({
           objectDeletedAt: null,
           cleanupGeneration: sql`${communicationAttachment.cleanupGeneration} + 1`,
+          cleanupFailureCount: 0,
+          cleanupNextAttemptAt: null,
         })
         .where(and(id, isNotNull(communicationAttachment.archivedAt)))
         .returning()
@@ -1177,5 +1242,5 @@ export async function deleteCommunicationAttachment(
       .returning();
     return archived;
   });
-  if (row) await cleanupArchived(row, await useStorage(getStorage));
+  if (row) await confirmAttachmentCleanup(row, getStorage);
 }
