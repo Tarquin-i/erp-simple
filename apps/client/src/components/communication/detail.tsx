@@ -1,10 +1,23 @@
-import { Link, useLocation } from "@tanstack/react-router";
-import { Pencil } from "lucide-react";
+import { Link, useLocation, useRouter } from "@tanstack/react-router";
+import { Archive, Pencil } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { readListQueryFromState } from "@/components/customers/list-query";
 import { DetailField } from "@/components/shared/detail-field";
 import { ExpandableText } from "@/components/shared/expandable-text";
+import { toastManager } from "@/components/shared/toast";
 import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
@@ -17,8 +30,10 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  archiveCommunication,
   CommunicationApiError,
   communicationStatusLabels,
+  getCommunication,
   isCommunicationSnapshot,
   updateCommunication,
 } from "@/request/communication";
@@ -29,7 +44,10 @@ import type {
 
 import { CommunicationAttachmentsTab } from "./attachments/tab";
 import { CommunicationCustomerLink } from "./customer-link";
+import { readCommunicationListQueryFromState } from "./list/query";
 import type { CommunicationOrigin } from "./navigation";
+
+const uncertainArchive = "暂时无法确认归档结果，请重试。";
 
 export function CommunicationDetail({
   communication,
@@ -38,6 +56,7 @@ export function CommunicationDetail({
   communication: Communication;
   origin: CommunicationOrigin;
 }) {
+  const router = useRouter();
   const { state } = useLocation();
   const [record, setRecord] = useState(communication);
   const [activeTab, setActiveTab] = useState("attachments");
@@ -46,33 +65,131 @@ export function CommunicationDetail({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archivePending, setArchivePending] = useState(false);
+  const [archiveIssue, setArchiveIssue] = useState("");
+  const [archiveRetryVersion, setArchiveRetryVersion] = useState<number>();
   const [conflict, setConflict] = useState<{
     current: Communication;
     status: CommunicationStatus;
   } | null>(null);
   const saving = useRef(false);
-  const returnCustomerId =
-    record.canViewCustomer && origin.customerId === record.customerId
+  const returnCustomerId = customerReturnId(record);
+  const archiving = Boolean(record.archiveStartedAt);
+  const writeLocked = archivePending || archiving || Boolean(record.archivedAt);
+
+  function customerReturnId(current: Communication) {
+    return current.canViewCustomer &&
+      current.customer?.status !== "archived" &&
+      origin.customerId === current.customerId
       ? origin.customerId
       : undefined;
+  }
+
+  async function submitArchive() {
+    if (saving.current) return;
+    saving.current = true;
+    setArchivePending(true);
+    setArchiveIssue("");
+    setError("");
+    const expectedVersion = archiveRetryVersion ?? record.version;
+    let leftDetail = false;
+    const unsubscribe = router.history.subscribe(() => {
+      leftDetail = true;
+    });
+
+    try {
+      const { communication: archived } = await archiveCommunication(
+        record.id,
+        expectedVersion
+      );
+      if (leftDetail) return;
+      setRecord(archived);
+      setArchiveOpen(false);
+      toastManager.add({ title: "沟通记录已归档" });
+      const customerId = customerReturnId(archived);
+      if (customerId) {
+        void router.navigate({
+          to: "/customers/$customerId",
+          params: { customerId },
+          search: {
+            tab: "communication",
+            communicationPage: origin.communicationPage,
+          },
+          state: { customerListQuery: readListQueryFromState(state) },
+          replace: true,
+        });
+      } else {
+        void router.navigate({
+          to: "/communication",
+          search: readCommunicationListQueryFromState(state),
+          replace: true,
+        });
+      }
+    } catch (failure) {
+      if (leftDetail) return;
+      const apiError =
+        failure instanceof CommunicationApiError ? failure : undefined;
+      if (
+        apiError?.code === "version_conflict" &&
+        isCommunicationSnapshot(apiError.current, record.id)
+      ) {
+        setRecord(apiError.current);
+        setArchiveOpen(false);
+        setArchiveRetryVersion(undefined);
+        setError("沟通记录已更新，请核对最新资料后再确认归档。");
+        return;
+      }
+      if (apiError && [401, 403, 404].includes(apiError.status)) {
+        setArchiveOpen(false);
+        setUnavailable(true);
+        setError(apiError.message);
+        return;
+      }
+
+      const mayHaveStarted =
+        !apiError ||
+        apiError.status >= 500 ||
+        apiError.status === 408 ||
+        apiError.status === 429 ||
+        apiError.code === "archive_cleanup_pending";
+      setArchiveIssue(apiError?.message ?? uncertainArchive);
+      setArchiveRetryVersion(mayHaveStarted ? expectedVersion : undefined);
+      if (mayHaveStarted) {
+        // 归档可能已开始，继续时保留原版本以核对同一次操作。
+        const latest = await getCommunication(record.id).catch(() => undefined);
+        if (!leftDetail && latest) setRecord(latest.communication);
+      }
+    } finally {
+      unsubscribe();
+      saving.current = false;
+      if (!leftDetail) setArchivePending(false);
+    }
+  }
 
   /** 保存状态时核对版本，冲突时只允许按弹窗展示的版本重试。 */
   async function saveStatus(
     status: CommunicationStatus,
     expectedVersion = record.version
   ) {
-    if (saving.current) return;
+    if (saving.current || writeLocked) return;
     saving.current = true;
     setPending(true);
     setError("");
+    let leftDetail = false;
+    const unsubscribe = router.history.subscribe(() => {
+      leftDetail = true;
+    });
     try {
       const { communication: updated } = await updateCommunication(record.id, {
         status,
         expectedVersion,
       });
+      if (leftDetail) return;
       setRecord(updated);
       setConflict(null);
     } catch (failure) {
+      if (leftDetail) return;
       if (
         failure instanceof CommunicationApiError &&
         failure.code === "version_conflict" &&
@@ -80,13 +197,21 @@ export function CommunicationDetail({
       ) {
         setRecord(failure.current);
         setConflict(
-          failure.current.status === status
+          failure.current.archiveStartedAt || failure.current.status === status
             ? null
             : { current: failure.current, status }
         );
         return;
       }
       setConflict(null);
+      if (
+        failure instanceof CommunicationApiError &&
+        failure.code === "archive_in_progress"
+      ) {
+        const latest = await getCommunication(record.id).catch(() => undefined);
+        if (leftDetail) return;
+        if (latest) setRecord(latest.communication);
+      }
       if (
         failure instanceof CommunicationApiError &&
         [401, 403, 404].includes(failure.status)
@@ -97,8 +222,9 @@ export function CommunicationDetail({
         failure instanceof Error ? failure.message : "更新状态失败，请重试。"
       );
     } finally {
+      unsubscribe();
       saving.current = false;
-      setPending(false);
+      if (!leftDetail) setPending(false);
     }
   }
 
@@ -123,6 +249,7 @@ export function CommunicationDetail({
           {record.title}
         </h1>
         <div className="flex flex-wrap items-center gap-2">
+          {archiving && <Badge variant="outline">归档中</Badge>}
           {returnCustomerId && (
             <Button asChild variant="outline" className="h-10 px-4">
               <Link
@@ -139,25 +266,81 @@ export function CommunicationDetail({
             </Button>
           )}
           {/* 从客户页签进入编辑时复用详情的历史位置。 */}
-          <Button asChild className="h-10 px-4">
-            <Link
-              to="/communication/$communicationId/edit"
-              preload={false}
-              replace={Boolean(returnCustomerId)}
-              params={{ communicationId: record.id }}
-              search={returnCustomerId ? origin : {}}
-              state={{
-                communicationEditFromDetail: returnCustomerId
-                  ? undefined
-                  : record.id,
-                communicationListQuery: state.communicationListQuery,
-                customerListQuery: state.customerListQuery,
-              }}
-            >
-              <Pencil data-icon="inline-start" />
-              编辑
-            </Link>
-          </Button>
+          {!writeLocked && (
+            <Button asChild className="h-10 px-4">
+              <Link
+                to="/communication/$communicationId/edit"
+                preload={false}
+                replace={Boolean(returnCustomerId)}
+                params={{ communicationId: record.id }}
+                search={returnCustomerId ? origin : {}}
+                state={{
+                  communicationEditFromDetail: returnCustomerId
+                    ? undefined
+                    : record.id,
+                  communicationListQuery: state.communicationListQuery,
+                  customerListQuery: state.customerListQuery,
+                }}
+              >
+                <Pencil data-icon="inline-start" />
+                编辑
+              </Link>
+            </Button>
+          )}
+          <AlertDialog
+            open={archiveOpen}
+            onOpenChange={(open) => {
+              if (!archivePending) setArchiveOpen(open);
+            }}
+          >
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="destructive"
+                className="h-10 px-4"
+                disabled={
+                  pending || archivePending || Boolean(record.archivedAt)
+                }
+              >
+                <Archive data-icon="inline-start" />
+                {archiving || archiveRetryVersion !== undefined
+                  ? "继续归档"
+                  : "归档"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="w-[calc(100%-2rem)] grid-cols-1">
+              <AlertDialogHeader>
+                <AlertDialogTitle>归档沟通记录</AlertDialogTitle>
+                <AlertDialogDescription className="min-w-0 wrap-anywhere">
+                  「{record.title}
+                  」归档后将从列表移除。已上传的附件会保留，未完成的上传会取消。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <FieldError>{archiveIssue}</FieldError>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={archivePending}>
+                  {archiving ? "关闭" : "取消"}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  disabled={archivePending}
+                  aria-busy={archivePending}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void submitArchive();
+                  }}
+                >
+                  {archivePending
+                    ? "正在归档…"
+                    : archiveRetryVersion !== undefined
+                      ? "重试归档"
+                      : archiving
+                        ? "继续归档"
+                        : "确认归档"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
@@ -187,7 +370,7 @@ export function CommunicationDetail({
         <DetailField label="状态">
           <Select
             value={record.status}
-            disabled={pending || conflict !== null}
+            disabled={pending || writeLocked || conflict !== null}
             onValueChange={(next) => {
               if (next !== record.status)
                 void saveStatus(next as CommunicationStatus);
@@ -250,6 +433,7 @@ export function CommunicationDetail({
         >
           <CommunicationAttachmentsTab
             communicationId={record.id}
+            readOnly={writeLocked}
             actionsSlot={
               activeTab === "attachments" ? attachmentActionsSlot : null
             }

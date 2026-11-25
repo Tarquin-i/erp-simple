@@ -1,5 +1,6 @@
 import {
   createFileRoute,
+  redirect,
   useLocation,
   useRouter,
 } from "@tanstack/react-router";
@@ -23,8 +24,22 @@ export const Route = createFileRoute(
   validateSearch: readCommunicationOrigin,
   loader: {
     staleReloadMode: "blocking",
-    handler: ({ params, abortController }) =>
-      getCommunication(params.communicationId, abortController.signal),
+    handler: async ({ params, abortController, location }) => {
+      const result = await getCommunication(
+        params.communicationId,
+        abortController.signal
+      );
+      if (result.communication.archiveStartedAt) {
+        throw redirect({
+          to: "/communication/$communicationId",
+          params,
+          search: readCommunicationOrigin(location.search),
+          state: location.state,
+          replace: true,
+        });
+      }
+      return result;
+    },
   },
   pendingComponent: CommunicationFormPending,
   errorComponent: CommunicationFormLoadError,

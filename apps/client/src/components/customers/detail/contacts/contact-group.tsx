@@ -1,4 +1,4 @@
-import { ChevronRight, Pencil, Plus, UserRound } from "lucide-react";
+import { Archive, ChevronRight, Pencil, Plus, UserRound } from "lucide-react";
 
 import { AnimatedCollapsibleContent } from "@/components/shared/animated-collapsible-content";
 import { Badge } from "@/components/ui/badge";
@@ -22,12 +22,14 @@ export function ContactGroup({
   onExpandedChange,
   onManage,
   onAdd,
+  onArchive,
 }: {
   contact: CustomerContact;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   onManage: (trigger: HTMLButtonElement) => void;
   onAdd: (trigger: HTMLButtonElement) => void;
+  onArchive: (trigger: HTMLButtonElement) => void;
 }) {
   return (
     <Collapsible open={expanded} onOpenChange={onExpandedChange}>
@@ -68,6 +70,16 @@ export function ContactGroup({
           onClick={(event) => onAdd(event.currentTarget)}
         >
           <Plus aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant="ghost"
+          aria-label={`归档联系人 ${contact.name}`}
+          title="归档联系人"
+          onClick={(event) => onArchive(event.currentTarget)}
+        >
+          <Archive aria-hidden="true" />
         </Button>
       </div>
       <AnimatedCollapsibleContent open={expanded}>

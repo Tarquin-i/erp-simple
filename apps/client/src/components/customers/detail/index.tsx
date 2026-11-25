@@ -29,12 +29,14 @@ export function CustomerDetail({
   customer,
   activeTab,
   productsTab,
+  archiveAction,
   createProductAction,
   onTabChange,
 }: {
   customer: Customer;
   activeTab: CustomerDetailTab;
   productsTab: ReactNode;
+  archiveAction: ReactNode;
   createProductAction: ReactNode;
   onTabChange: (tab: CustomerDetailTab) => void;
 }) {
@@ -74,23 +76,26 @@ export function CustomerDetail({
 
   return (
     <main className="min-w-0 flex-1 bg-background px-4 py-6 sm:px-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight wrap-anywhere">
             {customer.companyName}
           </h1>
           <p className="text-sm text-muted-foreground">客户详情</p>
         </div>
-        <Button asChild className="h-10 px-4">
-          <Link
-            to="/customers/$customerId/edit"
-            params={{ customerId: customer.id }}
-            state={{ customerListQuery: listQuery }}
-          >
-            <Pencil data-icon="inline-start" />
-            编辑
-          </Link>
-        </Button>
+        <div className="ml-auto flex flex-wrap justify-end gap-2">
+          <Button asChild className="h-10 px-4">
+            <Link
+              to="/customers/$customerId/edit"
+              params={{ customerId: customer.id }}
+              state={{ customerListQuery: listQuery }}
+            >
+              <Pencil data-icon="inline-start" />
+              编辑
+            </Link>
+          </Button>
+          {archiveAction}
+        </div>
       </div>
 
       <dl className="mt-6 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">

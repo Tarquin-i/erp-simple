@@ -132,9 +132,11 @@ function startDownload(url: string, onFailure: () => void) {
 export function CommunicationAttachmentsTab({
   communicationId,
   actionsSlot,
+  readOnly = false,
 }: {
   communicationId: string;
   actionsSlot: HTMLDivElement | null;
+  readOnly?: boolean;
 }) {
   const uploads = useAttachmentUploadQueue();
   const { reconcileCompleted } = uploads;
@@ -249,6 +251,7 @@ export function CommunicationAttachmentsTab({
   }
 
   async function upload(retryId?: string) {
+    if (readOnly) return;
     setUploadMessage("");
     const succeeded = await uploads.upload(communicationId, retryId);
     if (!mounted.current) return;
@@ -257,6 +260,7 @@ export function CommunicationAttachmentsTab({
   }
 
   async function removeUpload(id: string) {
+    if (readOnly) return;
     setUploadMessage("");
     const result = await uploads.remove(id, communicationId);
     if (!mounted.current || !result) return;
@@ -323,7 +327,7 @@ export function CommunicationAttachmentsTab({
   }
 
   async function confirmDelete() {
-    if (!deleteTarget || deleteRequest.current) return;
+    if (!deleteTarget || deleteRequest.current || readOnly) return;
     const controller = new AbortController();
     const request: AttachmentDeleteRequest = {
       controller,
@@ -424,7 +428,7 @@ export function CommunicationAttachmentsTab({
   const loadingMore = Boolean(listRequest.cursor && listPending);
   const nextCursor = result?.nextCursor;
   const uploadDisabled =
-    uploads.busy || deletePending || inaccessible || !result;
+    readOnly || uploads.busy || deletePending || inaccessible || !result;
   const hasCompletedUploads = uploads.items.some(
     (item) => item.status === "succeeded"
   );
@@ -488,10 +492,14 @@ export function CommunicationAttachmentsTab({
                   }
                   deletingId={deletePending ? deleteTarget?.id : undefined}
                   onDownload={(attachment) => void download(attachment)}
-                  onDelete={(attachment) => {
-                    setDeleteError("");
-                    setDeleteTarget(attachment);
-                  }}
+                  onDelete={
+                    readOnly
+                      ? undefined
+                      : (attachment) => {
+                          setDeleteError("");
+                          setDeleteTarget(attachment);
+                        }
+                  }
                   fileActions={
                     <>
                       <Tooltip>
@@ -529,10 +537,16 @@ export function CommunicationAttachmentsTab({
                     </>
                   }
                   empty={
-                    <div className="space-y-2">
-                      <span className="sr-only">暂无附件</span>
-                      {dropButton}
-                    </div>
+                    readOnly ? (
+                      <p className="py-8 text-center text-sm text-muted-foreground">
+                        暂无附件
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        <span className="sr-only">暂无附件</span>
+                        {dropButton}
+                      </div>
+                    )
                   }
                 />
                 {nextCursor && (
@@ -589,7 +603,9 @@ export function CommunicationAttachmentsTab({
           {uploads.items.length > 0 ? (
             <AttachmentQueue
               items={uploads.items}
-              disabled={uploads.busy || inaccessible || deletePending}
+              disabled={
+                readOnly || uploads.busy || inaccessible || deletePending
+              }
               onRetry={(id) => void upload(id)}
               onRemove={(id) => void removeUpload(id)}
               label="附件上传任务"
@@ -641,7 +657,7 @@ export function CommunicationAttachmentsTab({
               <Button
                 type="button"
                 variant="destructive"
-                disabled={deletePending}
+                disabled={deletePending || readOnly}
                 aria-busy={deletePending}
                 onClick={() => void confirmDelete()}
               >

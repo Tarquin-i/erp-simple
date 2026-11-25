@@ -43,6 +43,7 @@ function CommunicationDetailRoute() {
   const detailKey = JSON.stringify([
     communication.id,
     communication.version,
+    communication.archiveStartedAt,
     communication.customer,
   ]);
   return (

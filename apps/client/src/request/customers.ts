@@ -10,6 +10,8 @@ export type Customer = {
   departmentId: string;
   ownerUserId: string;
   ownerName: string;
+  status: "active" | "archived";
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -204,6 +206,13 @@ export function updateCustomer(
   return write<{ customer: Customer }>(customerPath(id), "PATCH", input);
 }
 
+export function archiveCustomer(id: string, expectedVersion: number) {
+  return request<{ customer: Customer }>(
+    `${customerPath(id)}${queryString({ expectedVersion })}`,
+    { method: "DELETE" }
+  );
+}
+
 export function listCustomerChannels(signal?: AbortSignal) {
   return request<{ channels: CustomerChannel[] }>("/channels", { signal });
 }
@@ -309,6 +318,21 @@ export function updateCustomerContact(
     contactPath(customerId, contactId),
     "PATCH",
     input
+  );
+}
+
+export function archiveCustomerContact(
+  customerId: string,
+  contactId: string,
+  expectedVersion: number
+) {
+  return request<{
+    contact: { id: string; version: number; archivedAt: string };
+  }>(
+    `${contactPath(customerId, contactId)}${queryString({ expectedVersion })}`,
+    {
+      method: "DELETE",
+    }
   );
 }
 

@@ -430,12 +430,16 @@ export function CommunicationList({
                   <TableCell className="px-2.5">
                     <Badge
                       variant={
-                        communication.status === "urgent"
-                          ? "destructive"
-                          : "secondary"
+                        communication.archiveStartedAt
+                          ? "outline"
+                          : communication.status === "urgent"
+                            ? "destructive"
+                            : "secondary"
                       }
                     >
-                      {communicationStatusLabels[communication.status]}
+                      {communication.archiveStartedAt
+                        ? "归档中"
+                        : communicationStatusLabels[communication.status]}
                     </Badge>
                   </TableCell>
                   <TableCell

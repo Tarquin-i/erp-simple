@@ -10,6 +10,7 @@ import { useCallback } from "react";
 
 import { readCommunicationPage } from "@/components/communication/navigation";
 import { CustomerDetail } from "@/components/customers/detail";
+import { CustomerArchiveAction } from "@/components/customers/detail/archive-action";
 import { CustomerProductsTab } from "@/components/customers/detail/products-tab";
 import { isCustomerDetailTab } from "@/components/customers/detail/tabs";
 import type { CustomerDetailTab } from "@/components/customers/detail/tabs";
@@ -112,6 +113,18 @@ function CustomerDetailRoute() {
       key={customer.id}
       customer={customer}
       activeTab={tab ?? "contacts"}
+      archiveAction={
+        <CustomerArchiveAction
+          customer={customer}
+          onArchived={() => {
+            void navigate({
+              to: "/customers",
+              search: readListQueryFromState(state),
+              replace: true,
+            });
+          }}
+        />
+      }
       createProductAction={
         <Button asChild size="icon">
           <Link

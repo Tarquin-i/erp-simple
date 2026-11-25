@@ -154,6 +154,7 @@ export function CommunicationForm({
   const [tagPending, setTagPending] = useState(false);
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
+  const [archiveInProgress, setArchiveInProgress] = useState(false);
   const [assignmentDenied, setAssignmentDenied] = useState(false);
   const [savedId, setSavedId] = useState(recoveredCreation?.id);
   const saving = useRef(false);
@@ -161,12 +162,15 @@ export function CommunicationForm({
 
   const isEdit = Boolean(record);
   const savedCreationId = isEdit ? undefined : savedId;
-  const fieldsLocked = pending || Boolean(savedCreationId);
-  const attachmentBusy = pending || attachments.busy;
+  const fieldsLocked = pending || archiveInProgress || Boolean(savedCreationId);
+  const attachmentBusy = pending || archiveInProgress || attachments.busy;
   const customerChoice = baseline ? baseline.customer : customer;
   const customerId = baseline?.customerId ?? customer?.id;
   const canChangeOwner =
-    canAssign && !assignmentDenied && (!baseline || baseline.canViewCustomer);
+    canAssign &&
+    !assignmentDenied &&
+    (!baseline ||
+      (baseline.canViewCustomer && baseline.customer?.status !== "archived"));
   const hasChanges =
     Object.keys(getChanges(toDraft(baseline), draft)).length > 0;
   const hasFiles = attachments.items.some((item) => item.status === "queued");
@@ -179,7 +183,14 @@ export function CommunicationForm({
   const SubmitIcon = isEdit ? Check : Save;
 
   async function save(proposed: CommunicationDraft, current = baseline) {
-    if (saving.current || savedId || tagPending || !customerId) return;
+    if (
+      saving.current ||
+      archiveInProgress ||
+      savedId ||
+      tagPending ||
+      !customerId
+    )
+      return;
     saving.current = true;
     setPending(true);
     setError("");
@@ -236,6 +247,16 @@ export function CommunicationForm({
       await finishSave(savedId);
     } catch (failure) {
       if (leftForm) return;
+      if (
+        current &&
+        failure instanceof CommunicationApiError &&
+        failure.code === "archive_in_progress"
+      ) {
+        setConflict(null);
+        setArchiveInProgress(true);
+        setError(failure.message);
+        return;
+      }
       if (
         current &&
         failure instanceof CommunicationApiError &&
@@ -361,7 +382,7 @@ export function CommunicationForm({
                 disabled={pending}
                 onClick={onCancel}
               >
-                取消
+                {archiveInProgress ? "返回沟通详情" : "取消"}
               </Button>
               <Button
                 type="submit"

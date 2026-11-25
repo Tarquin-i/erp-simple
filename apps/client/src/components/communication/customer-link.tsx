@@ -17,23 +17,41 @@ export function CommunicationCustomerLink({
   showNumber = false,
   className = "wrap-anywhere underline-offset-4 hover:underline",
 }: {
-  customer?: { id: string; companyName: string; customerNo?: string } | null;
+  customer?: {
+    id: string;
+    companyName: string;
+    customerNo?: string;
+    status?: "active" | "archived";
+  } | null;
   showNumber?: boolean;
   className?: string;
 }) {
   if (customer) {
-    return (
-      <Link
-        to="/customers/$customerId"
-        params={{ customerId: customer.id }}
-        className={className}
-      >
+    const name = (
+      <>
         {customer.companyName}
         {showNumber && customer.customerNo && (
           <span className="ml-2 text-muted-foreground">
             {customer.customerNo}
           </span>
         )}
+      </>
+    );
+    if (customer.status === "archived") {
+      return (
+        <span className="wrap-anywhere">
+          {name}
+          <span className="ml-2 text-xs text-muted-foreground">已归档</span>
+        </span>
+      );
+    }
+    return (
+      <Link
+        to="/customers/$customerId"
+        params={{ customerId: customer.id }}
+        className={className}
+      >
+        {name}
       </Link>
     );
   }

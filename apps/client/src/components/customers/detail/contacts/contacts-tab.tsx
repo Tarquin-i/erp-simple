@@ -23,11 +23,12 @@ import {
 } from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CustomerApiError, listCustomerContacts } from "@/request/customers";
-import type {
-  CustomerContact,
-  CustomerContactMethod,
+import {
+  archiveCustomerContact,
+  CustomerApiError,
+  listCustomerContacts,
 } from "@/request/customers";
+import type { CustomerContact } from "@/request/customers";
 
 import { CustomerContactEditor } from "./contact-editor";
 import type { ContactEditorMode } from "./contact-editor";
@@ -50,6 +51,10 @@ import {
 import type { ContactConflict } from "./version-conflict";
 
 const workspaceRoute = getRouteApi("/_protected");
+
+type ContactRemoval =
+  | DeleteChange
+  | { kind: "archive"; contact: CustomerContact };
 
 /**
  * 展示并管理指定客户的联系人和联系方式。
@@ -74,7 +79,7 @@ export function CustomerContacts({
   const [managedContactId, setManagedContactId] = useState<string | null>(null);
   const [focusReturnId, setFocusReturnId] = useState<string>();
   const [editor, setEditor] = useState<ContactEditorMode | null>(null);
-  const [deletion, setDeletion] = useState<DeleteChange | null>(null);
+  const [deletion, setDeletion] = useState<ContactRemoval | null>(null);
   const [conflict, setConflict] = useState<ContactConflict | null>(null);
   const [operation, setOperation] = useState<"save" | "restore" | null>(null);
   const [error, setError] = useState("");
@@ -102,6 +107,7 @@ export function CustomerContacts({
     [retainedContactId]
   );
   const overwriteError = conflict ? contactOverwriteError(conflict) : undefined;
+  const removalLabel = deletion?.kind === "archive" ? "归档" : "删除";
 
   useEffect(() => {
     // 切换客户或重新加载时取消上一笔请求，防止旧结果覆盖当前列表。
@@ -400,14 +406,54 @@ export function CustomerContacts({
     }
   }
 
-  function openDelete(
-    contact: CustomerContact,
-    method: CustomerContactMethod,
-    button: HTMLButtonElement
-  ) {
+  function openRemoval(change: ContactRemoval, button: HTMLButtonElement) {
     triggerRef.current = button;
     setError("");
-    setDeletion({ kind: "delete", contact, method });
+    setDeletion(change);
+  }
+
+  async function archiveContact(contact: CustomerContact) {
+    if (writing.current) return;
+    writing.current = true;
+    setOperation("save");
+    setError("");
+    setNotice(undefined);
+
+    const removeFromList = () =>
+      setContacts(
+        (records) => records?.filter(({ id }) => id !== contact.id) ?? null
+      );
+
+    try {
+      await archiveCustomerContact(customerId, contact.id, contact.version);
+      removeFromList();
+      closeDelete();
+      setNotice({ text: "已归档联系人。" });
+    } catch (failure) {
+      const latest = latestContact(failure, contact.id);
+      if (latest) {
+        rememberContact(latest);
+        closeDelete();
+        setError("联系人资料已更新，请核对最新联系方式后重新归档。");
+        return;
+      }
+      if (failure instanceof CustomerApiError && failure.status === 404) {
+        removeFromList();
+        closeDelete();
+        setError(failure.message);
+        return;
+      }
+      setError(
+        failure instanceof CustomerApiError &&
+          failure.status < 500 &&
+          ![408, 429].includes(failure.status)
+          ? failure.message
+          : "暂时无法确认归档结果，请重试原提交。"
+      );
+    } finally {
+      writing.current = false;
+      setOperation(null);
+    }
   }
 
   if (loadError) {
@@ -512,6 +558,9 @@ export function CustomerContacts({
               }
               onManage={(trigger) => openManager(contact.id, trigger)}
               onAdd={(trigger) => openEditor({ kind: "add", contact }, trigger)}
+              onArchive={(trigger) =>
+                openRemoval({ kind: "archive", contact }, trigger)
+              }
             />
           )}
         />
@@ -546,7 +595,10 @@ export function CustomerContacts({
             )
           }
           onDelete={(method, trigger) =>
-            openDelete(managedContact, method, trigger)
+            openRemoval(
+              { kind: "delete", contact: managedContact, method },
+              trigger
+            )
           }
         />
       ) : (
@@ -559,13 +611,32 @@ export function CustomerContacts({
         }}
       >
         {deletion && (
-          <AlertDialogContent className="w-[calc(100%-2rem)]">
+          <AlertDialogContent
+            className="w-[calc(100%-2rem)]"
+            onCloseAutoFocus={(event) => {
+              if (deletion.kind === "archive") {
+                event.preventDefault();
+                restoreFocus();
+              }
+            }}
+          >
             <AlertDialogHeader>
-              <AlertDialogTitle>删除联系方式</AlertDialogTitle>
+              <AlertDialogTitle>
+                {deletion.kind === "archive" ? "归档联系人" : "删除联系方式"}
+              </AlertDialogTitle>
               <AlertDialogDescription className="wrap-anywhere">
-                确定删除{deletion.contact.name}的
-                {contactMethodLabels[deletion.method.type]}「
-                {deletion.method.value}」吗？
+                {deletion.kind === "archive" ? (
+                  <>
+                    「{deletion.contact.name}
+                    」和全部联系方式将一起移出联系人列表。
+                  </>
+                ) : (
+                  <>
+                    确定删除{deletion.contact.name}的
+                    {contactMethodLabels[deletion.method.type]}「
+                    {deletion.method.value}」吗？
+                  </>
+                )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <FieldError>{error}</FieldError>
@@ -574,9 +645,13 @@ export function CustomerContacts({
               <Button
                 variant="destructive"
                 disabled={pending}
-                onClick={() => void write(deletion)}
+                onClick={() =>
+                  deletion.kind === "archive"
+                    ? void archiveContact(deletion.contact)
+                    : void write(deletion)
+                }
               >
-                {pending ? "正在删除…" : "确认删除"}
+                {pending ? `正在${removalLabel}…` : `确认${removalLabel}`}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

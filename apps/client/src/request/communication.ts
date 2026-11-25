@@ -17,6 +17,7 @@ type CommunicationCustomer = {
   id: string;
   companyName: string;
   customerNo: string;
+  status?: "active" | "archived";
 };
 
 export type CommunicationListTag = Pick<CommunicationTag, "id" | "name">;
@@ -26,9 +27,13 @@ export type CommunicationListItem = {
   title: string;
   ownerName: string;
   status: CommunicationStatus;
+  archiveStartedAt: string | null;
   updatedAt: string;
   tags: CommunicationListTag[];
-  customer?: Pick<CommunicationCustomer, "id" | "companyName"> | null;
+  customer?: Pick<
+    CommunicationCustomer,
+    "id" | "companyName" | "status"
+  > | null;
   canViewCustomer?: boolean;
 };
 
@@ -42,6 +47,8 @@ export type Communication = {
   ownerUserId: string;
   ownerName: string;
   status: CommunicationStatus;
+  archiveStartedAt: string | null;
+  archivedAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -154,7 +161,7 @@ export function listCommunications(
 export function getCommunication(id: string, signal?: AbortSignal) {
   return request<{ communication: Communication }>(
     `/${encodeURIComponent(id)}`,
-    { signal }
+    { signal, cache: "no-store" }
   );
 }
 
@@ -192,6 +199,13 @@ export function updateCommunication(
     `/${encodeURIComponent(id)}`,
     "PATCH",
     input
+  );
+}
+
+export function archiveCommunication(id: string, expectedVersion: number) {
+  return request<{ communication: Communication }>(
+    `/${encodeURIComponent(id)}${queryString({ expectedVersion })}`,
+    { method: "DELETE" }
   );
 }
 
