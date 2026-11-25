@@ -68,6 +68,12 @@ export const customerAddress = pgTable(
       table.updatedAt,
       table.id
     ),
+    index("customer_address_status_default_updated_idx").on(
+      table.status,
+      table.isDefault,
+      table.updatedAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst()
+    ),
     // 同一客户最多一条默认地址，切换默认和归档递补由后端事务处理。
     uniqueIndex("customer_address_customer_default_unique")
       .on(table.customerId)
