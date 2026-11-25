@@ -7,6 +7,11 @@ import {
   businessScopeWhere,
   withBusinessReadSnapshot,
 } from "../business/access";
+import {
+  readTagColor,
+  tagDictionaryFields,
+  updateTagColor,
+} from "../business/tag-color";
 import { database } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
 import {
@@ -17,12 +22,7 @@ import {
   readUuid,
 } from "./input";
 
-const tagFields = {
-  id: customerTag.id,
-  name: customerTag.name,
-  color: customerTag.color,
-  createdAt: customerTag.createdAt,
-};
+const tagFields = tagDictionaryFields(customerTag);
 
 export const customerDictionaryRoutes = new Hono<BusinessAccessEnv>();
 
@@ -109,16 +109,14 @@ customerDictionaryRoutes.get("/tags/:tagId", async (c) => {
   return c.json({ tag });
 });
 
+customerDictionaryRoutes.patch("/tags/:tagId", (c) =>
+  updateTagColor(c, customerTag)
+);
+
 customerDictionaryRoutes.post("/tags", async (c) => {
   const body = await readObject(c, ["name", "color"]);
   const name = readString(body.name, "标签名称", 64);
-  const color =
-    body.color === undefined
-      ? undefined
-      : readString(body.color, "标签颜色", 7);
-  if (color !== undefined && !/^#[0-9a-f]{6}$/i.test(color)) {
-    fail(400, "标签颜色须为 #RRGGBB 格式。");
-  }
+  const color = body.color === undefined ? undefined : readTagColor(body.color);
 
   try {
     const [tag] = await database.db
