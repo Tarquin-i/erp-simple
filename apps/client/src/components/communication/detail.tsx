@@ -1,6 +1,6 @@
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import { Archive, Pencil } from "lucide-react";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { readListQueryFromState } from "@/components/customers/list-query";
 import { DetailField } from "@/components/shared/detail-field";
@@ -42,7 +42,10 @@ import type {
   CommunicationStatus,
 } from "@/request/communication";
 
+import { AttachmentQueue } from "./attachments/queue";
 import { CommunicationAttachmentsTab } from "./attachments/tab";
+import { useAttachmentUploadQueue } from "./attachments/use-upload-queue";
+import type { AttachmentCommunicationIssue } from "./attachments/use-upload-queue";
 import { CommunicationCustomerLink } from "./customer-link";
 import { readCommunicationListQueryFromState } from "./list/query";
 import type { CommunicationOrigin } from "./navigation";
@@ -65,6 +68,7 @@ export function CommunicationDetail({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
+  const [attachmentArchiving, setAttachmentArchiving] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archivePending, setArchivePending] = useState(false);
   const [archiveIssue, setArchiveIssue] = useState("");
@@ -75,8 +79,59 @@ export function CommunicationDetail({
   } | null>(null);
   const saving = useRef(false);
   const returnCustomerId = customerReturnId(record);
-  const archiving = Boolean(record.archiveStartedAt);
+  const archiving = attachmentArchiving || Boolean(record.archiveStartedAt);
   const writeLocked = archivePending || archiving || Boolean(record.archivedAt);
+  const onAttachmentIssue = useCallback(
+    (issue: AttachmentCommunicationIssue) => {
+      setConflict(null);
+      if (issue.state === "unavailable") {
+        setArchiveOpen(false);
+        setUnavailable(true);
+        setError("此沟通记录已不可访问，无法继续处理附件。");
+        return;
+      }
+
+      const latest = issue.communication;
+      setAttachmentArchiving(true);
+      if (latest) {
+        setRecord((current) =>
+          latest.version >= current.version ? latest : current
+        );
+      }
+    },
+    []
+  );
+  const uploads = useAttachmentUploadQueue(onAttachmentIssue);
+
+  useEffect(() => {
+    if (!attachmentArchiving || record.archiveStartedAt || unavailable) return;
+
+    // 先按接口给出的归档状态上锁，再取最新详情和可续做的版本。
+    const controller = new AbortController();
+    void getCommunication(record.id, controller.signal).then(
+      ({ communication: latest }) => {
+        if (!controller.signal.aborted && latest.archiveStartedAt) {
+          onAttachmentIssue({ state: "archiving", communication: latest });
+        }
+      },
+      (failure: unknown) => {
+        if (
+          !controller.signal.aborted &&
+          failure instanceof CommunicationApiError &&
+          [401, 403, 404].includes(failure.status)
+        ) {
+          onAttachmentIssue({ state: "unavailable" });
+        }
+      }
+    );
+    return () => controller.abort();
+  }, [
+    attachmentArchiving,
+    onAttachmentIssue,
+    record.archiveStartedAt,
+    record.id,
+    unavailable,
+  ]);
 
   function customerReturnId(current: Communication) {
     return current.canViewCustomer &&
@@ -208,9 +263,7 @@ export function CommunicationDetail({
         failure instanceof CommunicationApiError &&
         failure.code === "archive_in_progress"
       ) {
-        const latest = await getCommunication(record.id).catch(() => undefined);
-        if (leftDetail) return;
-        if (latest) setRecord(latest.communication);
+        onAttachmentIssue({ state: "archiving" });
       }
       if (
         failure instanceof CommunicationApiError &&
@@ -234,10 +287,19 @@ export function CommunicationDetail({
         <h1 className="text-xl font-semibold">无法查看此沟通记录</h1>
         <FieldError>{error}</FieldError>
         <Button asChild variant="outline">
-          <Link to="/communication" search={state.communicationListQuery ?? {}}>
+          <Link
+            to="/communication"
+            search={readCommunicationListQueryFromState(state)}
+            replace
+          >
             返回沟通列表
           </Link>
         </Button>
+        <AttachmentQueue
+          items={uploads.items
+            .filter(({ status }) => status !== "succeeded")
+            .map((item) => ({ ...item, error: undefined }))}
+        />
       </main>
     );
   }
@@ -434,6 +496,9 @@ export function CommunicationDetail({
           <CommunicationAttachmentsTab
             communicationId={record.id}
             readOnly={writeLocked}
+            archiving={archiving}
+            uploads={uploads}
+            onCommunicationIssue={onAttachmentIssue}
             actionsSlot={
               activeTab === "attachments" ? attachmentActionsSlot : null
             }

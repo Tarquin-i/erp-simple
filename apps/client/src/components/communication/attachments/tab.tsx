@@ -1,5 +1,5 @@
 import { ListChecks, LoaderCircle, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   AlertDialog,
@@ -44,7 +44,11 @@ import type {
 import { AttachmentDropZone, attachmentEncodingHint } from "./drop-zone";
 import { AttachmentQueue } from "./queue";
 import { AttachmentTimeline } from "./timeline";
-import { useAttachmentUploadQueue } from "./use-upload-queue";
+import { readCommunicationIssue } from "./use-upload-queue";
+import type {
+  AttachmentCommunicationIssue,
+  AttachmentUploadQueue,
+} from "./use-upload-queue";
 
 type AttachmentListRequest = {
   page: number;
@@ -132,13 +136,18 @@ function startDownload(url: string, onFailure: () => void) {
 export function CommunicationAttachmentsTab({
   communicationId,
   actionsSlot,
-  readOnly = false,
+  readOnly,
+  archiving,
+  uploads,
+  onCommunicationIssue,
 }: {
   communicationId: string;
   actionsSlot: HTMLDivElement | null;
-  readOnly?: boolean;
+  readOnly: boolean;
+  archiving: boolean;
+  uploads: AttachmentUploadQueue;
+  onCommunicationIssue: (issue: AttachmentCommunicationIssue) => void;
 }) {
-  const uploads = useAttachmentUploadQueue();
   const { reconcileCompleted } = uploads;
   const [listRequest, setListRequest] = useState<AttachmentListRequest>({
     page: 1,
@@ -163,6 +172,20 @@ export function CommunicationAttachmentsTab({
   const downloadRequests = useRef(new Map<string, AbortController>());
   const deleteRequest = useRef<AttachmentDeleteRequest | null>(null);
   const mounted = useRef(true);
+  const reportCommunicationIssue = useCallback(
+    async (failure: unknown, signal: AbortSignal) => {
+      if (signal.aborted) return false;
+      const issue = await readCommunicationIssue(
+        failure,
+        communicationId,
+        signal
+      );
+      if (!issue || signal.aborted) return false;
+      onCommunicationIssue(issue);
+      return true;
+    },
+    [communicationId, onCommunicationIssue]
+  );
 
   useEffect(() => {
     mounted.current = true;
@@ -199,19 +222,24 @@ export function CommunicationAttachmentsTab({
           return { ...next, attachments: [...attachments.values()] };
         });
       },
-      (failure: unknown) => {
-        if (!controller.signal.aborted) {
-          setListPending(false);
-          setListError(
-            failure instanceof Error
-              ? failure
-              : new Error("暂时无法加载沟通附件。")
-          );
-        }
+      async (failure: unknown) => {
+        await reportCommunicationIssue(failure, controller.signal);
+        if (controller.signal.aborted) return;
+        setListPending(false);
+        setListError(
+          failure instanceof Error
+            ? failure
+            : new Error("暂时无法加载沟通附件。")
+        );
       }
     );
     return () => controller.abort();
-  }, [communicationId, listRequest, reconcileCompleted]);
+  }, [
+    communicationId,
+    listRequest,
+    reconcileCompleted,
+    reportCommunicationIssue,
+  ]);
 
   const loadedPage = result?.page;
   useEffect(() => {
@@ -292,12 +320,12 @@ export function CommunicationAttachmentsTab({
           });
       });
     } catch (failure) {
-      if (!controller.signal.aborted) {
-        setDownloadError({
-          attachment,
-          message: errorMessage(failure, "下载失败，请重试。"),
-        });
-      }
+      await reportCommunicationIssue(failure, controller.signal);
+      if (controller.signal.aborted) return;
+      setDownloadError({
+        attachment,
+        message: errorMessage(failure, "下载失败，请重试。"),
+      });
     } finally {
       requests.delete(attachment.id);
       if (!controller.signal.aborted) setDownloading(new Set(requests.keys()));
@@ -347,7 +375,15 @@ export function CommunicationAttachmentsTab({
           controller.signal
         );
       } catch (failure) {
+        const issue = await reportCommunicationIssue(
+          failure,
+          controller.signal
+        );
         if (controller.signal.aborted) return;
+        if (issue) {
+          setDeleteTarget(undefined);
+          return;
+        }
         const apiError =
           failure instanceof CommunicationApiError ? failure : undefined;
         const storageFailed =
@@ -369,7 +405,16 @@ export function CommunicationAttachmentsTab({
             if (state === "pending" && !storageFailed) {
               message = "附件尚未完成删除，请重试。";
             }
-          } catch {
+          } catch (checkFailure) {
+            const issue = await reportCommunicationIssue(
+              checkFailure,
+              controller.signal
+            );
+            if (controller.signal.aborted) return;
+            if (issue) {
+              setDeleteTarget(undefined);
+              return;
+            }
             if (!storageFailed)
               message = "暂时无法确认附件是否已删除，请重试。";
           }
@@ -595,19 +640,25 @@ export function CommunicationAttachmentsTab({
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 space-y-3 overflow-y-auto">
-          {uploadMessage && (
+          {(archiving || uploadMessage) && (
             <p className="text-sm text-muted-foreground" role="status">
-              {uploadMessage}
+              {archiving
+                ? "沟通记录正在归档，未上传的文件仍保留在当前页面。"
+                : uploadMessage}
             </p>
           )}
           {uploads.items.length > 0 ? (
             <AttachmentQueue
-              items={uploads.items}
+              items={
+                archiving
+                  ? uploads.items.map((item) => ({ ...item, error: undefined }))
+                  : uploads.items
+              }
               disabled={
                 readOnly || uploads.busy || inaccessible || deletePending
               }
-              onRetry={(id) => void upload(id)}
-              onRemove={(id) => void removeUpload(id)}
+              onRetry={archiving ? undefined : (id) => void upload(id)}
+              onRemove={archiving ? undefined : (id) => void removeUpload(id)}
               label="附件上传任务"
             />
           ) : (

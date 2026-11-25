@@ -5,6 +5,7 @@ import {
   CommunicationApiError,
   getCommunication,
 } from "@/request/communication";
+import type { Communication } from "@/request/communication";
 import {
   cancelCommunicationAttachmentUpload,
   completeCommunicationAttachment,
@@ -24,7 +25,9 @@ type UploadItem = AttachmentQueueItem & {
   initializationSent?: boolean;
 };
 
-type CommunicationIssue = "archiving" | "unavailable";
+export type AttachmentCommunicationIssue =
+  | { state: "archiving"; communication?: Communication }
+  | { state: "unavailable" };
 
 function isAccessError(failure: unknown): failure is CommunicationApiError {
   return (
@@ -33,25 +36,27 @@ function isAccessError(failure: unknown): failure is CommunicationApiError {
   );
 }
 
-async function readCommunicationIssue(
+export async function readCommunicationIssue(
   failure: unknown,
   communicationId: string,
   signal: AbortSignal
-): Promise<CommunicationIssue | undefined> {
+): Promise<AttachmentCommunicationIssue | undefined> {
   if (
     failure instanceof CommunicationApiError &&
     failure.code === "archive_in_progress"
   ) {
-    return "archiving";
+    return { state: "archiving" };
   }
   if (!isAccessError(failure)) return;
 
   // 单个附件也可能返回 404，只有重新读取父记录才能确认它不可访问。
   try {
     const { communication } = await getCommunication(communicationId, signal);
-    if (communication.archiveStartedAt) return "archiving";
+    if (communication.archiveStartedAt) {
+      return { state: "archiving", communication };
+    }
   } catch (checkFailure) {
-    if (isAccessError(checkFailure)) return "unavailable";
+    if (isAccessError(checkFailure)) return { state: "unavailable" };
   }
 }
 
@@ -88,13 +93,15 @@ async function completeUpload(
 }
 
 /** 持有当前页面的文件草稿，重试时沿用原上传 ID 和已计算的摘要。 */
-export function useAttachmentUploadQueue() {
+export function useAttachmentUploadQueue(
+  onCommunicationIssue?: (issue: AttachmentCommunicationIssue) => void
+) {
   const itemsRef = useRef<UploadItem[]>([]);
   const active = useRef<AbortController | null>(null);
   const [items, setItems] = useState<UploadItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [communicationIssue, setCommunicationIssue] =
-    useState<CommunicationIssue>();
+    useState<AttachmentCommunicationIssue["state"]>();
 
   useEffect(() => () => active.current?.abort(), []);
 
@@ -162,7 +169,10 @@ export function useAttachmentUploadQueue() {
         signal
       );
       if (signal.aborted) return;
-      if (issue) setCommunicationIssue(issue);
+      if (issue) {
+        setCommunicationIssue(issue.state);
+        onCommunicationIssue?.(issue);
+      }
       update(id, {
         status: "remove-failed",
         error:
@@ -246,7 +256,8 @@ export function useAttachmentUploadQueue() {
               failure instanceof Error ? failure.message : "上传失败，请重试。",
           });
           if (issue) {
-            setCommunicationIssue(issue);
+            setCommunicationIssue(issue.state);
+            onCommunicationIssue?.(issue);
             return false;
           }
         }
