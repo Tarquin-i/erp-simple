@@ -31,7 +31,7 @@ export function customerDraft(
     owner,
     channels:
       customer?.channels.map(({ code, name }) => ({ id: code, name })) ?? [],
-    tags: customer?.tags.map(({ id, name }) => ({ id, name })) ?? [],
+    tags: customer?.tags ?? [],
   };
 }
 

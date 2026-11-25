@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, CircleOff } from "lucide-react";
 import { type ComponentProps, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,12 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
 const presetColors = [
-  { value: "red", label: "红色", className: "bg-red-600" },
-  { value: "orange", label: "橙色", className: "bg-orange-600" },
-  { value: "yellow", label: "黄色", className: "bg-yellow-500" },
-  { value: "green", label: "绿色", className: "bg-green-700" },
-  { value: "blue", label: "蓝色", className: "bg-blue-600" },
-  { value: "purple", label: "紫色", className: "bg-purple-600" },
+  { value: "#dc2626", label: "红色", checkClassName: "text-white" },
+  { value: "#ea580c", label: "橙色", checkClassName: "text-neutral-950" },
+  { value: "#eab308", label: "黄色", checkClassName: "text-neutral-950" },
+  { value: "#15803d", label: "绿色", checkClassName: "text-white" },
+  { value: "#2563eb", label: "蓝色", checkClassName: "text-white" },
+  { value: "#9333ea", label: "紫色", checkClassName: "text-white" },
 ] as const;
 
 type OptionEditorDialogProps = {
@@ -42,7 +42,7 @@ type OptionEditorDialogProps = {
   submitDisabled?: boolean;
   submitLabel?: string;
   busyLabel?: string;
-  color?: { value: string | null; onChange: (color: string) => void };
+  color?: { value: string | null; onChange: (color: string | null) => void };
 };
 
 export function OptionEditorDialog({
@@ -131,7 +131,19 @@ export function OptionEditorDialog({
           {color && (
             <fieldset disabled={disabled || busy}>
               <legend className="mb-2 text-sm font-medium">颜色</legend>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1 sm:gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="aria-pressed:border-foreground"
+                  aria-label="默认颜色"
+                  aria-pressed={color.value === null}
+                  title="默认颜色"
+                  onClick={() => color.onChange(null)}
+                >
+                  <CircleOff aria-hidden="true" />
+                </Button>
                 {presetColors.map((preset) => (
                   <Button
                     key={preset.value}
@@ -141,14 +153,18 @@ export function OptionEditorDialog({
                     className="aria-pressed:border-foreground"
                     aria-label={preset.label}
                     aria-pressed={color.value === preset.value}
+                    title={preset.label}
                     onClick={() => color.onChange(preset.value)}
                   >
                     <span
                       aria-hidden="true"
-                      className={`grid size-5 place-items-center rounded-sm text-white ${preset.className}`}
+                      className="grid size-5 place-items-center rounded-sm"
+                      style={{ backgroundColor: preset.value }}
                     >
                       {color.value === preset.value && (
-                        <Check className="size-3.5 drop-shadow-sm" />
+                        <Check
+                          className={`size-3.5 ${preset.checkClassName}`}
+                        />
                       )}
                     </span>
                   </Button>

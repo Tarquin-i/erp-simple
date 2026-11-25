@@ -28,6 +28,7 @@ import {
   SelectSearchInput,
   formDropdownStyles,
 } from "./select-popup-parts";
+import { hasVisibleTagColor, TagColorDot } from "./tag-color-dot";
 
 type MultiSelectOption = { id: string; name: string };
 
@@ -48,6 +49,7 @@ type SearchableMultiSelectProps<Option extends MultiSelectOption> = {
     onQueryChange?: (value: string) => void;
   };
   isOptionDisabled?: (option: Option) => boolean;
+  getOptionColor?: (option: Option) => string | undefined;
   allowClear?: boolean;
   action?: DropdownAction;
   footer?: ReactNode;
@@ -67,6 +69,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
   onOpenChange,
   search,
   isOptionDisabled,
+  getOptionColor,
   allowClear,
   action,
   footer,
@@ -133,25 +136,42 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
         {visibleChips.map(({ name }) => name).join("、")}
       </span>
       <div className="pointer-events-none absolute inset-y-0 right-9 left-2.5 flex min-w-0 items-center gap-1">
-        {visibleChips.map((option) => (
-          <Badge key={option.id} className="min-w-0 shrink gap-0.5 pr-0">
-            <span className="truncate">{option.name}</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="pointer-events-auto size-[18px] rounded-full border-0 text-inherit opacity-80 hover:bg-primary-foreground/15 hover:text-inherit hover:opacity-100 focus-visible:ring-primary-foreground/70"
-              aria-label={`移除${option.name}`}
-              disabled={disabled}
-              onClick={() => {
-                focusTrigger();
-                removeOption(option.id);
-              }}
+        {visibleChips.map((option) => {
+          const color = getOptionColor?.(option);
+          const showColor = hasVisibleTagColor(color);
+          return (
+            <Badge
+              key={option.id}
+              variant={showColor ? "outline" : "default"}
+              className={cn(
+                "min-w-0 shrink pr-0",
+                showColor ? "gap-1" : "gap-0.5"
+              )}
             >
-              <X aria-hidden="true" />
-            </Button>
-          </Badge>
-        ))}
+              <TagColorDot color={color} />
+              <span className="truncate">{option.name}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className={cn(
+                  "pointer-events-auto size-[18px] rounded-full border-0 text-inherit opacity-80 hover:text-inherit hover:opacity-100",
+                  showColor
+                    ? "hover:bg-muted focus-visible:ring-ring"
+                    : "hover:bg-primary-foreground/15 focus-visible:ring-primary-foreground/70"
+                )}
+                aria-label={`移除${option.name}`}
+                disabled={disabled}
+                onClick={() => {
+                  focusTrigger();
+                  removeOption(option.id);
+                }}
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </Badge>
+          );
+        })}
         {remainingCount > 0 && (
           <span className="shrink-0 text-xs text-muted-foreground">
             +{remainingCount}
@@ -236,6 +256,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
                 disabled={isOptionDisabled?.(option)}
                 className={formDropdownStyles.option}
               >
+                <TagColorDot color={getOptionColor?.(option)} />
                 <span className="min-w-0 truncate">{option.name}</span>
               </ComboboxItem>
             )}
@@ -298,6 +319,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
                     else removeOption(option.id);
                   }}
                 />
+                <TagColorDot color={getOptionColor?.(option)} />
                 <span className="min-w-0 truncate">{option.name}</span>
               </FieldLabel>
             );

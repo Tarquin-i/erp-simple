@@ -6,7 +6,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { OptionEditorDialog } from "./option-editor-dialog";
 import { SearchableMultiSelect } from "./searchable-multi-select";
 
-export type PickerOption = { id: string; name: string };
+export type PickerOption = { id: string; name: string; color?: string };
 
 type PickerProps = {
   id: string;
@@ -60,13 +60,17 @@ export function TagMultiSelectField({
     query: { search: string; page: number; pageSize: number },
     signal: AbortSignal
   ) => Promise<{ tags: PickerOption[]; page: number; total: number }>;
-  createTag?: (input: { name: string }) => Promise<{ tag: PickerOption }>;
+  createTag?: (input: {
+    name: string;
+    color?: string;
+  }) => Promise<{ tag: PickerOption }>;
   tagLimitLabel?: string;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
   const returnToOptions = useRef(false);
   const [open, setOpen] = useState(false);
   const [tagName, setTagName] = useState<string | null>(null);
+  const [tagColor, setTagColor] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [results, setResults] = useState<TagPage | null>(null);
@@ -103,7 +107,7 @@ export function TagMultiSelectField({
         )
           .then((response) => {
             if (controller.signal.aborted) return;
-            const next = response.tags.map(({ id, name }) => ({ id, name }));
+            const next = response.tags;
             setResults((previous) => ({
               keyword,
               items:
@@ -151,9 +155,9 @@ export function TagMultiSelectField({
     setCreating(true);
     onCreatingChange?.(true);
     try {
-      const { tag } = await createTag({ name });
+      const { tag } = await createTag({ name, color: tagColor ?? undefined });
       if (!props.value.some(({ id }) => id === tag.id)) {
-        props.onChange([...props.value, { id: tag.id, name: tag.name }]);
+        props.onChange([...props.value, tag]);
       }
       setPage(1);
       setReload((attempt) => attempt + 1);
@@ -180,6 +184,7 @@ export function TagMultiSelectField({
       <SearchableMultiSelect
         {...props}
         items={matchingTags}
+        getOptionColor={(option) => option.color}
         emptyMessage={
           searchError ||
           (loading || !currentResult ? "正在加载标签…" : "没有匹配的标签")
@@ -207,6 +212,7 @@ export function TagMultiSelectField({
                 label: keyword ? "新建标签「" + keyword + "」" : "新建标签",
                 onClick: () => {
                   setCreateError("");
+                  setTagColor(null);
                   setTagName(keyword);
                 },
               }
@@ -255,6 +261,7 @@ export function TagMultiSelectField({
         submitLabel="创建"
         busyLabel="正在创建…"
         error={createError}
+        color={{ value: tagColor, onChange: setTagColor }}
         onValueChange={(value) => {
           setTagName(value);
           setCreateError("");
