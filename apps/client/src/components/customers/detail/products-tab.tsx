@@ -1,7 +1,7 @@
 import { type HistoryState, Link } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { CustomerPagination } from "@/components/shared/pagination";
+import { ListPagination } from "@/components/shared/list-pagination";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -207,7 +207,7 @@ export function CustomerProductsTab({
           </TableRow>
         ))}
       </CustomerProductTable>
-      <CustomerPagination
+      <ListPagination
         label="客户产品分页"
         page={result.page}
         pageCount={pageCount}

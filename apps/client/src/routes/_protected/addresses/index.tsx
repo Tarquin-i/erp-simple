@@ -8,7 +8,7 @@ import { readAddressListQuery } from "@/components/addresses/navigation";
 import { AddressPhoneValue } from "@/components/addresses/phone-value";
 import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
 import { ListSearchInput } from "@/components/shared/list-toolbar";
-import { CustomerPagination } from "@/components/shared/pagination";
+import { ListPagination } from "@/components/shared/list-pagination";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -280,7 +280,7 @@ function AddressDirectory() {
               })}
             </TableBody>
           </Table>
-          <CustomerPagination
+          <ListPagination
             label="地址目录分页"
             page={result.page}
             pageCount={Math.max(1, Math.ceil(result.total / result.pageSize))}

@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
 import { ListSearchInput } from "@/components/shared/list-toolbar";
-import { CustomerPagination } from "@/components/shared/pagination";
+import { ListPagination } from "@/components/shared/list-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -307,7 +307,7 @@ export function ProductList({
               </TableRow>
             ))}
           </ProductTable>
-          <CustomerPagination
+          <ListPagination
             label="产品列表分页"
             page={result.page}
             pageCount={pageCount}

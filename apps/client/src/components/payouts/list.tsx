@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
 import { ListSearchInput } from "@/components/shared/list-toolbar";
-import { CustomerPagination } from "@/components/shared/pagination";
+import { ListPagination } from "@/components/shared/list-pagination";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -275,7 +275,7 @@ export function PayoutList({
               </TableRow>
             ))}
           </PayoutTable>
-          <CustomerPagination
+          <ListPagination
             label="Payout 列表分页"
             page={result.page}
             pageCount={pageCount}

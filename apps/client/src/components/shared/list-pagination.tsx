@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
-export function CustomerPagination({
+export function ListPagination({
   label,
   page,
   pageCount,

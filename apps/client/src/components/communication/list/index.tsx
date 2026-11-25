@@ -20,7 +20,7 @@ import { createPortal } from "react-dom";
 
 import { readListQueryFromState } from "@/components/customers/list-query";
 import { ListSearchInput } from "@/components/shared/list-toolbar";
-import { CustomerPagination } from "@/components/shared/pagination";
+import { ListPagination } from "@/components/shared/list-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -456,7 +456,7 @@ export function CommunicationList({
               );
             })}
           </CommunicationTable>
-          <CustomerPagination
+          <ListPagination
             label="沟通记录分页"
             page={result.page}
             pageCount={pageCount}
