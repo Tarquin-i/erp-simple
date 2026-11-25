@@ -3,16 +3,17 @@ import { ContactRound, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { ListBadgeSummary } from "@/components/shared/list-badge-summary";
+import { ListEmptyState } from "@/components/shared/list-empty-state";
 import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
-import { ListSearchInput } from "@/components/shared/list-toolbar";
+import { ListPage } from "@/components/shared/list-page";
 import { ListPagination } from "@/components/shared/list-pagination";
-import { TagBadge } from "@/components/shared/tag-badge";
+import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
-  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +27,7 @@ import {
   tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
+import { shouldOpenTableRow } from "@/lib/should-open-table-row";
 import { listCustomers } from "@/request/customers";
 import type { CustomerListQuery } from "@/request/customers";
 
@@ -113,7 +115,7 @@ export function CustomerList({
   }, [customerPage, pageCount, onQueryChange]);
 
   return (
-    <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
+    <ListPage>
       <ListFilterToolbar
         title="客户"
         filterModel={filterModel}
@@ -177,24 +179,16 @@ export function CustomerList({
           </CustomerTable>
         </div>
       ) : customerPage.customers.length === 0 ? (
-        <Empty className="min-h-52 border">
-          <EmptyHeader>
-            <EmptyMedia
-              variant="icon"
-              className="size-12 rounded-xl border bg-background shadow-xs [&_svg]:size-5"
-            >
-              <ContactRound />
-            </EmptyMedia>
-            <EmptyTitle className="text-xl font-semibold">
-              没有找到符合条件的客户
-            </EmptyTitle>
-            <EmptyDescription>
-              {canCreate
-                ? "新建，或者修改你的筛选条件。"
-                : "试试修改你的筛选条件。"}
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <ListEmptyState
+          icon={<ContactRound />}
+          variant="prominent"
+          title="没有找到符合条件的客户"
+          description={
+            canCreate
+              ? "新建，或者修改你的筛选条件。"
+              : "试试修改你的筛选条件。"
+          }
+        />
       ) : (
         <>
           <CustomerTable>
@@ -203,18 +197,7 @@ export function CustomerList({
                 className="cursor-pointer"
                 key={customer.id}
                 onClick={(event) => {
-                  if (
-                    event.defaultPrevented ||
-                    event.ctrlKey ||
-                    event.metaKey ||
-                    event.shiftKey ||
-                    event.altKey ||
-                    window.getSelection()?.toString() ||
-                    (event.target instanceof Element &&
-                      event.target.closest("a"))
-                  )
-                    return;
-                  onOpenCustomer(customer.id);
+                  if (shouldOpenTableRow(event)) onOpenCustomer(customer.id);
                 }}
               >
                 <TableCell className="py-3 tabular-nums">
@@ -232,10 +215,13 @@ export function CustomerList({
                   </Link>
                 </TableCell>
                 <TableCell className="max-w-0">
-                  <ListBadges values={customer.channels} />
+                  <ListBadgeSummary
+                    items={customer.channels}
+                    showColors={false}
+                  />
                 </TableCell>
                 <TableCell className="max-w-0">
-                  <ListBadges values={customer.tags} showTagColors />
+                  <ListBadgeSummary items={customer.tags} />
                 </TableCell>
                 <TableCell className="truncate" title={customer.ownerName}>
                   {customer.ownerName}
@@ -258,7 +244,7 @@ export function CustomerList({
           />
         </>
       )}
-    </main>
+    </ListPage>
   );
 }
 
@@ -326,34 +312,5 @@ function CustomerTable({ children }: { children: ReactNode }) {
       </TableHeader>
       <TableBody>{children}</TableBody>
     </Table>
-  );
-}
-
-function ListBadges({
-  values,
-  showTagColors,
-}: {
-  values: Array<{ name: string; color?: string | null }>;
-  showTagColors?: boolean;
-}) {
-  const first = values[0];
-  if (!first) return <span className="text-muted-foreground">—</span>;
-
-  return (
-    <div
-      className="flex min-w-0 items-center gap-1.5"
-      title={values.map(({ name }) => name).join("、")}
-    >
-      <TagBadge
-        name={first.name}
-        color={showTagColors ? first.color : undefined}
-        className="shrink"
-      />
-      {values.length > 1 && (
-        <span className="shrink-0 text-xs text-muted-foreground">
-          等{values.length - 1}个
-        </span>
-      )}
-    </div>
   );
 }

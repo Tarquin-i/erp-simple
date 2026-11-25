@@ -20,16 +20,16 @@ import {
 import { createPortal } from "react-dom";
 
 import { readListQueryFromState } from "@/components/customers/list-query";
-import { ListSearchInput } from "@/components/shared/list-toolbar";
+import { ListBadgeSummary } from "@/components/shared/list-badge-summary";
+import { ListEmptyState } from "@/components/shared/list-empty-state";
 import { ListPagination } from "@/components/shared/list-pagination";
-import { TagBadge } from "@/components/shared/tag-badge";
+import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
-  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
@@ -44,14 +44,12 @@ import {
   tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
+import { shouldOpenTableRow } from "@/lib/should-open-table-row";
 import {
   communicationStatusLabels,
   listCommunications,
 } from "@/request/communication";
-import type {
-  CommunicationListQuery,
-  CommunicationListTag,
-} from "@/request/communication";
+import type { CommunicationListQuery } from "@/request/communication";
 
 import { CommunicationCustomerLink } from "../customer-link";
 import {
@@ -367,26 +365,18 @@ export function CommunicationList({
           </CommunicationTable>
         </div>
       ) : result.communications.length === 0 ? (
-        <Empty className="min-h-52 border">
-          <EmptyHeader>
-            <EmptyMedia
-              variant="icon"
-              className="size-12 rounded-xl border bg-background shadow-xs [&_svg]:size-5"
-            >
-              <MessagesSquare />
-            </EmptyMedia>
-            <EmptyTitle className="text-xl font-semibold">
-              {customerId ? "暂无沟通记录" : "没有找到符合条件的沟通记录"}
-            </EmptyTitle>
-            {!customerId && (
-              <EmptyDescription>
-                {canCreate && !hasPending
-                  ? "新建，或者修改你的筛选条件。"
-                  : "试试修改你的筛选条件。"}
-              </EmptyDescription>
-            )}
-          </EmptyHeader>
-        </Empty>
+        <ListEmptyState
+          icon={<MessagesSquare />}
+          variant="prominent"
+          title={customerId ? "暂无沟通记录" : "没有找到符合条件的沟通记录"}
+          description={
+            customerId
+              ? undefined
+              : canCreate && !hasPending
+                ? "新建，或者修改你的筛选条件。"
+                : "试试修改你的筛选条件。"
+          }
+        />
       ) : (
         <>
           <CommunicationTable columns={columns} customerView={customerView}>
@@ -403,19 +393,7 @@ export function CommunicationList({
                   key={communication.id}
                   className="cursor-pointer"
                   onClick={(event) => {
-                    if (
-                      event.defaultPrevented ||
-                      event.ctrlKey ||
-                      event.metaKey ||
-                      event.shiftKey ||
-                      event.altKey ||
-                      window.getSelection()?.toString() ||
-                      !(event.target instanceof Element) ||
-                      !event.currentTarget.contains(event.target) ||
-                      event.target.closest("a,button,[role='button']")
-                    )
-                      return;
-                    void navigate(destination);
+                    if (shouldOpenTableRow(event)) void navigate(destination);
                   }}
                 >
                   <TableCell
@@ -443,7 +421,7 @@ export function CommunicationList({
                     </TableCell>
                   )}
                   <TableCell className={cn("max-w-0", cellPadding)}>
-                    <TagBadges tags={communication.tags} />
+                    <ListBadgeSummary items={communication.tags} />
                   </TableCell>
                   <TableCell className={cn("py-1", cellPadding)}>
                     <div className="flex flex-wrap items-center gap-1">
@@ -573,23 +551,5 @@ function CommunicationTable({
       </TableHeader>
       <TableBody>{children}</TableBody>
     </Table>
-  );
-}
-
-function TagBadges({ tags }: { tags: CommunicationListTag[] }) {
-  const first = tags[0];
-  if (!first) return <span className="text-muted-foreground">—</span>;
-  return (
-    <div
-      className="flex min-w-0 items-center gap-1.5"
-      title={tags.map(({ name }) => name).join("、")}
-    >
-      <TagBadge color={first.color} name={first.name} className="shrink" />
-      {tags.length > 1 && (
-        <span className="shrink-0 text-xs text-muted-foreground">
-          等{tags.length - 1}个
-        </span>
-      )}
-    </div>
   );
 }

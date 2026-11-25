@@ -6,15 +6,16 @@ import type { FormEvent, ReactNode } from "react";
 import { useAddressListFilters } from "@/components/addresses/list-filters";
 import { readAddressListQuery } from "@/components/addresses/navigation";
 import { AddressPhoneValue } from "@/components/addresses/phone-value";
+import { ListEmptyState } from "@/components/shared/list-empty-state";
 import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
-import { ListSearchInput } from "@/components/shared/list-toolbar";
+import { ListPage } from "@/components/shared/list-page";
 import { ListPagination } from "@/components/shared/list-pagination";
+import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
-  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +29,7 @@ import {
   tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
+import { shouldOpenTableRow } from "@/lib/should-open-table-row";
 import { AddressApiError, listDefaultAddresses } from "@/request/addresses";
 import type { AddressListQuery } from "@/request/addresses";
 
@@ -114,7 +116,7 @@ function AddressDirectory() {
   const result = current?.status === "loaded" ? current.result : undefined;
 
   return (
-    <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
+    <ListPage>
       <ListFilterToolbar
         title="地址"
         filterModel={filterModel}
@@ -205,18 +207,14 @@ function AddressDirectory() {
           </AddressTable>
         </div>
       ) : result.addresses.length === 0 ? (
-        <Empty className="min-h-52 border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <MapPin />
-            </EmptyMedia>
-            <EmptyTitle>
-              {query.search || query.ownerUserId
-                ? "没有匹配的地址"
-                : "暂无默认地址"}
-            </EmptyTitle>
-          </EmptyHeader>
-        </Empty>
+        <ListEmptyState
+          icon={<MapPin />}
+          title={
+            query.search || query.ownerUserId
+              ? "没有匹配的地址"
+              : "暂无默认地址"
+          }
+        />
       ) : (
         <>
           <AddressTable>
@@ -233,19 +231,7 @@ function AddressDirectory() {
                   key={address.id}
                   className="cursor-pointer"
                   onClick={(event) => {
-                    if (
-                      event.defaultPrevented ||
-                      event.ctrlKey ||
-                      event.metaKey ||
-                      event.shiftKey ||
-                      event.altKey ||
-                      window.getSelection()?.toString() ||
-                      !(event.target instanceof Element) ||
-                      !event.currentTarget.contains(event.target) ||
-                      event.target.closest("a,button,[role='button']")
-                    )
-                      return;
-                    void navigate(destination);
+                    if (shouldOpenTableRow(event)) void navigate(destination);
                   }}
                 >
                   <TableCell className="py-3">
@@ -297,7 +283,7 @@ function AddressDirectory() {
           />
         </>
       )}
-    </main>
+    </ListPage>
   );
 }
 

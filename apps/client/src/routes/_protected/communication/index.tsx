@@ -3,6 +3,7 @@ import { useCallback } from "react";
 
 import { CommunicationList } from "@/components/communication/list";
 import { parseCommunicationListQuery } from "@/components/communication/list/query";
+import { ListPage } from "@/components/shared/list-page";
 import type { CommunicationListQuery } from "@/request/communication";
 
 export const Route = createFileRoute("/_protected/communication/")({
@@ -23,12 +24,12 @@ function CommunicationListRoute() {
   );
 
   return (
-    <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
+    <ListPage>
       <CommunicationList
         canCreate={viewer.role !== "applicant"}
         query={query}
         onQueryChange={updateQuery}
       />
-    </main>
+    </ListPage>
   );
 }

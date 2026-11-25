@@ -3,15 +3,16 @@ import { CircleDollarSign, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { ListEmptyState } from "@/components/shared/list-empty-state";
 import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
-import { ListSearchInput } from "@/components/shared/list-toolbar";
+import { ListPage } from "@/components/shared/list-page";
 import { ListPagination } from "@/components/shared/list-pagination";
+import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
-  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -149,7 +150,7 @@ export function PayoutList({
   }, [result, pageCount, onChangeQuery]);
 
   return (
-    <main className="min-w-0 flex-1 bg-background px-4 py-5 sm:px-6 sm:py-6">
+    <ListPage>
       <ListFilterToolbar
         title="Payout"
         filterModel={filterModel}
@@ -207,18 +208,14 @@ export function PayoutList({
           </PayoutTable>
         </div>
       ) : result.payouts.length === 0 ? (
-        <Empty className="min-h-52 border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <CircleDollarSign aria-hidden="true" />
-            </EmptyMedia>
-            <EmptyTitle>
-              {search || filterModel.filters.length
-                ? "没有找到符合条件的 Payout"
-                : "暂无 Payout"}
-            </EmptyTitle>
-          </EmptyHeader>
-        </Empty>
+        <ListEmptyState
+          icon={<CircleDollarSign aria-hidden="true" />}
+          title={
+            search || filterModel.filters.length
+              ? "没有找到符合条件的 Payout"
+              : "暂无 Payout"
+          }
+        />
       ) : (
         <>
           <PayoutTable>
@@ -287,7 +284,7 @@ export function PayoutList({
           />
         </>
       )}
-    </main>
+    </ListPage>
   );
 }
 
