@@ -97,7 +97,13 @@ async function lockAddressForWrite(
   if (!target) fail(404, "地址不存在。");
 
   // 先锁部门和客户，再锁地址。属于同一客户的默认地址写入依次执行。
-  const { record } = await lockCustomerForWrite(tx, access, target.customerId);
+  const { record } = await lockCustomerForWrite(
+    tx,
+    access,
+    target.customerId,
+    "no key update",
+    operation === "archive"
+  );
   const [address] = await tx
     .select()
     .from(customerAddress)
@@ -109,7 +115,12 @@ async function lockAddressForWrite(
       )
     )
     .for("update");
-  if (!address) fail(404, "地址不存在。");
+  if (
+    !address ||
+    (record.status === "archived" && address.status === "active")
+  ) {
+    fail(404, "地址不存在。");
+  }
   if (address.status === "archived") {
     if (address.version !== expectedVersion + 1) fail(404, "地址不存在。");
   } else if (address.version !== expectedVersion) {

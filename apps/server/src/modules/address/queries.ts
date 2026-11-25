@@ -134,6 +134,7 @@ async function readAddressPage(
   const ownerMatches = owners?.excluded ? notInArray : inArray;
   const filter = and(
     businessScopeWhere(access, customer),
+    eq(customer.status, "active"),
     eq(customerAddress.status, "active"),
     customerId === undefined
       ? eq(customerAddress.isDefault, true)
@@ -218,6 +219,7 @@ export function listCustomerAddresses(
       .where(
         and(
           eq(customer.id, customerId),
+          eq(customer.status, "active"),
           businessScopeWhere(currentAccess, customer)
         )
       );
@@ -250,6 +252,7 @@ export function getAddress(access: BusinessAccess, addressId: string) {
         and(
           eq(customerAddress.id, addressId),
           eq(customerAddress.status, "active"),
+          eq(customer.status, "active"),
           businessScopeWhere(currentAccess, customer)
         )
       );

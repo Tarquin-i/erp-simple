@@ -9,7 +9,7 @@ import {
   INVALID_MOBILE_PHONE_MESSAGE,
   normalizeMobilePhone,
 } from "@repo/phone";
-import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
@@ -21,6 +21,7 @@ import type { BusinessAccess, BusinessAccessEnv } from "../business/access";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
+import { contactArchiveFields } from "./contact-archive";
 import { lockCustomerForWrite } from "./records";
 import {
   failVersionConflict,
@@ -163,7 +164,13 @@ async function listContacts(access: BusinessAccess, customerId: string) {
       tx
         .select({ contact: contactColumns, method: customerContactMethod })
         .from(customer)
-        .leftJoin(customerContact, eq(customerContact.customerId, customer.id))
+        .leftJoin(
+          customerContact,
+          and(
+            eq(customerContact.customerId, customer.id),
+            isNull(customerContact.archivedAt)
+          )
+        )
         .leftJoin(
           customerContactMethod,
           eq(customerContactMethod.contactId, customerContact.id)
@@ -171,6 +178,7 @@ async function listContacts(access: BusinessAccess, customerId: string) {
         .where(
           and(
             eq(customer.id, customerId),
+            eq(customer.status, "active"),
             businessScopeWhere(currentAccess, customer)
           )
         )
@@ -286,7 +294,12 @@ async function createContact(
       const [contact] = await tx
         .select(contactColumns)
         .from(customerContact)
-        .where(eq(customerContact.id, existing.id));
+        .where(
+          and(
+            eq(customerContact.id, existing.id),
+            isNull(customerContact.archivedAt)
+          )
+        );
       if (!contact) fail(404, "联系人不存在。");
       return { ...contact, methods: await listMethods(tx, contact.id) };
     }
@@ -340,7 +353,8 @@ async function changeContact(
         .where(
           and(
             eq(customerContact.customerId, customerId),
-            eq(customerContact.id, contactId)
+            eq(customerContact.id, contactId),
+            isNull(customerContact.archivedAt)
           )
         )
         .for("update");
@@ -383,6 +397,57 @@ async function changeContact(
     }
     throw error;
   }
+}
+
+async function archiveContact(
+  access: BusinessAccess,
+  customerId: string,
+  contactId: string,
+  expectedVersion: number
+) {
+  return database.db.transaction(async (tx) => {
+    const { access: current, record: owner } = await lockCustomerForWrite(
+      tx,
+      access,
+      customerId,
+      "no key update",
+      true
+    );
+    const target = and(
+      eq(customerContact.customerId, customerId),
+      eq(customerContact.id, contactId)
+    );
+    const [contact] = await tx
+      .select({ ...contactColumns, archivedAt: customerContact.archivedAt })
+      .from(customerContact)
+      .where(target)
+      .for("update");
+    if (!contact) fail(404, "联系人不存在。");
+
+    if (contact.archivedAt) {
+      if (contact.version !== expectedVersion + 1) fail(404, "联系人不存在。");
+      // 同一轮归档的响应丢失时，返回已完成的结果。
+      return {
+        id: contact.id,
+        version: contact.version,
+        archivedAt: contact.archivedAt,
+      };
+    }
+    if (owner.status === "archived") fail(404, "联系人不存在。");
+    if (contact.version !== expectedVersion) {
+      failVersionConflict({
+        ...contact,
+        methods: await listMethods(tx, contactId),
+      });
+    }
+
+    const archivedAt = new Date();
+    await tx
+      .update(customerContact)
+      .set(contactArchiveFields(current.userId, archivedAt))
+      .where(target);
+    return { id: contact.id, version: contact.version + 1, archivedAt };
+  });
 }
 
 function scopedMethod(contactId: string, methodId: string) {
@@ -481,6 +546,22 @@ customerContactRoutes.patch("/:customerId/contacts/:contactId", async (c) => {
     contactId,
     readExpectedVersion(body.expectedVersion),
     async () => ({ name })
+  );
+  return c.json({ contact });
+});
+
+customerContactRoutes.delete("/:customerId/contacts/:contactId", async (c) => {
+  const customerId = readUuid(c.req.param("customerId"), "客户 ID");
+  const contactId = readUuid(c.req.param("contactId"), "联系人 ID");
+  const version = c.req.query("expectedVersion");
+  const expectedVersion = readExpectedVersion(
+    version && /^\d+$/.test(version) ? Number(version) : undefined
+  );
+  const contact = await archiveContact(
+    c.get("businessAccess"),
+    customerId,
+    contactId,
+    expectedVersion
   );
   return c.json({ contact });
 });

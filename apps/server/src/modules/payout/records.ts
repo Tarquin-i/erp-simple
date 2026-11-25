@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { customer, normalizePayoutName, payout, product } from "@repo/db/schema";
+import {
+  customer,
+  normalizePayoutName,
+  payout,
+  product,
+} from "@repo/db/schema";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 
@@ -74,7 +79,8 @@ async function lockPayoutProduct(
     tx,
     access,
     target.customerId,
-    "share"
+    "share",
+    includeArchived
   ).catch((error: unknown) => {
     if (error instanceof HTTPException && error.status === 404) {
       fail(404, notFound);

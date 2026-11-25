@@ -4,6 +4,7 @@ import {
   foreignKey,
   index,
   integer,
+  pgEnum,
   pgTable,
   primaryKey,
   text,
@@ -33,6 +34,8 @@ const customerNumberDefault = sql.raw(
   `concat('C', ${customerNumberSyllable}, ${customerNumberSyllable}, lpad((random(0, 99))::text, 2, '0'::text))`
 );
 
+export const customerStatus = pgEnum("customer_status", ["active", "archived"]);
+
 export const customer = pgTable(
   "customer",
   {
@@ -51,6 +54,11 @@ export const customer = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
     remark: text("remark"),
+    status: customerStatus("status").default("active").notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedByUserId: text("archived_by_user_id").references(() => user.id, {
+      onDelete: "restrict",
+    }),
     // 历史记录和未提供提交 ID 的请求保留空值。
     creationActorUserId: text("creation_actor_user_id"),
     creationRequestId: uuid("creation_request_id"),
@@ -70,10 +78,14 @@ export const customer = pgTable(
     uniqueIndex("customer_customer_no_unique").on(table.customerNo),
     // 沟通记录同时引用客户 ID 和部门，防止关联到其他部门的业务员。
     unique("customer_id_department_unique").on(table.id, table.departmentId),
-    // 客户名称去掉首尾空格并转小写后，在同一部门内唯一。
-    uniqueIndex("customer_department_name_unique").on(
-      table.departmentId,
-      table.normalizedCompanyName
+    // 同一部门内只有有效客户占用规范化名称。
+    uniqueIndex("customer_department_active_name_unique")
+      .on(table.departmentId, table.normalizedCompanyName)
+      .where(sql`${table.status} = 'active'`),
+    check(
+      "customer_archive_state_check",
+      sql`(${table.status} = 'archived' and ${table.archivedAt} is not null and ${table.archivedByUserId} is not null)
+        or (${table.status} = 'active' and ${table.archivedAt} is null and ${table.archivedByUserId} is null)`
     ),
     uniqueIndex("customer_creation_request_unique").on(
       table.creationActorUserId,

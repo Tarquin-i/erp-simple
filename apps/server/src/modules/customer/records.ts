@@ -2,12 +2,14 @@ import { createHash } from "node:crypto";
 import {
   companyAdministrator,
   customer,
+  customerAddress,
   customerChannel,
   customerChannelAssignment,
   customerTag,
   customerTagAssignment,
   member,
   organization,
+  product,
   user,
 } from "@repo/db/schema";
 import {
@@ -38,6 +40,7 @@ import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { lockDepartment } from "../organization/departments";
 import { fail } from "../organization/errors";
+import { archiveCustomerContacts } from "./contact-archive";
 import { failVersionConflict, isConstraintError } from "./input";
 
 export interface CustomerWriteInput {
@@ -67,6 +70,8 @@ function selectCustomers(tx: DatabaseTransaction) {
       departmentId: customer.departmentId,
       ownerUserId: customer.ownerUserId,
       ownerName: user.name,
+      status: customer.status,
+      archivedAt: customer.archivedAt,
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt,
       version: customer.version,
@@ -158,6 +163,7 @@ export function listCustomers(
   return withBusinessReadSnapshot(access.userId, async (tx, currentAccess) => {
     const filter = and(
       businessScopeWhere(currentAccess, customer),
+      eq(customer.status, "active"),
       owners ? ownerMatches(customer.ownerUserId, owners.values) : undefined,
       search
         ? or(
@@ -219,16 +225,22 @@ export function listCustomers(
  * @param tx 调用方已经开启的事务。
  * @param access 调用方可查看的业务范围。
  * @param id 客户 ID。
+ * @param includeArchived 归档接口可读取已归档快照。
  * @returns 客户基本资料和渠道、标签关联。
  * @throws 客户不存在或超出可见范围时抛出 HTTP 404。
  */
 async function readCustomer(
   tx: DatabaseTransaction,
   access: BusinessAccess,
-  id: string
+  id: string,
+  includeArchived = false
 ) {
   const rows = await selectCustomers(tx).where(
-    and(eq(customer.id, id), businessScopeWhere(access, customer))
+    and(
+      eq(customer.id, id),
+      businessScopeWhere(access, customer),
+      includeArchived ? undefined : eq(customer.status, "active")
+    )
   );
   const [record] = await readAssignments(tx, rows);
   if (!record) fail(404, "客户不存在。");
@@ -246,6 +258,65 @@ export function getCustomer(access: BusinessAccess, id: string) {
   return withBusinessReadSnapshot(access.userId, (tx, currentAccess) =>
     readCustomer(tx, currentAccess, id)
   );
+}
+
+export function archiveCustomer(
+  access: BusinessAccess,
+  id: string,
+  expectedVersion: number
+) {
+  return database.db.transaction(async (tx) => {
+    const { access: freshAccess, record } = await lockCustomerForWrite(
+      tx,
+      access,
+      id,
+      "no key update",
+      true
+    );
+    if (record.status === "archived") {
+      if (record.version !== expectedVersion + 1) fail(404, "客户不存在。");
+      return readCustomer(tx, freshAccess, id, true);
+    }
+    if (record.version !== expectedVersion) {
+      failVersionConflict(await readCustomer(tx, freshAccess, id));
+    }
+
+    // 加锁后检查产品，创建产品等关联写入也要先取得同一客户锁。
+    const [activeProduct] = await tx
+      .select({ id: product.id })
+      .from(product)
+      .where(and(eq(product.customerId, id), eq(product.status, "active")))
+      .limit(1);
+    if (activeProduct) fail(409, "该客户还有未归档产品，请先归档产品。");
+
+    const archivedAt = new Date();
+    await tx
+      .update(customer)
+      .set({
+        status: "archived",
+        archivedAt,
+        archivedByUserId: freshAccess.userId,
+        updatedAt: archivedAt,
+        version: sql`${customer.version} + 1`,
+      })
+      .where(eq(customer.id, id));
+    await tx
+      .update(customerAddress)
+      .set({
+        status: "archived",
+        isDefault: false,
+        updatedAt: archivedAt,
+        version: sql`${customerAddress.version} + 1`,
+      })
+      .where(
+        and(
+          eq(customerAddress.customerId, id),
+          eq(customerAddress.status, "active")
+        )
+      );
+    await archiveCustomerContacts(tx, id, freshAccess.userId, archivedAt);
+    return readCustomer(tx, freshAccess, id, true);
+  });
 }
 
 function selectAssignableOwners(
@@ -306,6 +377,7 @@ export function listAssignableCustomerOwners(
       .where(
         and(
           eq(customer.id, customerId),
+          eq(customer.status, "active"),
           businessScopeWhere(freshAccess, customer)
         )
       );
@@ -352,6 +424,7 @@ function duplicateCustomer(): never {
  * @param access 调用方身份及最初的业务范围。
  * @param customerId 待修改或须保持归属的客户 ID。
  * @param lockMode 客户行锁模式。创建关联记录时可使用共享锁，修改客户及联系方式仍使用默认写锁。
+ * @param includeArchived 归档请求可锁定已归档记录以确认重试结果。
  * @returns 重新读取的业务权限和已锁定的客户记录。
  * @throws 客户不存在或超出可见范围时抛出 HTTP 404，重新核对权限失败时抛出 HTTP 401 或 403。
  */
@@ -359,13 +432,21 @@ export async function lockCustomerForWrite(
   tx: DatabaseTransaction,
   access: BusinessAccess,
   customerId: string,
-  lockMode: "no key update" | "share" = "no key update"
+  lockMode: "no key update" | "share" = "no key update",
+  includeArchived = false
 ) {
+  const activeOnly = includeArchived
+    ? undefined
+    : eq(customer.status, "active");
   const [target] = await tx
     .select({ departmentId: customer.departmentId })
     .from(customer)
     .where(
-      and(eq(customer.id, customerId), businessScopeWhere(access, customer))
+      and(
+        eq(customer.id, customerId),
+        activeOnly,
+        businessScopeWhere(access, customer)
+      )
     );
   if (!target) fail(404, "客户不存在。");
 
@@ -379,6 +460,7 @@ export async function lockCustomerForWrite(
       and(
         eq(customer.id, customerId),
         eq(customer.departmentId, target.departmentId),
+        activeOnly,
         businessScopeWhere(freshAccess, customer)
       )
     )
@@ -414,7 +496,9 @@ async function insertAssignments(
  * @throws 同部门重名时抛出 HTTP 409，渠道或标签不存在时抛出 HTTP 400，其余错误原样抛出。
  */
 function translateWriteError(error: unknown): never {
-  if (isConstraintError(error, "23505", "customer_department_name_unique")) {
+  if (
+    isConstraintError(error, "23505", "customer_department_active_name_unique")
+  ) {
     duplicateCustomer();
   }
   if (
@@ -607,6 +691,7 @@ export async function updateCustomer(
             .where(
               and(
                 eq(customer.departmentId, record.departmentId),
+                eq(customer.status, "active"),
                 eq(
                   customer.normalizedCompanyName,
                   sql`lower(btrim(${input.companyName}::text))`

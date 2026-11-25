@@ -98,7 +98,8 @@ async function lockProductForWrite(
     tx,
     access,
     target.customerId,
-    "share"
+    "share",
+    operation === "archive"
   );
   const [current] = await tx
     .select()
@@ -107,7 +108,12 @@ async function lockProductForWrite(
       and(eq(product.id, id), eq(product.customerId, owner.id), activeOnly)
     )
     .for("update");
-  if (!current) fail(404, "产品不存在。");
+  if (
+    !current ||
+    (owner.status === "archived" && current.status === "active")
+  ) {
+    fail(404, "产品不存在。");
+  }
   if (current.status === "archived") {
     if (current.version !== expectedVersion + 1) fail(404, "产品不存在。");
   } else if (current.version !== expectedVersion) {

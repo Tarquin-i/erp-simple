@@ -1,5 +1,5 @@
 import { customer, customerChannel, customerTag, user } from "@repo/db/schema";
-import { asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 
 import type { BusinessAccessEnv } from "../business/access";
@@ -35,7 +35,12 @@ customerDictionaryRoutes.get("/owners", async (c) => {
         .selectDistinct({ id: user.id, name: user.name })
         .from(customer)
         .innerJoin(user, eq(user.id, customer.ownerUserId))
-        .where(businessScopeWhere(currentAccess, customer))
+        .where(
+          and(
+            eq(customer.status, "active"),
+            businessScopeWhere(currentAccess, customer)
+          )
+        )
         .orderBy(asc(user.name), asc(user.id))
   );
 

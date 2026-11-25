@@ -13,6 +13,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { user } from "./auth";
 import { customer } from "./customer";
 
 // 数据库限定联系方式类型，电话和邮箱等具体格式由后端校验。
@@ -44,6 +45,10 @@ export const customerContact = pgTable(
     creationRequestHash: varchar("creation_request_hash", { length: 64 }),
     // 改名、新增、删除和切换主要联系方式时校验联系人版本。
     version: integer("version").default(1).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedByUserId: text("archived_by_user_id").references(() => user.id, {
+      onDelete: "restrict",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -65,6 +70,10 @@ export const customerContact = pgTable(
           and ${table.creationRequestHash} is not null and ${table.creationRequestHash} ~ '^[0-9a-f]{64}$')`
     ),
     check("customer_contact_name_nonempty", sql`btrim(${table.name}) <> ''`),
+    check(
+      "customer_contact_archive_actor_check",
+      sql`(${table.archivedAt} is null) = (${table.archivedByUserId} is null)`
+    ),
   ]
 );
 

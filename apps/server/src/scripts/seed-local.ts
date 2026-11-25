@@ -872,6 +872,7 @@ async function seedBusinessData(
       id: customer.id,
       departmentId: customer.departmentId,
       ownerUserId: customer.ownerUserId,
+      status: customer.status,
       createdAt: customer.createdAt,
     };
     const [created] = await tx
@@ -897,6 +898,7 @@ async function seedBusinessData(
     if (!record || record.departmentId !== departmentId) {
       throw new Error(`客户种子标识 ${customerId} 的部门不匹配。`);
     }
+    if (record.status === "archived") continue;
     createdProducts += await seedCustomerProducts(tx, index, record);
     createdAddresses += await seedCustomerAddresses(
       tx,

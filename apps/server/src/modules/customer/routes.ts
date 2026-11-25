@@ -8,6 +8,7 @@ import { readListOptionFilter } from "../business/list-option-filter";
 import { fail } from "../organization/errors";
 import { customerContactRoutes } from "./contacts";
 import {
+  archiveCustomer,
   createCustomer,
   getCustomer,
   listAssignableCustomerOwners,
@@ -235,6 +236,19 @@ customerRoutes.patch("/:customerId", async (c) => {
     id,
     input,
     readExpectedVersion(body.expectedVersion)
+  );
+  return c.json({ customer });
+});
+
+customerRoutes.delete("/:customerId", async (c) => {
+  const id = readUuid(c.req.param("customerId"), "客户 ID");
+  const version = c.req.query("expectedVersion");
+  const customer = await archiveCustomer(
+    c.get("businessAccess"),
+    id,
+    readExpectedVersion(
+      version && /^\d+$/.test(version) ? Number(version) : undefined
+    )
   );
   return c.json({ customer });
 });
