@@ -1,41 +1,21 @@
-import { DEFAULT_PHONE_COUNTRY, normalizeMobilePhone } from "@repo/phone";
-
-import { readPhoneDraft } from "@/components/shared/phone-number-input";
 import { CustomerApiError } from "@/request/customers";
 import type {
+  ContactFormDraft,
   CustomerContact,
-  CustomerContactMethod,
   CustomerContactMethodInput,
 } from "@/request/customers";
 
 import { contactMethodLabels } from "./method-labels";
-import {
-  contactValueError,
-  isPhoneMethod,
-  sameContactValue,
-} from "./method-value";
+import { contactMethodDuplicateError, sameContactValue } from "./method-value";
 import type { ContactChange } from "./mutations";
 
 export type ContactConflict = {
   change: Exclude<ContactChange, { kind: "create" }>;
-  draftChange: Exclude<ContactChange, { kind: "create" }>;
   latest: CustomerContact;
-  primaryAlreadyApplied?: boolean;
-  phoneValueAlreadyApplied?: boolean;
 };
 
-/**
- * 从版本冲突响应中提取当前联系人的最新快照。
- * @param error 联系方式请求捕获的错误。
- * @param contactId 本次操作的联系人 ID。
- * @returns ID 匹配且含数值版本和联系方式数组的快照，其他情况返回 `undefined`。
- */
 export function latestContact(error: unknown, contactId: string) {
-  if (
-    !(error instanceof CustomerApiError) ||
-    (error.code !== "version_conflict" &&
-      error.code !== "contact_method_not_found")
-  )
+  if (!(error instanceof CustomerApiError) || error.code !== "version_conflict")
     return;
   const current = error.current;
   if (
@@ -51,200 +31,156 @@ export function latestContact(error: unknown, contactId: string) {
     return current as CustomerContact;
 }
 
-function phoneCountryForOverwrite(method: CustomerContactMethod) {
-  if (isPhoneMethod(method.type))
-    return readPhoneDraft(method.value, DEFAULT_PHONE_COUNTRY).number?.country;
+type DraftMethod = ContactFormDraft["methods"][number];
+
+function sameMethodContent(left: DraftMethod, right: DraftMethod) {
+  return left.type === right.type && left.value === right.value;
 }
 
-/** 先解析覆盖时拟保存的手机号，使弹窗与发送的请求使用同一个区号。 */
-export function normalizeContactOverwrite(
-  change: ContactConflict["change"],
-  current: CustomerContactMethod | undefined
-): ContactConflict["change"] {
-  if (
-    change.kind !== "edit" ||
-    !current ||
-    change.fields.value === undefined ||
-    !isPhoneMethod(change.fields.type ?? current.type)
-  )
-    return change;
-
-  const value = normalizeMobilePhone(
-    change.fields.value,
-    phoneCountryForOverwrite(current)
-  );
-  return value === undefined
-    ? change
-    : { ...change, fields: { ...change.fields, value } };
+function sameNewMethod(left: DraftMethod, right: DraftMethod) {
+  if (left.type !== right.type) return false;
+  return left.type === "email"
+    ? left.value.trim().toLowerCase() === right.value.trim().toLowerCase()
+    : sameContactValue(left.type, left.value, right.value);
 }
 
-/** 判断最新资料与待保存的字段能否组合成有效的联系方式。 */
-export function contactOverwriteError({ change, latest }: ContactConflict) {
-  if (change.kind !== "edit") return;
-  const method = latest.methods.find((item) => item.id === change.methodId);
-  if (!method) return "该联系方式已被删除。";
-  const { type, value, isPrimary } = change.fields;
-  if (
-    type !== undefined &&
-    latest.methods.some((item) => item.id !== method.id && item.type === type)
-  ) {
-    return `该联系人已有${contactMethodLabels[type]}，请重新选择可用的联系方式。`;
-  }
-  if (isPrimary === false && method.isPrimary && latest.methods.length === 1) {
-    return "唯一的联系方式必须保留为主要联系方式，可以返回表单修改其他字段。";
-  }
-  if (type !== undefined || value !== undefined)
-    return contactValueError(
-      type ?? method.type,
-      value ?? method.value,
-      phoneCountryForOverwrite(method)
-    );
-}
-
-function methodLabel(method: CustomerContactMethodInput) {
+function describeMethod(method: CustomerContactMethodInput) {
   return `${contactMethodLabels[method.type]} · ${method.value}`;
 }
 
-function primaryDifference(
-  current: CustomerContactMethodInput | undefined,
-  proposed: CustomerContactMethodInput | undefined
-) {
-  return {
-    label: "主要联系方式",
-    current: current ? methodLabel(current) : "无主要联系方式",
-    proposed: proposed ? methodLabel(proposed) : "无主要联系方式",
-  };
+function describeMethods(methods: DraftMethod[]) {
+  return methods
+    .map((method) =>
+      method.isPrimary
+        ? `${describeMethod(method)}（主要）`
+        : describeMethod(method)
+    )
+    .join("\n");
 }
 
 /**
- * 生成联系人冲突弹窗中的当前值与拟提交值，包含主要联系方式的变化。
- * @param conflict 包含待执行的操作和服务端最新联系人快照。
- * @returns 按操作生成的对比行。待编辑的联系方式已不存在时返回空数组。
+ * 将草稿相对原快照的变更合入最新资料，确认后才提交。联系方式用独立 ID
+ * 对齐，以免多个邮箱被误认作同一个字段。
  */
-export function conflictDifferences({
-  change,
-  latest,
-  primaryAlreadyApplied,
-  phoneValueAlreadyApplied,
-}: ContactConflict) {
-  const primary = latest.methods.find((method) => method.isPrimary);
-  // 服务端已经按主要项、创建时间和 ID 排序，递补时取首条其他记录。
-  const replacementFor = (id: string) =>
-    latest.methods.find((method) => method.id !== id);
+function rebaseContact(
+  original: CustomerContact,
+  draft: ContactFormDraft,
+  latest: CustomerContact
+) {
+  const originalMethods = new Map(original.methods.map((row) => [row.id, row]));
+  const latestIds = new Set(latest.methods.map((row) => row.id));
+  const requested = new Map(
+    draft.methods.flatMap((row) => (row.id ? [[row.id, row] as const] : []))
+  );
+  const originalPrimary = original.methods.find((row) => row.isPrimary);
+  const latestPrimary = latest.methods.find((row) => row.isPrimary);
+  const draftPrimary = draft.methods.find((row) => row.isPrimary);
+  const changedPrimary =
+    draftPrimary?.id !== originalPrimary?.id ||
+    Boolean(draftPrimary && !draftPrimary.id);
 
-  switch (change.kind) {
-    case "rename":
-      return [
-        { label: "联系人姓名", current: latest.name, proposed: change.name },
-      ];
-    case "add": {
-      const differences = [
-        {
-          label: contactMethodLabels[change.method.type],
-          current: "未添加",
-          proposed: change.method.value,
-        },
-      ];
-      if (change.method.isPrimary || !primary) {
-        differences.push(primaryDifference(primary, change.method));
-      }
-      return differences;
-    }
-    case "delete": {
-      const method = latest.methods.find(
-        (item) => item.id === change.method.id
-      );
-      const differences = [
-        {
-          label: "待删除的联系方式",
-          current: method ? methodLabel(method) : "已删除",
-          proposed: "删除该联系方式",
-        },
-      ];
-      if (method?.isPrimary) {
-        differences.push(primaryDifference(method, replacementFor(method.id)));
-      }
-      return differences;
-    }
-    case "edit": {
-      const current = latest.methods.find(
-        (item) => item.id === change.methodId
-      );
-      if (!current) return [];
-      const original =
-        change.contact.methods.find((item) => item.id === change.methodId) ??
-        current;
-      const differences: {
-        label: string;
-        current: string;
-        proposed: string;
-      }[] = [];
-      if (latest.name !== change.contact.name)
-        differences.push({
-          label: "联系人姓名",
-          current: latest.name,
-          proposed: "保留当前姓名",
-        });
-      if (change.fields.type !== undefined || current.type !== original.type)
-        differences.push({
-          label: "联系方式",
-          current:
-            current.type === original.type
-              ? contactMethodLabels[current.type]
-              : `${contactMethodLabels[current.type]}（原为${contactMethodLabels[original.type]}）`,
-          proposed:
-            change.fields.type === undefined
-              ? "保留当前方式"
-              : contactMethodLabels[change.fields.type],
-        });
-      if (
-        !phoneValueAlreadyApplied &&
-        (change.fields.value !== undefined ||
-          !sameContactValue(
-            current.type === original.type ? current.type : "",
-            current.value,
-            original.value
-          ))
-      )
-        differences.push({
-          label: "联系信息",
-          current: current.value,
-          proposed: change.fields.value ?? "保留当前联系信息",
-        });
-      if (change.fields.isPrimary === true && !current.isPrimary) {
-        differences.push(
-          primaryDifference(primary, {
-            type: change.fields.type ?? current.type,
-            value: change.fields.value ?? current.value,
-          })
-        );
-      }
-      if (change.fields.isPrimary === false && current.isPrimary) {
-        const replacement = replacementFor(current.id);
-        differences.push(
-          replacement
-            ? primaryDifference(current, replacement)
-            : {
-                label: "主要联系方式",
-                current: methodLabel(current),
-                proposed: "无法取消唯一的主要联系方式",
-              }
-        );
-      }
-      if (
-        !primaryAlreadyApplied &&
-        change.fields.isPrimary === undefined &&
-        current.isPrimary &&
-        (change.fields.type !== undefined || change.fields.value !== undefined)
-      ) {
-        differences.push(
-          primaryDifference(current, {
-            type: change.fields.type ?? current.type,
-            value: change.fields.value ?? current.value,
-          })
-        );
-      }
-      return differences;
-    }
+  const editedMissingRow = draft.methods.some((row) => {
+    if (!row.id || latestIds.has(row.id)) return false;
+    const before = originalMethods.get(row.id);
+    return (
+      !before ||
+      !sameMethodContent(row, before) ||
+      (changedPrimary && row === draftPrimary)
+    );
+  });
+  if (editedMissingRow)
+    return {
+      error: "你修改的联系方式已被移除，请返回表单移除该项或重新填写。",
+    };
+
+  const methods: DraftMethod[] = [];
+  for (const current of latest.methods) {
+    const before = originalMethods.get(current.id);
+    const desired = requested.get(current.id);
+    if (before && !desired) continue;
+    // 类型和内容一起合并。联系方式的内容格式取决于它的类型。
+    const value =
+      before && desired && !sameMethodContent(desired, before)
+        ? desired
+        : current;
+    methods.push({
+      id: current.id,
+      type: value.type,
+      value: value.value,
+      isPrimary: false,
+    });
   }
+  const newestRows = methods.filter(
+    (row) => row.id && !originalMethods.has(row.id)
+  );
+  let selected: DraftMethod | undefined;
+  for (const row of draft.methods) {
+    if (row.id) continue;
+    // 网络重试时，已有相同的新增项可以直接复用其 ID。
+    const added = newestRows.find((item) => sameNewMethod(row, item));
+    const next = added ?? {
+      type: row.type,
+      value: row.value,
+      isPrimary: false,
+    };
+    if (!added) methods.push(next);
+    if (changedPrimary && row === draftPrimary) selected = next;
+  }
+
+  for (const [index, method] of methods.entries()) {
+    const error = contactMethodDuplicateError(method, methods.slice(0, index));
+    if (error) return { error };
+  }
+  const targetId = changedPrimary ? draftPrimary?.id : latestPrimary?.id;
+  selected ??= methods.find(
+    (row) => targetId !== undefined && row.id === targetId
+  );
+  selected ??= methods.find((row) => row.id === latestPrimary?.id && row.id);
+  selected ??= methods[0];
+
+  return {
+    draft: {
+      name: draft.name === original.name ? latest.name : draft.name,
+      methods: methods.map((row) => ({ ...row, isPrimary: row === selected })),
+    },
+  };
+}
+
+export function prepareContactOverwrite({ change, latest }: ContactConflict) {
+  if (change.kind === "add") {
+    const primary = latest.methods.find((method) => method.isPrimary);
+    const differences = [
+      {
+        label: "新增联系方式",
+        current: "未添加",
+        proposed: describeMethod(change.method),
+      },
+    ];
+    if (change.method.isPrimary || !primary)
+      differences.push({
+        label: "主要联系方式",
+        current: primary ? describeMethod(primary) : "暂无",
+        proposed: describeMethod(change.method),
+      });
+    return {
+      change,
+      differences,
+      error: contactMethodDuplicateError(change.method, latest.methods),
+    };
+  }
+
+  const result = rebaseContact(change.contact, change.draft, latest);
+  const proposed = result.draft ?? change.draft;
+  return {
+    change: { ...change, draft: proposed },
+    error: result.error,
+    differences: [
+      { label: "联系人姓名", current: latest.name, proposed: proposed.name },
+      {
+        label: "联系方式",
+        current: describeMethods(latest.methods),
+        proposed: describeMethods(proposed.methods),
+      },
+    ],
+  };
 }

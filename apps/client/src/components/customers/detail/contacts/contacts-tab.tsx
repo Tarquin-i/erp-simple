@@ -28,38 +28,27 @@ import {
   CustomerApiError,
   listCustomerContacts,
 } from "@/request/customers";
-import type { CustomerContact } from "@/request/customers";
+import type { ContactFormDraft, CustomerContact } from "@/request/customers";
 
 import { CustomerContactEditor } from "./contact-editor";
-import type { ContactEditorMode } from "./contact-editor";
 import { ContactGroup } from "./contact-group";
 import { ContactManagerDialog } from "./contact-manager-dialog";
-import { contactMethodLabels } from "./method-labels";
-import { isPhoneMethod, sameContactValue } from "./method-value";
-import { contactRequest, restoreContactRequest } from "./mutations";
-import type {
-  ContactChange,
-  ContactEditSnapshot,
-  DeleteChange,
-} from "./mutations";
-import {
-  conflictDifferences,
-  contactOverwriteError,
-  latestContact,
-  normalizeContactOverwrite,
-} from "./version-conflict";
+import { contactMethodDuplicateError } from "./method-value";
+import { contactRequest } from "./mutations";
+import type { ContactChange } from "./mutations";
+import { latestContact, prepareContactOverwrite } from "./version-conflict";
 import type { ContactConflict } from "./version-conflict";
 
 const workspaceRoute = getRouteApi("/_protected");
 
-type ContactRemoval =
-  | DeleteChange
-  | { kind: "archive"; contact: CustomerContact };
+type EditorMode =
+  | { kind: "create" }
+  | { kind: "edit" | "add"; contact: CustomerContact };
 
 /**
  * 展示并管理指定客户的联系人和联系方式。
  * @param props 客户 ID 和页签栏右侧的新建按钮插槽。插槽未就绪时暂不显示按钮。
- * @returns 联系人滚动列表、编辑弹层和删除或版本冲突确认弹窗。
+ * @returns 联系人滚动列表、编辑弹层和归档或版本冲突确认弹窗。
  */
 export function CustomerContacts({
   customerId,
@@ -76,38 +65,32 @@ export function CustomerContacts({
     () => new Set()
   );
   const [scrollToId, setScrollToId] = useState<string>();
-  const [managedContactId, setManagedContactId] = useState<string | null>(null);
   const [focusReturnId, setFocusReturnId] = useState<string>();
-  const [editor, setEditor] = useState<ContactEditorMode | null>(null);
-  const [deletion, setDeletion] = useState<ContactRemoval | null>(null);
+  const [editor, setEditor] = useState<EditorMode | null>(null);
+  const [archiving, setArchiving] = useState<CustomerContact | null>(null);
   const [conflict, setConflict] = useState<ContactConflict | null>(null);
-  const [operation, setOperation] = useState<"save" | "restore" | null>(null);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [retryingCreation, setRetryingCreation] = useState(false);
-  const [notice, setNotice] = useState<{ text: string; visible?: boolean }>();
+  const [notice, setNotice] = useState("");
   const writing = useRef(false);
   const contactIdsBeforeRefresh = useRef<ReadonlySet<string> | null>(null);
-  const restoredContact = useRef<CustomerContact | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const managerTrigger = useRef<HTMLButtonElement>(null);
-  const managerAddButton = useRef<HTMLButtonElement>(null);
+  const createAttempt = useRef<Extract<
+    ContactChange,
+    { kind: "create" }
+  > | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
-  const editorContent = useRef<HTMLDivElement>(null);
   const editorInput = useRef<HTMLInputElement>(null);
-  const pending = operation !== null;
-  const managedContact = contacts?.find(
-    (contact) => contact.id === managedContactId
-  );
   const activeContactId =
-    managedContactId ??
+    archiving?.id ??
     (editor && editor.kind !== "create" ? editor.contact.id : undefined);
   const retainedContactId = activeContactId ?? focusReturnId;
   const retainedIds = useMemo(
     () => (retainedContactId ? new Set([retainedContactId]) : undefined),
     [retainedContactId]
   );
-  const overwriteError = conflict ? contactOverwriteError(conflict) : undefined;
-  const removalLabel = deletion?.kind === "archive" ? "归档" : "删除";
+  const overwrite = conflict ? prepareContactOverwrite(conflict) : null;
 
   useEffect(() => {
     // 切换客户或重新加载时取消上一笔请求，防止旧结果覆盖当前列表。
@@ -148,12 +131,7 @@ export function CustomerContacts({
     });
   }
 
-  /**
-   * 同步新增联系方式表单中的联系人资料，保留用户输入。
-   * @param latest 后端返回的联系人快照，含最新版本和联系方式选项。
-   * @returns 无返回值。仅替换对应联系人的资料。
-   */
-  function updateEditorContact(latest: CustomerContact) {
+  function updateAddContact(latest: CustomerContact) {
     setEditor((mode) =>
       mode?.kind === "add" && mode.contact.id === latest.id
         ? { ...mode, contact: latest }
@@ -165,26 +143,12 @@ export function CustomerContacts({
     // 弹窗关闭后仍需保留原行，直到它重新获得焦点。
     setFocusReturnId(activeContactId);
     requestAnimationFrame(() => {
-      if (triggerRef.current?.isConnected)
-        triggerRef.current.focus({ preventScroll });
-      // 原按钮可能已离开渲染范围，焦点回到弹窗的添加按钮。
-      else if (managerAddButton.current) managerAddButton.current.focus();
-      else addButton.current?.focus({ preventScroll });
+      const button = trigger.current?.isConnected
+        ? trigger.current
+        : addButton.current;
+      button?.focus({ preventScroll });
       setFocusReturnId(undefined);
     });
-  }
-
-  function openManager(contactId: string, trigger: HTMLButtonElement) {
-    managerTrigger.current = trigger;
-    setError("");
-    setManagedContactId(contactId);
-  }
-
-  function closeManager() {
-    triggerRef.current = managerTrigger.current;
-    setManagedContactId(null);
-    setError("");
-    restoreFocus();
   }
 
   function reloadContacts() {
@@ -195,10 +159,10 @@ export function CustomerContacts({
   }
 
   function closeEditor() {
-    restoredContact.current = null;
     setEditor(null);
     setError("");
     setRetryingCreation(false);
+    createAttempt.current = null;
     if (retryingCreation) {
       // 上一次新建可能已经保存，刷新完成后再显示新建入口。
       contactIdsBeforeRefresh.current = contacts
@@ -210,214 +174,123 @@ export function CustomerContacts({
     }
   }
 
-  function closeDelete() {
-    setDeletion(null);
-    setError("");
-    restoreFocus();
-  }
-
-  function openEditor(mode: ContactEditorMode, button: HTMLButtonElement) {
-    triggerRef.current = button;
-    restoredContact.current = null;
+  function openEditor(mode: EditorMode, button: HTMLButtonElement) {
+    trigger.current = button;
     setError("");
     setEditor(mode);
-    if (managedContact) {
-      requestAnimationFrame(() => editorInput.current?.focus());
+  }
+
+  function submitManagedDraft(draft: ContactFormDraft) {
+    if (!editor || writing.current) return;
+    if (editor.kind === "edit") {
+      void write({ kind: "edit", contact: editor.contact, draft });
+    } else if (editor.kind === "create") {
+      // 结果不确定时直接重试已经发送的资料、账号和提交 ID。
+      const change =
+        (retryingCreation && createAttempt.current) ||
+        ({
+          kind: "create",
+          draft: {
+            name: draft.name,
+            methods: draft.methods.map(({ type, value, isPrimary }) => ({
+              type,
+              value,
+              isPrimary,
+            })),
+          },
+          submission: { id: crypto.randomUUID(), accountId: viewer.account.id },
+        } satisfies Extract<ContactChange, { kind: "create" }>);
+      createAttempt.current = change;
+      void write(change);
     }
   }
 
-  function submitEditor(change: ContactChange) {
-    void write(change, restoredContact.current ?? undefined);
-  }
-
-  /**
-   * 提交联系人操作，用接口返回的记录更新列表，并处理失败提示和版本冲突。
-   * @param change 待提交的新增、改名、编辑或删除操作。
-   * @param versionFrom 已核对的远端快照或上一笔写回后的快照，首次保存可以省略。
-   * @param restoreFrom 点选写回旧值时传编辑打开时的快照，草稿仍留在表单上。
-   * @returns 操作处理完成时结束。请求错误会显示在页面或冲突弹窗中。
-   */
   async function write(
     change: ContactChange,
     versionFrom?: CustomerContact,
-    restoreFrom?: ContactEditSnapshot
+    confirmedChange = change
   ) {
     // 同步标记阻止 React 状态更新前的重复提交。
     if (writing.current) return;
     writing.current = true;
-    setOperation(restoreFrom ? "restore" : "save");
+    setPending(true);
     setError("");
-    setNotice(undefined);
-
-    const afterRestore = restoredContact.current !== null;
+    setNotice("");
     try {
-      const { contact } =
-        restoreFrom && versionFrom
-          ? await restoreContactRequest(customerId, restoreFrom, versionFrom)
-          : await contactRequest(customerId, change, versionFrom, afterRestore);
+      const { contact } = await contactRequest(
+        customerId,
+        confirmedChange,
+        versionFrom
+      );
       rememberContact(contact);
-      if (restoreFrom) {
-        // 两笔写入各自校验。只更新下次保存所用的版本，表单保留原草稿。
-        restoredContact.current = contact;
-        setConflict(null);
-        return;
-      }
-      restoredContact.current = null;
-      if (change.kind === "create") {
-        setScrollToId(contact.id);
-      }
+      if (change.kind === "create") setScrollToId(contact.id);
       setConflict(null);
       setEditor(null);
       setRetryingCreation(false);
-      setDeletion(null);
-      setNotice({
-        text:
-          change.kind === "delete" ? "已删除联系方式。" : "已保存联系方式。",
-      });
+      createAttempt.current = null;
+      setNotice("已保存联系方式。");
       restoreFocus(change.kind === "create");
-    } catch (error) {
+    } catch (failure) {
       if (change.kind === "create") {
         const uncertain =
-          !(error instanceof CustomerApiError) ||
-          error.status >= 500 ||
-          error.status === 408 ||
-          error.status === 429 ||
-          error.code === "idempotency_conflict";
+          !(failure instanceof CustomerApiError) ||
+          failure.status >= 500 ||
+          failure.status === 408 ||
+          failure.status === 429 ||
+          failure.code === "idempotency_conflict";
         if (retryingCreation || uncertain) {
           setRetryingCreation(true);
           setError(
-            error instanceof CustomerApiError &&
-              [401, 403, 404, 409].includes(error.status)
-              ? error.message
+            failure instanceof CustomerApiError &&
+              [401, 403, 404, 409].includes(failure.status)
+              ? failure.message
               : "暂时无法确认保存结果，请再次点击保存以重试原提交。"
           );
           return;
         }
-      }
-      if (change.kind !== "create") {
-        const latest = latestContact(error, change.contact.id);
+      } else {
+        const latest = latestContact(failure, change.contact.id);
         if (latest) {
-          // 先展示最新数据，再决定原操作是否还能重试。
           rememberContact(latest);
-          const methodId =
-            change.kind === "edit"
-              ? change.methodId
-              : change.kind === "delete"
-                ? change.method.id
-                : undefined;
-          const currentMethod = latest.methods.find(
-            (method) => method.id === methodId
-          );
-          if (methodId && !currentMethod) {
-            setConflict(null);
-            closeEditor();
-            setDeletion(null);
-            setError(
-              afterRestore || restoreFrom
-                ? "该联系方式已被删除，草稿已丢弃。"
-                : "该联系方式已被删除。"
+          if (change.kind === "add") {
+            const duplicate = contactMethodDuplicateError(
+              change.method,
+              latest.methods
             );
-            return;
-          }
-          if (
-            change.kind === "add" &&
-            latest.methods.some((method) => method.type === change.method.type)
-          ) {
-            setConflict(null);
-            // 追加方式遇到重复类型时更新选项和联系人版本，供重新选择。
-            updateEditorContact(latest);
-            setError(
-              `该联系人已有${contactMethodLabels[change.method.type]}，请选择其他方式或编辑已有联系方式。${change.method.isPrimary ? "改选后如需设为主要联系方式，请重新勾选。" : ""}`
-            );
-            return;
-          }
-          let pendingChange = normalizeContactOverwrite(change, currentMethod);
-          const comparisonBase = versionFrom ?? change.contact;
-          let phoneValueAlreadyApplied = false;
-          let primaryAlreadyApplied = false;
-          if (
-            pendingChange.kind === "edit" &&
-            currentMethod &&
-            !afterRestore &&
-            !restoreFrom
-          ) {
-            const { isPrimary, type, value } = pendingChange.fields;
-            primaryAlreadyApplied = isPrimary === currentMethod.isPrimary;
-            const sameType = type === undefined || type === currentMethod.type;
-            const sameValue =
-              value !== undefined &&
-              sameContactValue(
-                sameType ? currentMethod.type : "",
-                value,
-                currentMethod.value
-              );
-            phoneValueAlreadyApplied =
-              sameType && isPhoneMethod(currentMethod.type) && sameValue;
-            if (phoneValueAlreadyApplied || primaryAlreadyApplied) {
-              const fields = {
-                ...(sameType ? {} : { type }),
-                ...(sameValue || value === undefined ? {} : { value }),
-                ...(isPrimary !== undefined && !primaryAlreadyApplied
-                  ? { isPrimary }
-                  : {}),
-              };
-              if (Object.keys(fields).length === 0) {
-                setConflict(null);
-                closeEditor();
-                let text = "最新联系方式已包含你的修改。";
-                if (primaryAlreadyApplied)
-                  text = isPrimary
-                    ? `${contactMethodLabels[currentMethod.type]}已设为主要联系方式。`
-                    : "主要联系方式标记已取消。";
-                setNotice({
-                  text,
-                  visible: true,
-                });
-                return;
-              }
-              pendingChange = { ...pendingChange, fields };
+            if (duplicate) {
+              updateAddContact(latest);
+              setConflict(null);
+              setError(duplicate);
+              return;
             }
           }
-          setConflict({
-            change: {
-              ...pendingChange,
-              contact: comparisonBase,
-            },
-            draftChange: change,
-            latest,
-            primaryAlreadyApplied,
-            phoneValueAlreadyApplied,
-          });
+          // 保留原草稿，后续每次冲突仍相对打开表单时的版本比较。
+          setConflict({ change, latest });
           return;
         }
       }
       setConflict(null);
-      const message =
-        error instanceof Error ? error.message : "操作失败，请稍后重试。";
-      if (afterRestore || restoreFrom) {
-        closeEditor();
-        setError(`${message} 草稿已丢弃，请刷新后查看最新资料。`);
-      } else {
-        setError(message);
-      }
+      setError(
+        failure instanceof Error ? failure.message : "操作失败，请稍后重试。"
+      );
     } finally {
       writing.current = false;
-      setOperation(null);
+      setPending(false);
     }
   }
 
-  function openRemoval(change: ContactRemoval, button: HTMLButtonElement) {
-    triggerRef.current = button;
+  function closeArchive() {
+    setArchiving(null);
     setError("");
-    setDeletion(change);
+    restoreFocus();
   }
 
   async function archiveContact(contact: CustomerContact) {
     if (writing.current) return;
     writing.current = true;
-    setOperation("save");
+    setPending(true);
     setError("");
-    setNotice(undefined);
+    setNotice("");
 
     const removeFromList = () =>
       setContacts(
@@ -427,19 +300,19 @@ export function CustomerContacts({
     try {
       await archiveCustomerContact(customerId, contact.id, contact.version);
       removeFromList();
-      closeDelete();
-      setNotice({ text: "已归档联系人。" });
+      closeArchive();
+      setNotice("已归档联系人。");
     } catch (failure) {
       const latest = latestContact(failure, contact.id);
       if (latest) {
         rememberContact(latest);
-        closeDelete();
+        closeArchive();
         setError("联系人资料已更新，请核对最新联系方式后重新归档。");
         return;
       }
       if (failure instanceof CustomerApiError && failure.status === 404) {
         removeFromList();
-        closeDelete();
+        closeArchive();
         setError(failure.message);
         return;
       }
@@ -452,7 +325,7 @@ export function CustomerContacts({
       );
     } finally {
       writing.current = false;
-      setOperation(null);
+      setPending(false);
     }
   }
 
@@ -476,23 +349,7 @@ export function CustomerContacts({
     );
   }
 
-  const editorForm = editor && (
-    <CustomerContactEditor
-      accountId={viewer.account.id}
-      embedded={Boolean(managedContact)}
-      mode={editor}
-      restored={restoredContact.current !== null}
-      contentRef={editorContent}
-      inputRef={editorInput}
-      pending={pending}
-      locked={pending || conflict !== null}
-      retryingCreation={retryingCreation}
-      error={error}
-      onClose={closeEditor}
-      onSubmit={submitEditor}
-    />
-  );
-
+  const locked = pending || conflict !== null;
   return (
     <div className="space-y-4">
       {addButtonSlot &&
@@ -511,16 +368,9 @@ export function CustomerContacts({
           </Button>,
           addButtonSlot
         )}
-      {error && !managedContact && !editor && !deletion && (
-        <FieldError>{error}</FieldError>
-      )}
-      <p
-        className={
-          notice?.visible ? "text-muted-foreground text-sm" : "sr-only"
-        }
-        role="status"
-      >
-        {notice?.text}
+      {error && !editor && !archiving && <FieldError>{error}</FieldError>}
+      <p className="sr-only" role="status">
+        {notice}
       </p>
 
       {contacts.length === 0 ? (
@@ -556,87 +406,63 @@ export function CustomerContacts({
                   return next;
                 })
               }
-              onManage={(trigger) => openManager(contact.id, trigger)}
-              onAdd={(trigger) => openEditor({ kind: "add", contact }, trigger)}
-              onArchive={(trigger) =>
-                openRemoval({ kind: "archive", contact }, trigger)
+              onManage={(button) =>
+                openEditor({ kind: "edit", contact }, button)
               }
+              onAdd={(button) => openEditor({ kind: "add", contact }, button)}
+              onArchive={(button) => {
+                trigger.current = button;
+                setError("");
+                setArchiving(contact);
+              }}
             />
           )}
         />
       )}
 
-      {managedContact ? (
-        <ContactManagerDialog
-          contact={managedContact}
-          title={
-            editor?.kind === "edit"
-              ? "编辑联系方式"
-              : editor?.kind === "add"
-                ? "添加联系方式"
-                : "编辑联系人"
-          }
-          form={editorForm}
-          locked={pending || conflict !== null || deletion !== null}
-          error={deletion ? "" : error}
-          contentRef={editorContent}
-          addButtonRef={managerAddButton}
-          onClose={editor ? closeEditor : closeManager}
-          onRename={(trigger) =>
-            openEditor({ kind: "rename", contact: managedContact }, trigger)
-          }
-          onAdd={(trigger) =>
-            openEditor({ kind: "add", contact: managedContact }, trigger)
-          }
-          onEdit={(method, trigger) =>
-            openEditor(
-              { kind: "edit", contact: managedContact, method },
-              trigger
-            )
-          }
-          onDelete={(method, trigger) =>
-            openRemoval(
-              { kind: "delete", contact: managedContact, method },
-              trigger
-            )
+      {editor?.kind === "add" ? (
+        <CustomerContactEditor
+          key={editor.contact.id}
+          contact={editor.contact}
+          inputRef={editorInput}
+          pending={pending}
+          locked={locked}
+          error={error}
+          onClose={closeEditor}
+          onSubmit={(method) =>
+            void write({ kind: "add", contact: editor.contact, method })
           }
         />
-      ) : (
-        editorForm
-      )}
+      ) : editor ? (
+        <ContactManagerDialog
+          key={editor.kind === "create" ? "create" : editor.contact.id}
+          contact={editor.kind === "edit" ? editor.contact : undefined}
+          nameInputRef={editorInput}
+          pending={pending}
+          locked={locked}
+          retryOnly={retryingCreation}
+          error={error}
+          onClose={closeEditor}
+          onCloseAutoFocus={(event) => event.preventDefault()}
+          onSave={submitManagedDraft}
+        />
+      ) : null}
+
       <AlertDialog
-        open={deletion !== null && conflict === null}
+        open={archiving !== null}
         onOpenChange={(open) => {
-          if (!open && !pending) closeDelete();
+          if (!open && !pending) closeArchive();
         }}
       >
-        {deletion && (
+        {archiving && (
           <AlertDialogContent
             className="w-[calc(100%-2rem)]"
-            onCloseAutoFocus={(event) => {
-              if (deletion.kind === "archive") {
-                event.preventDefault();
-                restoreFocus();
-              }
-            }}
+            onCloseAutoFocus={(event) => event.preventDefault()}
           >
             <AlertDialogHeader>
-              <AlertDialogTitle>
-                {deletion.kind === "archive" ? "归档联系人" : "删除联系方式"}
-              </AlertDialogTitle>
+              <AlertDialogTitle>归档联系人</AlertDialogTitle>
               <AlertDialogDescription className="wrap-anywhere">
-                {deletion.kind === "archive" ? (
-                  <>
-                    「{deletion.contact.name}
-                    」和全部联系方式将一起移出联系人列表。
-                  </>
-                ) : (
-                  <>
-                    确定删除{deletion.contact.name}的
-                    {contactMethodLabels[deletion.method.type]}「
-                    {deletion.method.value}」吗？
-                  </>
-                )}
+                「{archiving.name}」和全部联系方式将一起移出联系人列表。
               </AlertDialogDescription>
             </AlertDialogHeader>
             <FieldError>{error}</FieldError>
@@ -645,53 +471,35 @@ export function CustomerContacts({
               <Button
                 variant="destructive"
                 disabled={pending}
-                onClick={() =>
-                  deletion.kind === "archive"
-                    ? void archiveContact(deletion.contact)
-                    : void write(deletion)
-                }
+                onClick={() => void archiveContact(archiving)}
               >
-                {pending ? `正在${removalLabel}…` : `确认${removalLabel}`}
+                {pending ? "正在归档…" : "确认归档"}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         )}
       </AlertDialog>
       <VersionConflictDialog
-        differences={conflict ? conflictDifferences(conflict) : null}
+        differences={overwrite?.differences ?? null}
         description={
-          overwriteError ??
-          "比较当前资料和保存后的变化。若主要联系方式会变化，表格会列出变更前后的主要项。"
+          overwrite?.error ??
+          "比较当前资料和保存后的变化。确认后会将你的修改合入最新资料。"
         }
         pending={pending}
-        pendingLabel={operation === "restore" ? "正在写回旧值…" : undefined}
-        overwriteBlocked={Boolean(overwriteError)}
+        overwriteBlocked={Boolean(overwrite?.error)}
         onCancel={() => {
-          // 新增时同步可选项。关闭已有资料的冲突弹窗不写库，也不接受新版本。
-          if (conflict?.change.kind === "add") {
-            updateEditorContact(conflict.latest);
-          }
+          if (conflict?.change.kind === "add")
+            updateAddContact(conflict.latest);
           setConflict(null);
-          if (deletion) closeDelete();
         }}
         onCloseAutoFocus={(event) => {
           if (!editorInput.current) return;
           event.preventDefault();
-          // 等冲突弹窗释放焦点后，再回到仍打开的编辑表单。
           requestAnimationFrame(() => editorInput.current?.focus());
         }}
-        onRestore={
-          conflict &&
-          (conflict.change.kind === "edit" ||
-            conflict.change.kind === "rename") &&
-          (editor?.kind === "edit" || editor?.kind === "rename")
-            ? () => void write(conflict.draftChange, conflict.latest, editor)
-            : undefined
-        }
         onOverwrite={() => {
-          // 以当前确认过的版本重试，期间若再次更新仍会收到冲突。
-          if (conflict && !overwriteError)
-            void write(conflict.change, conflict.latest);
+          if (conflict && overwrite && !overwrite.error)
+            void write(conflict.change, conflict.latest, overwrite.change);
         }}
       />
     </div>

@@ -10,3 +10,7 @@ export const contactMethodLabels: Record<CustomerContactMethodType, string> = {
   kingwin_international_station: "将为国际站",
   huivo_international_station: "汇合国际站",
 };
+
+export const contactMethodOptions = (
+  Object.keys(contactMethodLabels) as CustomerContactMethodType[]
+).map((type) => ({ type, name: contactMethodLabels[type] }));

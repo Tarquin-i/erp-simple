@@ -4,13 +4,37 @@ import {
 } from "@repo/phone";
 import type { CountryCode } from "@repo/phone";
 
-import type { CustomerContactMethodType } from "@/request/customers";
+import type {
+  CustomerContactMethodInput,
+  CustomerContactMethodType,
+} from "@/request/customers";
+
+import { contactMethodLabels } from "./method-labels";
 
 const emailPattern =
   /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i;
 
 export function isPhoneMethod(type: CustomerContactMethodType | "") {
   return type === "phone" || type === "whatsapp";
+}
+
+type MethodValue = Pick<CustomerContactMethodInput, "type" | "value">;
+
+export function contactMethodDuplicateError(
+  method: MethodValue,
+  others: readonly MethodValue[]
+) {
+  const email = method.type === "email";
+  const normalized = method.value.trim().toLowerCase();
+  const hasDuplicate = others.some(
+    (other) =>
+      other.type === method.type &&
+      (!email || other.value.trim().toLowerCase() === normalized)
+  );
+  if (hasDuplicate)
+    return email
+      ? "该联系人已有此邮箱地址。"
+      : `该联系人已有${contactMethodLabels[method.type]}，请选择其他联系方式。`;
 }
 
 /**

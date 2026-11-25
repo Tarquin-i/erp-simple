@@ -62,6 +62,11 @@ export type CustomerContactMethodInput = {
   isPrimary?: boolean;
 };
 
+export type ContactFormDraft = {
+  name: string;
+  methods: (CustomerContactMethodInput & { id?: string; isPrimary: boolean })[];
+};
+
 export type CustomerContactMethod = CustomerContactMethodInput & {
   id: string;
   contactId: string;
@@ -291,7 +296,7 @@ export function listCustomerContacts(customerId: string, signal?: AbortSignal) {
 /**
  * 一并提交新联系人和首批联系方式，断线重试时复用原提交标识。
  * @param customerId 所属客户 ID。
- * @param input 联系人姓名和至少一条联系方式，同一类型只能提交一条。
+ * @param input 联系人姓名和至少一条联系方式，可包含多个不同的邮箱。
  * @param submission 原提交 ID 和创建人账号 ID。
  * @returns `{ contact }`，包含新建或已提交的联系人及其联系方式。
  * @throws HTTP 失败时抛出 `CustomerApiError`，同一提交 ID 用于不同内容时为 409。
@@ -313,17 +318,20 @@ export function createCustomerContact(
 }
 
 /**
- * 修改联系人姓名。
+ * 保存联系人姓名和整组联系方式，也支持只修改姓名的原有请求。
  * @param customerId 所属客户 ID。
- * @param contactId 要改名的联系人 ID。
- * @param input 新姓名和联系人版本 `expectedVersion`。
+ * @param contactId 待更新的联系人 ID。
+ * @param input 新姓名、可选的完整联系方式列表，以及联系人版本 `expectedVersion`。
  * @returns `{ contact }`，包含更新后的联系人、联系方式和版本。
  * @throws HTTP 失败时抛出 `CustomerApiError`，版本冲突时 `current` 包含最新联系人快照。
  */
 export function updateCustomerContact(
   customerId: string,
   contactId: string,
-  input: { name: string; expectedVersion: number }
+  input: Omit<ContactFormDraft, "methods"> & {
+    methods?: ContactFormDraft["methods"];
+    expectedVersion: number;
+  }
 ) {
   return write<{ contact: CustomerContact }>(
     contactPath(customerId, contactId),
@@ -353,7 +361,7 @@ export function archiveCustomerContact(
  * @param contactId 联系人 ID。
  * @param input 联系方式字段和联系人版本 `expectedVersion`。
  * @returns `{ contact }`，包含更新后的联系方式列表和联系人版本。
- * @throws HTTP 失败时抛出 `CustomerApiError`，包括同类型联系方式重复或版本冲突。
+ * @throws HTTP 失败时抛出 `CustomerApiError`，包括联系方式重复或版本冲突。
  */
 export function createCustomerContactMethod(
   customerId: string,

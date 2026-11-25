@@ -39,7 +39,10 @@ type RemoteSearch = {
   onQueryChange: (query: string) => void;
 };
 
-type SearchableSelectProps<Option extends SelectOption> = {
+type SearchableSelectProps<Option extends SelectOption> = Pick<
+  ComponentProps<"button">,
+  "aria-label" | "aria-invalid" | "aria-describedby"
+> & {
   id: string;
   items: readonly Option[];
   value: Option | null;
@@ -92,6 +95,7 @@ export function SearchableSelect<Option extends SelectOption>({
   action,
   onClear,
   onValueChange,
+  ...triggerAria
 }: SearchableSelectProps<Option>) {
   const [localOpen, setLocalOpen] = useState(false);
   const [codeQuery, setCodeQuery] = useState("");
@@ -161,6 +165,7 @@ export function SearchableSelect<Option extends SelectOption>({
         <PopoverTrigger asChild>
           {compactTrigger ? (
             <InputGroupButton
+              {...triggerAria}
               id={id}
               type="button"
               role="combobox"
@@ -176,6 +181,7 @@ export function SearchableSelect<Option extends SelectOption>({
             </InputGroupButton>
           ) : (
             <Button
+              {...triggerAria}
               id={id}
               type="button"
               role="combobox"
@@ -331,8 +337,9 @@ export function SearchableSelect<Option extends SelectOption>({
       }}
     >
       <ComboboxTrigger
+        {...triggerAria}
         id={id}
-        aria-label={compactTrigger?.ariaLabel}
+        aria-label={compactTrigger?.ariaLabel ?? triggerAria["aria-label"]}
         aria-required={required}
         aria-busy={busy || undefined}
         render={

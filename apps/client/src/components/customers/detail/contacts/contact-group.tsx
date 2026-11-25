@@ -79,7 +79,7 @@ export function ContactGroup({
           title="归档联系人"
           onClick={(event) => onArchive(event.currentTarget)}
         >
-          <Archive aria-hidden="true" />
+          <Archive aria-hidden="true" className="text-destructive" />
         </Button>
       </div>
       <AnimatedCollapsibleContent open={expanded}>
