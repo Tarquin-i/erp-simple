@@ -1,5 +1,11 @@
 import { cn } from "cn";
-import type { ComponentProps, HTMLAttributes, Key, ReactNode } from "react";
+import type {
+  ComponentProps,
+  HTMLAttributes,
+  Key,
+  ReactNode,
+  TdHTMLAttributes,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +32,10 @@ export type DataTableColumn<TRow> = {
   header: string;
   widthClassName?: string;
   cellClassName?: string;
+  skeletonClassName?: string;
+  getCellProps?: (
+    row: TRow
+  ) => Omit<TdHTMLAttributes<HTMLTableCellElement>, "children">;
   renderCell: (row: TRow) => ReactNode;
 };
 
@@ -94,18 +104,29 @@ export function DataTable<TRow>({
         {rows
           ? rows.map((row) => (
               <TableRow key={getRowId(row)} {...getRowProps?.(row)}>
-                {columns.map((column) => (
-                  <TableCell className={column.cellClassName} key={column.id}>
-                    {column.renderCell(row)}
-                  </TableCell>
-                ))}
+                {columns.map((column) => {
+                  const cellProps = column.getCellProps?.(row);
+                  return (
+                    <TableCell
+                      key={column.id}
+                      {...cellProps}
+                      className={cn(column.cellClassName, cellProps?.className)}
+                    >
+                      {column.renderCell(row)}
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             ))
           : Array.from({ length: loading.rowCount }, (_, index) => (
               <TableRow aria-hidden="true" key={index}>
                 {columns.map((column) => (
                   <TableCell className="h-11" key={column.id}>
-                    <Skeleton className="h-4 w-24 max-w-full" />
+                    <Skeleton
+                      className={
+                        column.skeletonClassName ?? "h-4 w-24 max-w-full"
+                      }
+                    />
                   </TableCell>
                 ))}
               </TableRow>
