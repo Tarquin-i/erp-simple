@@ -1,4 +1,5 @@
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
+import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CustomerApiError } from "@/request/customers";
 import { ProductApiError } from "@/request/products";
 
+import { productDetailLayout } from "./detail";
 import { productListDestination } from "./navigation";
 
 export function ProductPagePending() {
@@ -30,20 +32,21 @@ export function ProductPagePending() {
           <Skeleton className="h-10 w-20" />
         </div>
       </div>
-      <div aria-hidden="true" className="mt-6 space-y-3">
+      <div aria-hidden="true" className="@container mt-6 space-y-3">
         <Skeleton className="h-6 w-16" />
-        <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-          {["english", "customer", "type", "created", "updated"].map(
-            (field) => (
-              <div
-                key={field}
-                className={`space-y-1.5${field === "english" ? " sm:col-span-2" : ""}`}
-              >
-                <Skeleton className="h-5 w-16" />
-                <Skeleton className="h-5 w-40" />
-              </div>
-            )
-          )}
+        <div className={productDetailLayout.grid}>
+          {[
+            ["english", productDetailLayout.englishName],
+            ["customer", productDetailLayout.customer],
+            ["type"],
+            ["created"],
+            ["updated"],
+          ].map(([field, className]) => (
+            <div key={field} className={cn("min-w-0 space-y-1.5", className)}>
+              <Skeleton className="h-5 w-16 max-w-full" />
+              <Skeleton className="h-5 w-40 max-w-full" />
+            </div>
+          ))}
         </div>
       </div>
     </main>

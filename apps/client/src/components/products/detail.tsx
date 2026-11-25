@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { Archive } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -16,6 +15,12 @@ const dateTime = new Intl.DateTimeFormat("zh-CN", {
   hourCycle: "h23",
 });
 
+export const productDetailLayout = {
+  grid: "grid grid-cols-1 gap-x-6 gap-y-4 @md:grid-cols-2 @xl:grid-cols-3 @min-[45rem]:grid-cols-4 @min-[62.5rem]:grid-cols-5",
+  englishName: "@md:col-span-2 @min-[62.5rem]:col-span-1",
+  customer: "@min-[45rem]:col-span-2 @min-[62.5rem]:col-span-1",
+};
+
 type DetailValue = {
   label: string;
   value: ReactNode;
@@ -32,7 +37,7 @@ function DetailSection({
   return (
     <section className="space-y-3">
       <h2 className="text-base font-semibold tracking-tight">{title}</h2>
-      <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+      <dl className={productDetailLayout.grid}>
         {fields.map(({ label, value, className }) => (
           <DetailField key={label} label={label} className={className}>
             {value}
@@ -61,21 +66,16 @@ export function ProductDetail({
     {
       label: "英文名称",
       value: product.englishName,
-      className: "sm:col-span-2",
+      className: productDetailLayout.englishName,
     },
     {
       label: "所属客户",
+      className: productDetailLayout.customer,
       value: (
-        <Link
-          to="/customers/$customerId"
-          params={{ customerId: customer.id }}
-          className="underline-offset-4 hover:underline"
-        >
-          {customer.companyName}
-          <span className="ml-2 text-muted-foreground">
-            {customer.customerNo}
-          </span>
-        </Link>
+        <>
+          {customer.companyName}{" "}
+          <span className="text-muted-foreground">{customer.customerNo}</span>
+        </>
       ),
     },
     { label: "产品类型", value: typeLabel },
@@ -146,7 +146,7 @@ export function ProductDetail({
         </div>
       </header>
 
-      <div className="mt-6 space-y-5">
+      <div className="@container mt-6 space-y-5">
         <DetailSection title="基础信息" fields={basics} />
         <DetailSection title="规格工艺" fields={specifications} />
         <DetailSection
