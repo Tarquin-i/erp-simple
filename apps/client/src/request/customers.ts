@@ -67,6 +67,12 @@ export type ContactFormDraft = {
   methods: (CustomerContactMethodInput & { id?: string; isPrimary: boolean })[];
 };
 
+export type ContactMethodChanges = {
+  add?: Omit<ContactFormDraft["methods"][number], "id">[];
+  update?: (Partial<CustomerContactMethodInput> & { id: string })[];
+  remove?: string[];
+};
+
 export type CustomerContactMethod = CustomerContactMethodInput & {
   id: string;
   contactId: string;
@@ -318,20 +324,25 @@ export function createCustomerContact(
 }
 
 /**
- * 保存联系人姓名和整组联系方式，也支持只修改姓名的原有请求。
+ * 按版本保存联系人姓名、联系方式的变更或整组联系方式。
  * @param customerId 所属客户 ID。
  * @param contactId 待更新的联系人 ID。
- * @param input 新姓名、可选的完整联系方式列表，以及联系人版本 `expectedVersion`。
+ * @param input 联系人版本 `expectedVersion` 以及姓名或联系方式变更。
+ * 整组 `methods` 和 `methodChanges` 每次只允许提交其中一种。
  * @returns `{ contact }`，包含更新后的联系人、联系方式和版本。
  * @throws HTTP 失败时抛出 `CustomerApiError`，版本冲突时 `current` 包含最新联系人快照。
  */
 export function updateCustomerContact(
   customerId: string,
   contactId: string,
-  input: Omit<ContactFormDraft, "methods"> & {
-    methods?: ContactFormDraft["methods"];
-    expectedVersion: number;
-  }
+  input: { expectedVersion: number } & (
+    | {
+        name: string;
+        methods?: ContactFormDraft["methods"];
+        methodChanges?: never;
+      }
+    | { name?: string; methodChanges: ContactMethodChanges; methods?: never }
+  )
 ) {
   return write<{ contact: CustomerContact }>(
     contactPath(customerId, contactId),

@@ -270,6 +270,14 @@ export function CustomerContacts({
         }
       }
       setConflict(null);
+      if (
+        change.kind === "edit" &&
+        failure instanceof CustomerApiError &&
+        failure.status === 413
+      ) {
+        setError("本次改动超过请求大小限制，草稿已保留。请减少改动后再保存。");
+        return;
+      }
       setError(
         failure instanceof Error ? failure.message : "操作失败，请稍后重试。"
       );

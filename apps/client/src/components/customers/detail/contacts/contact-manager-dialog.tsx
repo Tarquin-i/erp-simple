@@ -479,9 +479,12 @@ export function ContactManagerDialog({
               </Button>
             </fieldset>
             <FieldError>
-              {validation?.field ? null : (validation?.message ?? error)}
+              {validation?.field ? null : validation?.message}
             </FieldError>
           </div>
+          {!validation && (
+            <FieldError className="mt-2 shrink-0 px-1">{error}</FieldError>
+          )}
           <div className="mt-2 flex flex-none justify-end gap-2 border-t pt-3">
             <Button
               type="button"
