@@ -86,6 +86,14 @@ export const customerContactMethod = pgTable(
       .references(() => customerContact.id, { onDelete: "cascade" }),
     type: customerContactMethodType("type").notNull(),
     value: varchar("value", { length: 320 }).notNull(),
+    normalizedEmail: text("normalized_email").generatedAlwaysAs(
+      // 用普通列索引，避免 Drizzle 对同一表达式索引反复重建。
+      sql.raw(`CASE
+        WHEN (type = 'email'::customer_contact_method_type)
+        THEN lower((regexp_replace((value)::text, '^[[:space:]]+|[[:space:]]+$'::text, ''::text, 'g'::text) COLLATE "C"))
+        ELSE NULL::text
+      END`)
+    ),
     isPrimary: boolean("is_primary").default(false).notNull(),
     // 普通编辑按联系方式 ID 核对版本，其他联系方式的改动不阻止保存。
     version: integer("version").default(1).notNull(),
@@ -98,11 +106,14 @@ export const customerContactMethod = pgTable(
       .notNull(),
   },
   (table) => [
-    // 同一联系人每种联系方式最多一条。
-    uniqueIndex("customer_contact_method_type_unique").on(
-      table.contactId,
-      table.type
-    ),
+    index("customer_contact_method_contact_idx").on(table.contactId),
+    // 邮箱按同一联系人的规范化地址去重，其他方式仍按类型唯一。
+    uniqueIndex("customer_contact_method_non_email_type_unique")
+      .on(table.contactId, table.type)
+      .where(sql`${table.type} <> 'email'`),
+    uniqueIndex("customer_contact_method_email_unique")
+      .on(table.contactId, table.normalizedEmail)
+      .where(sql`${table.normalizedEmail} is not null`),
     // 仅对标记为主要的记录做唯一校验，每位联系人最多一条。
     uniqueIndex("customer_contact_method_primary_unique")
       .on(table.contactId)

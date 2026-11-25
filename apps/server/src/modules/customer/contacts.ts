@@ -9,8 +9,9 @@ import {
   INVALID_MOBILE_PHONE_MESSAGE,
   normalizeMobilePhone,
 } from "@repo/phone";
-import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 
 import {
@@ -41,16 +42,34 @@ const contactColumns = {
   updatedAt: customerContact.updatedAt,
 };
 
+const methodColumns = {
+  id: customerContactMethod.id,
+  contactId: customerContactMethod.contactId,
+  type: customerContactMethod.type,
+  value: customerContactMethod.value,
+  isPrimary: customerContactMethod.isPrimary,
+  version: customerContactMethod.version,
+  createdAt: customerContactMethod.createdAt,
+  updatedAt: customerContactMethod.updatedAt,
+};
+
 type Contact = Pick<
   typeof customerContact.$inferSelect,
   keyof typeof contactColumns
 >;
-type Method = typeof customerContactMethod.$inferSelect;
+type Method = Pick<
+  typeof customerContactMethod.$inferSelect,
+  keyof typeof methodColumns
+>;
 type ContactWithMethods = Contact & { methods: Method[] };
 type MethodType = Method["type"];
 type MethodInput = Pick<Method, "type" | "value"> & { isPrimary?: boolean };
+type SubmittedMethod = MethodInput & { id?: string };
 
 const methodFields = ["type", "value", "isPrimary"] as const;
+const aggregateMethodFields = ["id", ...methodFields] as const;
+const duplicateEmailMessage = "同一联系人不能重复添加相同邮箱。";
+const duplicateTypeMessage = "除邮箱外，同一联系人每种联系方式最多一条。";
 const versionedMethodFields = [...methodFields, "expectedVersion"] as const;
 const methodEditFields = [
   ...versionedMethodFields,
@@ -106,47 +125,82 @@ function readMethod(input: Record<string, unknown>): MethodInput {
   };
 }
 
+const contactBodyLimit = bodyLimit({
+  maxSize: 128 * 1024,
+  onError: (c) => c.json({ message: "联系人资料过大。" }, 413),
+});
+
+function methodKey({ type, value }: MethodInput) {
+  return type === "email" ? `email:${value.trim().toLowerCase()}` : type;
+}
+
 /**
- * 解析新建联系人时提交的联系方式，未指定主要项时将第一项设为主要。
- * @param value 原始联系方式数组，至少包含一条记录。
- * @returns 校验后的联系方式列表，其中恰有一条主要联系方式。
- * @throws 类型重复时抛出 HTTP 409，数据格式无效或指定多个主要项时抛出 HTTP 400。
+ * 校验整组联系方式。新建时默认首项为主要；编辑时保留未修改的历史资料。
+ * @param value 原始联系方式数组。
+ * @param current 编辑时传已锁定联系人的现有联系方式，新建时省略。
+ * @returns 校验后的联系方式列表。非空列表恰有一条主要方式。
  */
-function readNewContactMethods(value: unknown) {
-  if (
-    !Array.isArray(value) ||
-    value.length === 0 ||
-    value.length > customerContactMethodType.enumValues.length
-  ) {
-    fail(400, "请为联系人填写至少一种联系方式，每种类型最多一条。");
+function readContactMethods(
+  value: unknown,
+  current?: ReadonlyMap<string, Method>
+): SubmittedMethod[] {
+  if (!Array.isArray(value)) fail(400, "请检查填写的联系方式。");
+  if (!current && value.length === 0) {
+    fail(400, "请为联系人填写至少一种联系方式。");
   }
 
+  const fields: readonly string[] = current
+    ? aggregateMethodFields
+    : methodFields;
+  const seenIds = new Set<string>();
+  const seenKeys = new Set<string>();
   const methods = value.map((item: unknown) => {
     if (item === null || typeof item !== "object" || Array.isArray(item)) {
       fail(400, "请检查填写的联系方式。");
     }
     const input = item as Record<string, unknown>;
-    if (
-      Object.keys(input).some(
-        (key) => !methodFields.some((field) => field === key)
-      )
-    ) {
+    if (Object.keys(input).some((key) => !fields.includes(key))) {
       fail(400, "联系方式含有不支持的字段。");
     }
-    return readMethod(input);
+    const id =
+      input.id === undefined ? undefined : readUuid(input.id, "联系方式 ID");
+    const existing = id === undefined ? undefined : current?.get(id);
+    if (id !== undefined) {
+      if (!existing) fail(400, "包含不属于该联系人的联系方式。");
+      if (seenIds.has(id)) fail(400, "同一条联系方式不能重复提交。");
+      seenIds.add(id);
+    }
+    const type = readMethodType(input.type);
+    const value =
+      existing && type === existing.type && input.value === existing.value
+        ? existing.value
+        : readMethodValue(type, input.value);
+    const isPrimary = readPrimary(input.isPrimary);
+    if (current && isPrimary === undefined) {
+      fail(400, "请标明每条联系方式是否为主要联系方式。");
+    }
+    const method = { id, type, value, isPrimary };
+    const key = methodKey(method);
+    if (seenKeys.has(key)) {
+      fail(
+        409,
+        type === "email" ? duplicateEmailMessage : duplicateTypeMessage
+      );
+    }
+    seenKeys.add(key);
+    return method;
   });
-  if (new Set(methods.map((method) => method.type)).size !== methods.length) {
-    fail(409, "同一联系人每种联系方式最多一条。");
-  }
-  if (methods.filter((method) => method.isPrimary).length > 1) {
+  const primaryCount = methods.filter((method) => method.isPrimary).length;
+  if (primaryCount > 1) {
     fail(400, "每个联系人只能有一个主要联系方式。");
   }
+  if (current && methods.length > 0 && primaryCount === 0) {
+    fail(400, "请选择一个主要联系方式。");
+  }
 
-  const explicitPrimary = methods.findIndex((method) => method.isPrimary);
-  const primaryIndex = explicitPrimary < 0 ? 0 : explicitPrimary;
   return methods.map((method, index) => ({
     ...method,
-    isPrimary: index === primaryIndex,
+    isPrimary: primaryCount === 0 ? index === 0 : method.isPrimary === true,
   }));
 }
 
@@ -162,7 +216,7 @@ async function listContacts(access: BusinessAccess, customerId: string) {
     access.userId,
     (tx, currentAccess) =>
       tx
-        .select({ contact: contactColumns, method: customerContactMethod })
+        .select({ contact: contactColumns, method: methodColumns })
         .from(customer)
         .leftJoin(
           customerContact,
@@ -213,7 +267,7 @@ async function listContacts(access: BusinessAccess, customerId: string) {
  */
 async function listMethods(tx: DatabaseTransaction, contactId: string) {
   return tx
-    .select()
+    .select(methodColumns)
     .from(customerContactMethod)
     .where(eq(customerContactMethod.contactId, contactId))
     .orderBy(
@@ -221,6 +275,55 @@ async function listMethods(tx: DatabaseTransaction, contactId: string) {
       asc(customerContactMethod.createdAt),
       asc(customerContactMethod.id)
     );
+}
+
+async function replaceContactMethods(
+  tx: DatabaseTransaction,
+  contactId: string,
+  current: Method[],
+  value: unknown
+) {
+  const existingById = new Map(current.map((method) => [method.id, method]));
+  const methods = readContactMethods(value, existingById);
+  const retainedIds = new Set(methods.map((method) => method.id));
+  const removedIds = current
+    .filter(({ id }) => !retainedIds.has(id))
+    .map(({ id }) => id);
+  const writes: (typeof customerContactMethod.$inferInsert)[] = [];
+  const updatedAt = new Date();
+
+  for (const { id, ...method } of methods) {
+    const existing = id === undefined ? undefined : existingById.get(id);
+    if (!existing) {
+      writes.push({ ...method, contactId });
+    } else if (
+      existing.type !== method.type ||
+      existing.value !== method.value ||
+      existing.isPrimary !== method.isPrimary
+    ) {
+      removedIds.push(existing.id);
+      writes.push({
+        ...existing,
+        ...method,
+        version: existing.version + 1,
+        updatedAt,
+      });
+    }
+  }
+
+  // 先在事务内腾出旧的唯一键，再以原 ID 写回变更项，允许互换邮箱、类型或主要项。
+  if (removedIds.length) {
+    await tx
+      .delete(customerContactMethod)
+      .where(
+        and(
+          eq(customerContactMethod.contactId, contactId),
+          inArray(customerContactMethod.id, removedIds)
+        )
+      );
+  }
+  if (writes.length) await tx.insert(customerContactMethod).values(writes);
+  return removedIds.length > 0 || writes.length > 0;
 }
 
 /**
@@ -248,7 +351,8 @@ async function createContact(
         methods: methods.toSorted(
           (a, b) =>
             customerContactMethodType.enumValues.indexOf(a.type) -
-            customerContactMethodType.enumValues.indexOf(b.type)
+              customerContactMethodType.enumValues.indexOf(b.type) ||
+            a.value.localeCompare(b.value)
         ),
       })
     )
@@ -330,7 +434,7 @@ async function createContact(
  * @param change 事务内执行的更新操作，可修改联系方式或返回待写入的姓名。修改已生效时返回当前联系方式。
  * @returns 联系人、联系方式及版本号。修改已生效时返回锁定后的快照。
  * @throws 客户不可见或联系人不存在时抛出 HTTP 404，权限检查失败时抛出 HTTP 401 或 403。
- * 版本过期或联系方式类型重复时抛出 HTTP 409，版本冲突会附最新联系人及其联系方式。
+ * 版本过期或联系方式重复时抛出 HTTP 409，版本冲突会附最新联系人及其联系方式。
  * 更新操作自身的校验异常也会向调用方抛出。
  */
 async function changeContact(
@@ -391,9 +495,18 @@ async function changeContact(
     });
   } catch (error) {
     if (
-      isConstraintError(error, "23505", "customer_contact_method_type_unique")
+      isConstraintError(error, "23505", "customer_contact_method_email_unique")
     ) {
-      fail(409, "同一联系人每种联系方式最多一条。");
+      fail(409, duplicateEmailMessage);
+    }
+    if (
+      isConstraintError(
+        error,
+        "23505",
+        "customer_contact_method_non_email_type_unique"
+      )
+    ) {
+      fail(409, duplicateTypeMessage);
     }
     throw error;
   }
@@ -515,40 +628,63 @@ customerContactRoutes.get("/:customerId/contacts", async (c) => {
   });
 });
 
-customerContactRoutes.post("/:customerId/contacts", async (c) => {
-  const access = c.get("businessAccess");
-  const expectedAccountId = c.req.header("X-Expected-Account-Id");
-  if (expectedAccountId !== undefined && expectedAccountId !== access.userId) {
-    fail(401, "当前登录账号已变更，请刷新页面后重试。");
+customerContactRoutes.post(
+  "/:customerId/contacts",
+  contactBodyLimit,
+  async (c) => {
+    const access = c.get("businessAccess");
+    const expectedAccountId = c.req.header("X-Expected-Account-Id");
+    if (
+      expectedAccountId !== undefined &&
+      expectedAccountId !== access.userId
+    ) {
+      fail(401, "当前登录账号已变更，请刷新页面后重试。");
+    }
+    const customerId = readUuid(c.req.param("customerId"), "客户 ID");
+    const body = await readObject(c, ["name", "methods"]);
+    const name = readString(body.name, "联系人姓名", 128);
+    const methods = readContactMethods(body.methods);
+    const contact = await createContact(
+      access,
+      customerId,
+      name,
+      methods,
+      readUuid(c.req.header("Idempotency-Key"), "提交 ID")
+    );
+    return c.json({ contact }, 201);
   }
-  const customerId = readUuid(c.req.param("customerId"), "客户 ID");
-  const body = await readObject(c, ["name", "methods"]);
-  const name = readString(body.name, "联系人姓名", 128);
-  const methods = readNewContactMethods(body.methods);
-  const contact = await createContact(
-    access,
-    customerId,
-    name,
-    methods,
-    readUuid(c.req.header("Idempotency-Key"), "提交 ID")
-  );
-  return c.json({ contact }, 201);
-});
+);
 
-customerContactRoutes.patch("/:customerId/contacts/:contactId", async (c) => {
-  const customerId = readUuid(c.req.param("customerId"), "客户 ID");
-  const contactId = readUuid(c.req.param("contactId"), "联系人 ID");
-  const body = await readObject(c, ["name", "expectedVersion"]);
-  const name = readString(body.name, "联系人姓名", 128);
-  const contact = await changeContact(
-    c.get("businessAccess"),
-    customerId,
-    contactId,
-    readExpectedVersion(body.expectedVersion),
-    async () => ({ name })
-  );
-  return c.json({ contact });
-});
+customerContactRoutes.patch(
+  "/:customerId/contacts/:contactId",
+  contactBodyLimit,
+  async (c) => {
+    const customerId = readUuid(c.req.param("customerId"), "客户 ID");
+    const contactId = readUuid(c.req.param("contactId"), "联系人 ID");
+    const body = await readObject(c, ["name", "expectedVersion", "methods"]);
+    const name = readString(body.name, "联系人姓名", 128);
+    const contact = await changeContact(
+      c.get("businessAccess"),
+      customerId,
+      contactId,
+      readExpectedVersion(body.expectedVersion),
+      async (tx, lockedContact) => {
+        if (body.methods === undefined) return { name };
+        const current = await listMethods(tx, contactId);
+        const changed = await replaceContactMethods(
+          tx,
+          contactId,
+          current,
+          body.methods
+        );
+        return changed || name !== lockedContact.name
+          ? { name }
+          : { methods: current };
+      }
+    );
+    return c.json({ contact });
+  }
+);
 
 customerContactRoutes.delete("/:customerId/contacts/:contactId", async (c) => {
   const customerId = readUuid(c.req.param("customerId"), "客户 ID");
@@ -701,6 +837,7 @@ customerContactRoutes.patch(
         }
         if (
           type !== undefined &&
+          type !== "email" &&
           methods.some(
             (method) => method.id !== methodId && method.type === type
           )
