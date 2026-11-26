@@ -9,6 +9,7 @@ import type {
   ElementType,
   FilterStrategy,
   Nullable,
+  TableColumnConfig,
 } from './types'
 
 export function getColumnOptions<TData, TType extends ColumnDataType, TVal>(
@@ -121,7 +122,7 @@ export function getFacetedUniqueValues<
   TVal,
 >(
   column: ColumnConfig<TData, TType, TVal>,
-  values: string[] | ColumnOption[],
+  values: readonly unknown[],
   strategy: FilterStrategy,
 ): Map<string, number> | undefined {
   if (!isAnyOf(column.type, ['option', 'multiOption'])) {
@@ -144,8 +145,9 @@ export function getFacetedUniqueValues<
     }
   } else {
     for (const option of values) {
-      const curr = acc.get(option as string) ?? 0
-      acc.set(option as string, curr + 1)
+      if (typeof option !== 'string') continue
+      const curr = acc.get(option) ?? 0
+      acc.set(option, curr + 1)
     }
   }
 
@@ -187,25 +189,26 @@ export function getFacetedMinMaxValues<
 
 export function createColumns<TData>(
   data: TData[],
-  columnConfigs: ReadonlyArray<ColumnConfig<TData, any, any, any>>,
+  columnConfigs: ReadonlyArray<TableColumnConfig<TData>>,
   strategy: FilterStrategy,
 ): Column<TData>[] {
-  return columnConfigs.map((columnConfig) => {
+  return columnConfigs.map((config) => {
+    // Values passed to these callbacks come from the same column's accessor.
+    const columnConfig = config as ColumnConfig<TData>
     const getOptions: () => ColumnOption[] = memo(
-      () => [data, strategy, columnConfig.options],
-      ([data, strategy]) =>
-        getColumnOptions(columnConfig, data as any, strategy as any),
+      () => [data, strategy, columnConfig.options] as const,
+      ([data, strategy]) => getColumnOptions(columnConfig, data, strategy),
     )
 
-    const getValues: () => ElementType<NonNullable<any>>[] = memo(
+    const getValues = memo(
       () => [data, strategy],
       () => (strategy === 'client' ? getColumnValues(columnConfig, data) : []),
     )
 
     const getUniqueValues: () => Map<string, number> | undefined = memo(
-      () => [getValues(), strategy],
+      () => [getValues(), strategy] as const,
       ([values, strategy]) =>
-        getFacetedUniqueValues(columnConfig, values as any, strategy as any),
+        getFacetedUniqueValues(columnConfig, values, strategy),
     )
 
     const getMinMaxValues: () => [number, number] | undefined = memo(

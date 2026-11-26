@@ -102,7 +102,7 @@ export type TOrderFn<TVal = unknown> = (
  */
 export type ColumnConfig<
   TData,
-  TType extends ColumnDataType = any,
+  TType extends ColumnDataType = ColumnDataType,
   TVal = unknown,
   TId extends string = string,
 > = {
@@ -128,6 +128,15 @@ export type ColumnConfig<
     ? TTransformOptionFn<TVal>
     : never
   orderFn?: TType extends OptionBasedColumnDataType ? TOrderFn<TVal> : never
+}
+
+// A table may contain columns with different accessor and callback value types.
+export type TableColumnConfig<TData> = Omit<
+  ColumnConfig<TData>,
+  'transformOptionFn' | 'orderFn'
+> & {
+  transformOptionFn?: TTransformOptionFn<never>
+  orderFn?: TOrderFn<never>
 }
 
 export type OptionColumnId<T> = T extends {
@@ -195,7 +204,7 @@ export type ColumnPrivateProperties<TVal> = {
 
 export type Column<
   TData,
-  TType extends ColumnDataType = any,
+  TType extends ColumnDataType = ColumnDataType,
   TVal = unknown,
 > = ColumnConfig<TData, TType, TVal> &
   ColumnProperties<TVal> &

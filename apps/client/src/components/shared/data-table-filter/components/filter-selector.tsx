@@ -34,6 +34,7 @@ import type {
   DataTableFilterActions,
   FilterStrategy,
   FiltersState,
+  OptionBasedColumnDataType,
 } from '../core/types'
 import { isAnyOf } from '../lib/array'
 import { getColumn } from '../lib/helpers'
@@ -415,8 +416,9 @@ function __QuickSearchFilters<TData>({
 }: QuickSearchFiltersProps<TData>) {
   if (!search || search.trim().length < 2) return null
 
-  const cols = columns.filter((column) =>
-    isAnyOf<ColumnDataType>(column.type, ['option', 'multiOption']),
+  const cols = columns.filter(
+    (column): column is Column<TData, OptionBasedColumnDataType> =>
+      isAnyOf<ColumnDataType>(column.type, ['option', 'multiOption']),
   )
 
   return (

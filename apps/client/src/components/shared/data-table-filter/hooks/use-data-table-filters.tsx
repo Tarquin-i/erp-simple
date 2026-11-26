@@ -15,6 +15,7 @@ import type {
   NumberColumnIds,
   OptionBasedColumnDataType,
   OptionColumnIds,
+  TableColumnConfig,
 } from '../core/types'
 import { uniq } from '../lib/array'
 import { addUniq, removeUniq } from '../lib/array'
@@ -28,7 +29,7 @@ import {
 
 export interface DataTableFiltersOptions<
   TData,
-  TColumns extends ReadonlyArray<ColumnConfig<TData, any, any, any>>,
+  TColumns extends ReadonlyArray<TableColumnConfig<TData>>,
   TStrategy extends FilterStrategy,
 > {
   strategy: TStrategy
@@ -41,14 +42,14 @@ export interface DataTableFiltersOptions<
     Record<OptionColumnIds<TColumns>, ColumnOption[] | undefined>
   >
   faceted?: Partial<
-    | Record<OptionColumnIds<TColumns>, Map<string, number> | undefined>
-    | Record<NumberColumnIds<TColumns>, [number, number] | undefined>
+    Record<OptionColumnIds<TColumns>, Map<string, number> | undefined> &
+      Record<NumberColumnIds<TColumns>, [number, number] | undefined>
   >
 }
 
 export function useDataTableFilters<
   TData,
-  TColumns extends ReadonlyArray<ColumnConfig<TData, any, any, any>>,
+  TColumns extends ReadonlyArray<TableColumnConfig<TData>>,
   TStrategy extends FilterStrategy,
 >({
   strategy,
