@@ -14,12 +14,14 @@ import { departmentAdminRoutes } from "./modules/organization/admin-routes";
 import { departmentApplicationRoutes } from "./modules/organization/application-routes";
 import { organizationReadRoutes } from "./modules/organization/read-routes";
 import { payoutRoutes } from "./modules/payout/routes";
-import { productRoutes } from "./modules/product/routes";
+import { createProductModule } from "./modules/product";
+import { createProductRoutes } from "./modules/product/http/routes";
 
 const app = new Hono();
 const customer = createCustomerModule(database.db);
 const { deliveryAddresses } = createAddressModule(database.db);
 const communication = createCommunicationModule(database.db);
+const { products } = createProductModule(database.db);
 
 app.onError(handleServerError);
 app.get("/", (c) => c.text("Hello Hono!"));
@@ -36,7 +38,7 @@ app.route(
 );
 app.route("/api/addresses", createAddressRoutes(deliveryAddresses));
 app.route("/api/communications", createCommunicationRoutes(communication));
-app.route("/api/products", productRoutes);
+app.route("/api/products", createProductRoutes(products));
 app.route("/api/payouts", payoutRoutes);
 
 // 接收请求前检查数据库连通性。检查失败时先关闭连接池，再中止启动。

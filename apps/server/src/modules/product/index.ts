@@ -1,0 +1,1 @@
+export { createProductModule } from "./module";
