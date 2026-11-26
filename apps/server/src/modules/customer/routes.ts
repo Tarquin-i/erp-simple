@@ -1,12 +1,9 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 
-import { customerAddressRoutes } from "../address/routes";
-import { requireBusinessAccess } from "../business/access";
 import type { BusinessAccess, BusinessAccessEnv } from "../business/access";
 import { readListOptionFilter } from "../business/list-option-filter";
 import { fail } from "../organization/errors";
-import { customerContactRoutes } from "./contacts";
 import {
   archiveCustomer,
   createCustomer,
@@ -16,7 +13,6 @@ import {
   updateCustomer,
 } from "./records";
 import type { CustomerWriteInput } from "./records";
-import { customerDictionaryRoutes } from "./dictionaries";
 import {
   readExpectedVersion,
   readObject,
@@ -141,14 +137,9 @@ function readListBody(body: Record<string, unknown>) {
   return query;
 }
 
-export const customerRoutes = new Hono<BusinessAccessEnv>();
+export const customerProfileRoutes = new Hono<BusinessAccessEnv>();
 
-customerRoutes.use("*", requireBusinessAccess);
-customerRoutes.route("/", customerDictionaryRoutes);
-customerRoutes.route("/", customerContactRoutes);
-customerRoutes.route("/", customerAddressRoutes);
-
-customerRoutes.get("/", async (c) => {
+customerProfileRoutes.get("/", async (c) => {
   const result = await listCustomerPage(
     c.get("businessAccess"),
     c.req.queries()
@@ -157,7 +148,7 @@ customerRoutes.get("/", async (c) => {
 });
 
 // 长条件通过请求体传入，与 GET 共用筛选规则和只读查询。
-customerRoutes.post(
+customerProfileRoutes.post(
   "/search",
   bodyLimit({
     maxSize: 128 * 1024,
@@ -173,7 +164,7 @@ customerRoutes.post(
   }
 );
 
-customerRoutes.post("/", async (c) => {
+customerProfileRoutes.post("/", async (c) => {
   const access = c.get("businessAccess");
   const body = await readObject(c, [...editableFields, "departmentId"]);
   if (body.departmentId !== undefined && access.scope !== "company")
@@ -196,7 +187,7 @@ customerRoutes.post("/", async (c) => {
   return c.json({ customer }, 201);
 });
 
-customerRoutes.get("/assignable-owners", async (c) => {
+customerProfileRoutes.get("/assignable-owners", async (c) => {
   const access = c.get("businessAccess");
   const requestedDepartment = c.req.query("departmentId");
   if (requestedDepartment !== undefined && access.scope !== "company")
@@ -210,7 +201,7 @@ customerRoutes.get("/assignable-owners", async (c) => {
   return c.json({ owners });
 });
 
-customerRoutes.get("/:customerId/assignable-owners", async (c) => {
+customerProfileRoutes.get("/:customerId/assignable-owners", async (c) => {
   const id = readUuid(c.req.param("customerId"), "客户 ID");
   const owners = await listAssignableCustomerOwners(c.get("businessAccess"), {
     customerId: id,
@@ -218,13 +209,13 @@ customerRoutes.get("/:customerId/assignable-owners", async (c) => {
   return c.json({ owners });
 });
 
-customerRoutes.get("/:customerId", async (c) => {
+customerProfileRoutes.get("/:customerId", async (c) => {
   const id = readUuid(c.req.param("customerId"), "客户 ID");
   const customer = await getCustomer(c.get("businessAccess"), id);
   return c.json({ customer });
 });
 
-customerRoutes.patch("/:customerId", async (c) => {
+customerProfileRoutes.patch("/:customerId", async (c) => {
   const id = readUuid(c.req.param("customerId"), "客户 ID");
   const body = await readObject(c, [...editableFields, "expectedVersion"]);
   if (editableFields.every((field) => body[field] === undefined)) {
@@ -240,7 +231,7 @@ customerRoutes.patch("/:customerId", async (c) => {
   return c.json({ customer });
 });
 
-customerRoutes.delete("/:customerId", async (c) => {
+customerProfileRoutes.delete("/:customerId", async (c) => {
   const id = readUuid(c.req.param("customerId"), "客户 ID");
   const version = c.req.query("expectedVersion");
   const customer = await archiveCustomer(

@@ -1,8 +1,10 @@
 import { Hono } from "hono";
+import { handleServerError } from "./errors";
 import { addressRoutes } from "./modules/address/routes";
 import { startAttachmentUploadCleanup } from "./modules/communication/attachments";
 import { communicationRoutes } from "./modules/communication/routes";
-import { customerRoutes } from "./modules/customer/routes";
+import { createCustomerModule } from "./modules/customer";
+import { createCustomerRoutes } from "./modules/customer/http/routes";
 import { auth, database } from "./modules/identity/auth/better-auth";
 import { departmentAdminRoutes } from "./modules/organization/admin-routes";
 import { departmentApplicationRoutes } from "./modules/organization/application-routes";
@@ -11,13 +13,15 @@ import { payoutRoutes } from "./modules/payout/routes";
 import { productRoutes } from "./modules/product/routes";
 
 const app = new Hono();
+const customer = createCustomerModule(database.db);
 
+app.onError(handleServerError);
 app.get("/", (c) => c.text("Hello Hono!"));
 app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
 app.route("/api/organization/admin", departmentAdminRoutes);
 app.route("/api/organization", departmentApplicationRoutes);
 app.route("/api/organization", organizationReadRoutes);
-app.route("/api/customers", customerRoutes);
+app.route("/api/customers", createCustomerRoutes(customer));
 app.route("/api/addresses", addressRoutes);
 app.route("/api/communications", communicationRoutes);
 app.route("/api/products", productRoutes);

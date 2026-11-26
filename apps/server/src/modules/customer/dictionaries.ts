@@ -1,4 +1,4 @@
-import { customer, customerChannel, customerTag, user } from "@repo/db/schema";
+import { customer, customerTag, user } from "@repo/db/schema";
 import { and, asc, count, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 
@@ -45,19 +45,6 @@ customerDictionaryRoutes.get("/owners", async (c) => {
   );
 
   return c.json({ owners });
-});
-
-customerDictionaryRoutes.get("/channels", async (c) => {
-  const channels = await database.db
-    .select({
-      code: customerChannel.code,
-      name: customerChannel.name,
-      color: customerChannel.color,
-    })
-    .from(customerChannel)
-    .orderBy(asc(customerChannel.code));
-
-  return c.json({ channels });
 });
 
 customerDictionaryRoutes.get("/tags", async (c) => {

@@ -12,7 +12,7 @@ if (!databaseUrl) {
 
 export const database = createDatabase(databaseUrl);
 
-type Database = typeof database.db;
+export type Database = typeof database.db;
 export type DatabaseTransaction = Parameters<
   Parameters<Database["transaction"]>[0]
 >[0];
