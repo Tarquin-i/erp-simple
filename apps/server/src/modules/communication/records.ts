@@ -31,11 +31,8 @@ import {
 } from "../business/access";
 import type { BusinessAccess } from "../business/access";
 import type { ListOptionFilter } from "../business/list-option-filter";
+import { lockCustomerForWrite, requireAssignableOwner } from "../customer";
 import { failVersionConflict, isConstraintError } from "../customer/input";
-import {
-  lockCustomerForWrite,
-  requireAssignableOwner,
-} from "../customer/records";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { lockDepartment } from "../organization/departments";

@@ -4,6 +4,7 @@ import type { Context } from "hono";
 
 import { readObject, readString, readUuid } from "../customer/input";
 import { database } from "../identity/auth/better-auth";
+import type { Database } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
 import { readBusinessAccess } from "./access";
 import type { BusinessAccessEnv } from "./access";
@@ -29,6 +30,38 @@ export function tagDictionaryFields(table: TagTable) {
   };
 }
 
+export async function updateStoredTagColor(
+  db: Database,
+  table: TagTable,
+  id: string,
+  color: string,
+  expectedColor: string
+) {
+  const tagById = eq(table.id, id);
+  const storedColor = sql<string>`lower(${table.color})`;
+  const fields = tagDictionaryFields(table);
+  const [tag] = await db
+    .update(table)
+    .set({ color })
+    .where(
+      and(
+        tagById,
+        eq(storedColor, expectedColor.toLowerCase()),
+        ne(storedColor, color.toLowerCase())
+      )
+    )
+    .returning(fields);
+  if (tag) return { kind: "saved", tag } as const;
+
+  const [current] = await db.select(fields).from(table).where(tagById);
+  if (!current) return { kind: "not-found" } as const;
+  // 上次保存成功但响应丢失时，相同目标颜色可以直接重试。
+  if (current.color.toLowerCase() === color.toLowerCase()) {
+    return { kind: "saved", tag: current } as const;
+  }
+  return { kind: "conflict", current } as const;
+}
+
 export async function updateTagColor(
   c: Context<BusinessAccessEnv>,
   table: TagTable
@@ -44,33 +77,21 @@ export async function updateTagColor(
   const currentAccess = await readBusinessAccess(database.db, access.userId);
   if (currentAccess.scope !== "company") fail(403, forbidden);
 
-  const tagById = eq(table.id, id);
-  const storedColor = sql<string>`lower(${table.color})`;
-  const fields = tagDictionaryFields(table);
-  const [tag] = await database.db
-    .update(table)
-    .set({ color })
-    .where(
-      and(
-        tagById,
-        eq(storedColor, expectedColor.toLowerCase()),
-        ne(storedColor, color.toLowerCase())
-      )
-    )
-    .returning(fields);
-  if (tag) return c.json({ tag });
+  const result = await updateStoredTagColor(
+    database.db,
+    table,
+    id,
+    color,
+    expectedColor
+  );
+  if (result.kind === "not-found") fail(404, "标签不存在。");
+  if (result.kind === "saved") return c.json({ tag: result.tag });
 
-  const [current] = await database.db.select(fields).from(table).where(tagById);
-  if (!current) fail(404, "标签不存在。");
-  // 上次保存成功但响应丢失时，相同目标颜色可以直接重试。
-  if (current.color.toLowerCase() === color.toLowerCase()) {
-    return c.json({ tag: current });
-  }
   return c.json(
     {
       code: "tag_color_conflict",
       message: "标签颜色已被更新，请查看当前颜色后再保存。",
-      current,
+      current: result.current,
     },
     409
   );

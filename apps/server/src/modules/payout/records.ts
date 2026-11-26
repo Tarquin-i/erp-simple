@@ -11,8 +11,8 @@ import { HTTPException } from "hono/http-exception";
 
 import { businessScopeWhere } from "../business/access";
 import type { BusinessAccess } from "../business/access";
+import { lockCustomerForWrite } from "../customer";
 import { failVersionConflict, isConstraintError } from "../customer/input";
-import { lockCustomerForWrite } from "../customer/records";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";

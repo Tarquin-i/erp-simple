@@ -5,7 +5,10 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 
 import { database } from "../identity/auth/better-auth";
-import type { DatabaseTransaction } from "../identity/auth/better-auth";
+import type {
+  Database,
+  DatabaseTransaction,
+} from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
 import { requireAccountId } from "../organization/request";
 
@@ -26,7 +29,7 @@ export type BusinessAccessEnv = {
  * @throws 账号不存在时抛出 HTTP 401，账号既非公司管理员也未加入部门时抛出 HTTP 403。
  */
 export async function readBusinessAccess(
-  db: typeof database.db | DatabaseTransaction,
+  db: Database | DatabaseTransaction,
   userId: string
 ): Promise<BusinessAccess> {
   const [identity] = await db
@@ -56,14 +59,16 @@ export async function readBusinessAccess(
  * 在同一只读快照内读取账号权限并查询业务数据。
  * @param userId 已登录的用户 ID。
  * @param read 使用当前事务和快照内权限的查询。
+ * @param db 组装模块时传入的数据库实例。现有调用方默认使用服务共享实例。
  * @returns 查询结果。
  * @throws 账号不存在或无业务权限时抛出 HTTP 401 或 403。
  */
 export function withBusinessReadSnapshot<T>(
   userId: string,
-  read: (tx: DatabaseTransaction, access: BusinessAccess) => Promise<T>
+  read: (tx: DatabaseTransaction, access: BusinessAccess) => Promise<T>,
+  db: Database = database.db
 ): Promise<T> {
-  return database.db.transaction(
+  return db.transaction(
     async (tx) => read(tx, await readBusinessAccess(tx, userId)),
     { isolationLevel: "repeatable read", accessMode: "read only" }
   );

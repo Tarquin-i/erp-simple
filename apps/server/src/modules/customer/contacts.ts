@@ -23,7 +23,6 @@ import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
 import { contactArchiveFields } from "./contact-archive";
-import { lockCustomerForWrite } from "./records";
 import {
   failVersionConflict,
   isConstraintError,
@@ -32,6 +31,7 @@ import {
   readString,
   readUuid,
 } from "./input";
+import { lockCustomerForWrite } from "./persistence/profile-write-access";
 
 const contactColumns = {
   id: customerContact.id,
