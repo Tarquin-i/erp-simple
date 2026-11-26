@@ -138,7 +138,7 @@ export type OptionColumnId<T> = T extends {
   : never
 
 export type OptionColumnIds<
-  T extends ReadonlyArray<ColumnConfig<any, any, any, any>>,
+  T extends ReadonlyArray<{ id: string; type: ColumnDataType }>,
 > = {
   [K in keyof T]: OptionColumnId<T[K]>
 }[number]
@@ -151,7 +151,7 @@ export type NumberColumnId<T> = T extends {
   : never
 
 export type NumberColumnIds<
-  T extends ReadonlyArray<ColumnConfig<any, any, any, any>>,
+  T extends ReadonlyArray<{ id: string; type: ColumnDataType }>,
 > = {
   [K in keyof T]: NumberColumnId<T[K]>
 }[number]
