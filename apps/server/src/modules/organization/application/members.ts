@@ -1,4 +1,4 @@
-import type { Database } from "../../identity/auth/better-auth";
+import type { Database } from "@repo/db";
 import { fail } from "../../../errors";
 import { approvePendingApplicationForMember } from "../persistence/department-applications";
 import { lockDepartment } from "../persistence/departments";

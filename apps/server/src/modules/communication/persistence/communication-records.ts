@@ -1,3 +1,4 @@
+import type { DatabaseTransaction } from "@repo/db";
 import {
   communication,
   communicationTag,
@@ -24,7 +25,6 @@ import type { SelectedFieldsFlat } from "drizzle-orm/pg-core";
 import { businessScopeWhere, readBusinessAccess } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
 import type { ListOptionFilter } from "../../business/list-option-filter";
-import type { DatabaseTransaction } from "../../identity/auth/better-auth";
 import { lockDepartment } from "../../organization";
 import { fail } from "../../../errors";
 

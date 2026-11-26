@@ -1,10 +1,7 @@
+import type { Database, DatabaseTransaction } from "@repo/db";
 import { organization } from "@repo/db/schema";
 import { asc, eq } from "drizzle-orm";
 
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
 import { fail } from "../../../errors";
 
 export function selectDepartments(db: Database | DatabaseTransaction) {

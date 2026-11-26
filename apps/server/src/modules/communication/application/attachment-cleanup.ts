@@ -1,6 +1,6 @@
+import type { Database } from "@repo/db";
 import { HTTPException } from "hono/http-exception";
 
-import type { Database } from "../../identity/auth/better-auth";
 import {
   claimAttachmentCleanupBatch,
   closePendingLocalUpload,

@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 
+import { requireAccountId } from "../../../auth";
 import { fail } from "../../../errors";
 import type { OrganizationModule } from "../module";
-import { requireAccountId } from "../../identity/auth/session";
 import { readText } from "./write-requests";
 
 const applicationIdPattern =

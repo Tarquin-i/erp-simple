@@ -1,4 +1,4 @@
-import type { Database } from "../identity/auth/better-auth";
+import type { Database } from "@repo/db";
 import { createDepartmentApplicationUseCases } from "./application/department-applications";
 import { createDepartmentUseCases } from "./application/departments";
 import { createMemberUseCases } from "./application/members";

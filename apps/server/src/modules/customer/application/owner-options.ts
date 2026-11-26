@@ -1,6 +1,6 @@
+import type { Database } from "@repo/db";
 import { withBusinessReadSnapshot } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
-import type { Database } from "../../identity/auth/better-auth";
 import {
   findOwnerDepartment,
   findVisibleCustomerDepartment,

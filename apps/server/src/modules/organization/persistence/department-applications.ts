@@ -1,3 +1,4 @@
+import type { Database, DatabaseTransaction } from "@repo/db";
 import {
   companyAdministrator,
   departmentApplication,
@@ -6,11 +7,6 @@ import {
   user,
 } from "@repo/db/schema";
 import { and, asc, eq, isNull } from "drizzle-orm";
-
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
 
 const pendingApplication = eq(departmentApplication.status, "pending");
 

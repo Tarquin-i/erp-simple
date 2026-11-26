@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { isConstraintError } from "@repo/db";
+import type { Database, DatabaseTransaction } from "@repo/db";
 import { customerContactMethodType } from "@repo/db/schema";
 import {
   INVALID_MOBILE_PHONE_MESSAGE,
@@ -10,10 +11,6 @@ import { HTTPException } from "hono/http-exception";
 import { ApplicationError, failVersionConflict } from "../../../errors";
 import { withBusinessReadSnapshot } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
 import { fail } from "../../../errors";
 import {
   findNextPrimaryMethod,

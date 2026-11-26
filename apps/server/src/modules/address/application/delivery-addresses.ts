@@ -1,14 +1,11 @@
 import { createHash } from "node:crypto";
 import { isConstraintError } from "@repo/db";
+import type { Database, DatabaseTransaction } from "@repo/db";
 
 import { failVersionConflict } from "../../../errors";
 import { withBusinessReadSnapshot } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
 import { lockCustomerForWrite } from "../../customer";
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
 import {
   formatAddress,
   resolvePostalAddressPatch,

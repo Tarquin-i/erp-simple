@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { isConstraintError } from "@repo/db";
+import type { Database, DatabaseTransaction } from "@repo/db";
 import { HTTPException } from "hono/http-exception";
 
 import { failVersionConflict } from "../../../errors";
@@ -9,10 +10,6 @@ import {
 } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
 import { lockCustomerForWrite, requireAssignableOwner } from "../../customer";
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
 import { fail } from "../../../errors";
 import {
   closeCommunicationUploads,

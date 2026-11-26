@@ -1,14 +1,11 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { isConstraintError } from "@repo/db";
+import type { Database, DatabaseTransaction } from "@repo/db";
 
 import { failVersionConflict } from "../../../errors";
 import { withBusinessReadSnapshot } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
 import { fail } from "../../../errors";
 import { lockProductPayoutSource } from "../../product";
 import { calculatePayoutMetrics } from "../domain/payout-calculations";

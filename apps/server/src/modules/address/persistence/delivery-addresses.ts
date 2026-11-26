@@ -1,3 +1,4 @@
+import type { DatabaseTransaction } from "@repo/db";
 import { customer, customerAddress } from "@repo/db/schema";
 import {
   and,
@@ -14,7 +15,6 @@ import { businessScopeWhere } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
 import type { ListOptionFilter } from "../../business/list-option-filter";
 import { lockCustomerForWrite } from "../../customer";
-import type { DatabaseTransaction } from "../../identity/auth/better-auth";
 
 export type AddressCreateInput = {
   recipientName: string;

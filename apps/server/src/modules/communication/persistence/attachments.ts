@@ -1,4 +1,5 @@
 import { isConstraintError } from "@repo/db";
+import type { Database, DatabaseTransaction } from "@repo/db";
 import { communication, communicationAttachment, user } from "@repo/db/schema";
 import {
   and,
@@ -17,10 +18,6 @@ import {
 
 import { businessScopeWhere } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
 import { fail } from "../../../errors";
 import type { AttachmentUploadInput } from "../domain/attachment-files";
 

@@ -1,4 +1,4 @@
-import type { Database } from "../identity/auth/better-auth";
+import type { Database } from "@repo/db";
 import { createAttachmentCleanup } from "./application/attachment-cleanup";
 import { createAttachmentUseCases } from "./application/attachments";
 import { createCommunicationRecordUseCases } from "./application/communication-records";

@@ -1,14 +1,13 @@
-import { auth } from "./better-auth";
 import { fail } from "../../../errors";
+import type { createPublicAuth } from "./better-auth";
 
-/**
- * 从请求头读取 Better Auth 会话，确认请求已登录。
- * @param headers 当前 HTTP 请求的请求头。
- * @returns 会话中的用户 ID。
- * @throws 没有有效会话时抛出 HTTP 401。
- */
-export async function requireAccountId(headers: Headers) {
-  const session = await auth.api.getSession({ headers });
-  if (!session) fail(401, "请先登录。");
-  return session.user.id;
+/** 从公开认证实例读取会话，只返回当前账号 ID。 */
+export function createRequireAccountId(
+  auth: ReturnType<typeof createPublicAuth>
+) {
+  return async function requireAccountId(headers: Headers) {
+    const session = await auth.api.getSession({ headers });
+    if (!session) fail(401, "请先登录。");
+    return session.user.id;
+  };
 }

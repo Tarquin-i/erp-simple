@@ -1,3 +1,4 @@
+import type { DatabaseTransaction } from "@repo/db";
 import {
   companyAdministrator,
   customer,
@@ -9,7 +10,6 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 
 import { businessScopeWhere } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
-import type { DatabaseTransaction } from "../../identity/auth/better-auth";
 
 // 列表筛选项取自当前可见客户的负责人。
 export function selectVisibleOwners(

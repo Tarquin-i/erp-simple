@@ -1,4 +1,4 @@
-import type { Database } from "../identity/auth/better-auth";
+import type { Database } from "@repo/db";
 import { createPayoutUseCases } from "./application/payouts";
 
 export function createPayoutModule(db: Database) {

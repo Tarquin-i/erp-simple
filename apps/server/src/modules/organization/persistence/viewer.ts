@@ -1,3 +1,4 @@
+import type { Database } from "@repo/db";
 import {
   companyAdministrator,
   departmentApplication,
@@ -7,8 +8,6 @@ import {
 } from "@repo/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-
-import type { Database } from "../../identity/auth/better-auth";
 
 const requestedDepartment = alias(organization, "requested_department");
 

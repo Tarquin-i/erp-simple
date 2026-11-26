@@ -1,10 +1,10 @@
+import type { DatabaseTransaction } from "@repo/db";
 import { product } from "@repo/db/schema";
 import { and, eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 
 import type { BusinessAccess } from "../../business/access";
 import { lockCustomerForWrite } from "../../customer";
-import type { DatabaseTransaction } from "../../identity/auth/better-auth";
 import { findProductCustomerId } from "./products";
 
 /** 在调用方的事务中复核客户权限，再共享锁定产品供 Payout 使用。 */

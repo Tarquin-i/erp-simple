@@ -1,3 +1,4 @@
+import type { DatabaseTransaction } from "@repo/db";
 import {
   customer,
   normalizePayoutName,
@@ -19,7 +20,6 @@ import {
 import { businessScopeWhere } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
 import type { ListOptionFilter } from "../../business/list-option-filter";
-import type { DatabaseTransaction } from "../../identity/auth/better-auth";
 
 export type PayoutRow = typeof payout.$inferSelect;
 export type PayoutCreateInput = Pick<

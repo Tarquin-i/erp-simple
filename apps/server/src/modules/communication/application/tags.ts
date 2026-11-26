@@ -1,11 +1,11 @@
 import { isConstraintError } from "@repo/db";
+import type { Database } from "@repo/db";
 
 import {
   readBusinessAccess,
   withBusinessReadSnapshot,
 } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
-import type { Database } from "../../identity/auth/better-auth";
 import { fail } from "../../../errors";
 import {
   findTag,

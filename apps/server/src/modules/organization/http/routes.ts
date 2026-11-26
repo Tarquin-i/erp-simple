@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 
+import { requireAccountId } from "../../../auth";
 import type { OrganizationModule } from "../module";
-import { requireAccountId } from "../../identity/auth/session";
 import { createDepartmentApplicationRoutes } from "./department-applications";
 import { createDepartmentRoutes } from "./departments";
 

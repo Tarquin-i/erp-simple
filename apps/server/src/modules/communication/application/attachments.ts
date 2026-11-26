@@ -1,3 +1,4 @@
+import type { Database, DatabaseTransaction } from "@repo/db";
 import { HTTPException } from "hono/http-exception";
 
 import {
@@ -5,10 +6,6 @@ import {
   withBusinessReadSnapshot,
 } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
 import { lockDepartment } from "../../organization";
 import { fail } from "../../../errors";
 import type { AttachmentUploadInput } from "../domain/attachment-files";

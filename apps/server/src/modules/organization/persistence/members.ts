@@ -1,11 +1,8 @@
+import type { Database, DatabaseTransaction } from "@repo/db";
 import { companyAdministrator, member, user } from "@repo/db/schema";
 import { and, asc, eq, isNull } from "drizzle-orm";
 
-import { createProvisioningAuth } from "../../identity/auth/better-auth";
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
+import { createAccountProvisioning } from "../../identity";
 
 export function listRosterMembers(tx: DatabaseTransaction) {
   return tx
@@ -97,7 +94,9 @@ export function addDepartmentMember(
   userId: string,
   role: "member" | "supervisor"
 ) {
-  return createProvisioningAuth(tx).api.addMember({
-    body: { userId, organizationId: departmentId, role },
+  return createAccountProvisioning(tx).addOrganizationMember({
+    userId,
+    organizationId: departmentId,
+    role,
   });
 }

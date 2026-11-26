@@ -1,7 +1,6 @@
+import type { Database } from "@repo/db";
 import { customerChannel } from "@repo/db/schema";
 import { asc } from "drizzle-orm";
-
-import type { Database } from "../../identity/auth/better-auth";
 
 export function listCustomerChannels(db: Database) {
   return db

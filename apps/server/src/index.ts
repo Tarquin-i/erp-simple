@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import { auth } from "./auth";
+import { database } from "./database";
 import { handleServerError } from "./errors";
 import { createAddressModule } from "./modules/address";
 import {
@@ -9,7 +11,7 @@ import { createCommunicationModule } from "./modules/communication";
 import { createCommunicationRoutes } from "./modules/communication/http/routes";
 import { createCustomerModule } from "./modules/customer";
 import { createCustomerRoutes } from "./modules/customer/http/routes";
-import { auth, database } from "./modules/identity/auth/better-auth";
+import { registerIdentityRoutes } from "./modules/identity/http/routes";
 import { createOrganizationModule } from "./modules/organization";
 import { createOrganizationRoutes } from "./modules/organization/http/routes";
 import { createPayoutModule } from "./modules/payout";
@@ -27,7 +29,7 @@ const organization = createOrganizationModule(database.db);
 
 app.onError(handleServerError);
 app.get("/", (c) => c.text("Hello Hono!"));
-app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
+registerIdentityRoutes(app, auth);
 app.route("/api/organization", createOrganizationRoutes(organization));
 app.route(
   "/api/customers",

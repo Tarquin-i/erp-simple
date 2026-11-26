@@ -1,7 +1,4 @@
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
+import type { Database, DatabaseTransaction } from "@repo/db";
 import { fail } from "../../../errors";
 import {
   departmentExists,

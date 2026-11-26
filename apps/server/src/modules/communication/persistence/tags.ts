@@ -1,3 +1,4 @@
+import type { Database, DatabaseTransaction } from "@repo/db";
 import { communicationTag } from "@repo/db/schema";
 import { asc, count, eq, sql } from "drizzle-orm";
 
@@ -5,10 +6,6 @@ import {
   tagDictionaryFields,
   updateStoredTagColor,
 } from "../../business/tag-color";
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
 
 const tagFields = tagDictionaryFields(communicationTag);
 

@@ -1,3 +1,4 @@
+import type { DatabaseTransaction } from "@repo/db";
 import { formatDatabaseError, readLocalDatabaseConfig } from "@repo/db/local";
 import {
   account,
@@ -23,8 +24,10 @@ import {
 import type { PayoutDefinition } from "@repo/db/schema";
 import { and, eq, getTableName, inArray, or, sql } from "drizzle-orm";
 
-import { readAddressCreateInput } from "../modules/address/http/routes";
-import type { DatabaseTransaction } from "../modules/identity/auth/better-auth";
+import {
+  createAccountProvisioning,
+  lockCompanyAdminInitialization,
+} from "../modules/identity";
 import { assertPayoutTicketCapacity } from "../modules/payout/application/errors";
 import { readPayoutCreateInput } from "../modules/payout/http/write-requests";
 import { readProductCreateInput } from "../modules/product/http/write-requests";
@@ -713,6 +716,11 @@ async function seedCustomerAddresses(
   );
   if (!addresses.length) return 0;
 
+  // 地址路由会加载服务端认证实例，须等种子脚本完成目标库校验后再导入。
+  const { readAddressCreateInput } = await import(
+    "../modules/address/http/routes"
+  );
+
   const [currentDefault] = await tx
     .select({ id: customerAddress.id })
     .from(customerAddress)
@@ -1013,9 +1021,7 @@ async function seedLocalData() {
   if (!secret?.trim() || secret.length < 32) {
     throw new Error("请设置至少 32 字符的 BETTER_AUTH_SECRET。");
   }
-  const { database, createProvisioningAuth } = await import(
-    "../modules/identity/auth/better-auth"
-  );
+  const { database } = await import("../database");
 
   let stage: "connection" | "target" | "schema" | "write" = "connection";
   try {
@@ -1068,9 +1074,7 @@ async function seedLocalData() {
     stage = "write";
     return await database.db.transaction(async (tx) => {
       // Serialize this command with first-admin initialization and other seed runs.
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext('erp:init-company-admin'))`
-      );
+      await lockCompanyAdminInitialization(tx);
       const departmentIds = new Map<DepartmentKey, string>();
       for (const { key, name } of seedDepartments) {
         const slug = `erp-local-seed-${key}`;
@@ -1090,7 +1094,7 @@ async function seedLocalData() {
         departmentIds.set(key, department.id);
       }
 
-      const provisioningAuth = createProvisioningAuth(tx);
+      const provisioning = createAccountProvisioning(tx);
       let createdAccounts = 0;
       for (const definition of seedAccounts) {
         const email = `${definition.login}@e.test`;
@@ -1101,8 +1105,10 @@ async function seedLocalData() {
           .limit(1);
         if (existing) continue;
 
-        const { user: account } = await provisioningAuth.api.signUpEmail({
-          body: { email, name: definition.name, password: seedPassword },
+        const account = await provisioning.registerAccount({
+          email,
+          name: definition.name,
+          password: seedPassword,
         });
         if (definition.role === "company-admin") {
           await tx.insert(companyAdministrator).values({ userId: account.id });
@@ -1114,12 +1120,10 @@ async function seedLocalData() {
               .insert(departmentApplication)
               .values({ userId: account.id, organizationId });
           } else {
-            await provisioningAuth.api.addMember({
-              body: {
-                userId: account.id,
-                organizationId,
-                role: definition.role,
-              },
+            await provisioning.addOrganizationMember({
+              userId: account.id,
+              organizationId,
+              role: definition.role,
             });
           }
         }

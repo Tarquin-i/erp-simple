@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { isConstraintError } from "@repo/db";
+import type { Database, DatabaseTransaction } from "@repo/db";
 
 import { ApplicationError, failVersionConflict } from "../../../errors";
 import {
@@ -7,10 +8,6 @@ import {
   withBusinessReadSnapshot,
 } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../../identity/auth/better-auth";
 import { lockDepartment } from "../../organization";
 import {
   lockCustomerForWrite,

@@ -1,3 +1,4 @@
+import type { DatabaseTransaction } from "@repo/db";
 import {
   customer,
   customerContact,
@@ -7,7 +8,6 @@ import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { businessScopeWhere } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
-import type { DatabaseTransaction } from "../../identity/auth/better-auth";
 
 const contactColumns = {
   id: customerContact.id,

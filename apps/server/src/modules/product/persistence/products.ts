@@ -1,3 +1,4 @@
+import type { DatabaseTransaction } from "@repo/db";
 import { customer, payout, product, productType } from "@repo/db/schema";
 import {
   and,
@@ -14,7 +15,6 @@ import {
 import { businessScopeWhere } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
 import type { ListOptionFilter } from "../../business/list-option-filter";
-import type { DatabaseTransaction } from "../../identity/auth/better-auth";
 import { productTypeLabels } from "../domain/type-fields";
 import type {
   ProductCreateInput,

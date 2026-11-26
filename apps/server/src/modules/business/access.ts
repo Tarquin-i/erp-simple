@@ -1,16 +1,13 @@
+import type { Database, DatabaseTransaction } from "@repo/db";
 import { companyAdministrator, member, user } from "@repo/db/schema";
 import { eq, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 
-import { database } from "../identity/auth/better-auth";
-import type {
-  Database,
-  DatabaseTransaction,
-} from "../identity/auth/better-auth";
+import { requireAccountId } from "../../auth";
+import { database } from "../../database";
 import { fail } from "../../errors";
-import { requireAccountId } from "../identity/auth/session";
 
 export type BusinessAccess =
   | { scope: "company"; userId: string }

@@ -1,62 +1,25 @@
 /**
- * `bun run auth:init-admin` 的入口。读取 `BOOTSTRAP_ADMIN_EMAIL`，首次创建时也读取 `BOOTSTRAP_ADMIN_PASSWORD`。
+ * `bun run auth:init-admin` 的入口。读取 `BOOTSTRAP_ADMIN_EMAIL`，首次创建时要求 `BOOTSTRAP_ADMIN_PASSWORD`。
  * 账号注册和管理员写入在同一事务内完成，事务锁与本地种子脚本共用，避免同时初始化。
  * 邮箱已对应公司管理员时直接成功。否则，已有其他管理员或邮箱已被注册时报告错误并设置退出码 1。
  */
-import { companyAdministrator, user } from "@repo/db/schema";
 import { APIError } from "better-auth/api";
-import { eq, sql } from "drizzle-orm";
-
+import { database } from "../database";
 import {
-  createProvisioningAuth,
-  database,
-} from "../modules/identity/auth/better-auth";
-
-class InitializationError extends Error {}
+  CompanyAdminInitializationError,
+  initializeCompanyAdmin,
+} from "../modules/identity";
 
 try {
-  const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
-  if (!email) throw new InitializationError("请设置 BOOTSTRAP_ADMIN_EMAIL。");
-
-  const created = await database.db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext('erp:init-company-admin'))`
-    );
-
-    const [account] = await tx
-      .select({ adminId: companyAdministrator.userId })
-      .from(user)
-      .leftJoin(companyAdministrator, eq(companyAdministrator.userId, user.id))
-      .where(eq(user.email, email))
-      .limit(1);
-    if (account?.adminId) return false;
-
-    const [admin] = await tx
-      .select({ userId: companyAdministrator.userId })
-      .from(companyAdministrator)
-      .limit(1);
-    if (admin)
-      throw new InitializationError("已有公司管理员，请核对初始化邮箱。");
-    if (account)
-      throw new InitializationError(
-        "此邮箱已注册，请使用尚未注册的管理员邮箱。"
-      );
-
-    const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
-    if (!password)
-      throw new InitializationError("请设置 BOOTSTRAP_ADMIN_PASSWORD。");
-
-    const result = await createProvisioningAuth(tx).api.signUpEmail({
-      body: { name: "公司管理员", email, password },
-    });
-    await tx.insert(companyAdministrator).values({ userId: result.user.id });
-    return true;
+  const created = await initializeCompanyAdmin(database.db, {
+    email: process.env.BOOTSTRAP_ADMIN_EMAIL,
+    password: process.env.BOOTSTRAP_ADMIN_PASSWORD,
   });
 
   console.log(created ? "公司管理员已创建。" : "公司管理员已初始化。");
 } catch (error) {
   const message =
-    error instanceof InitializationError ||
+    error instanceof CompanyAdminInitializationError ||
     (error instanceof APIError && error.statusCode < 500)
       ? error.message
       : "初始化公司管理员失败，请检查数据库连接和表结构。";
