@@ -124,6 +124,7 @@ bun run seed
 | `bun run seed`         | 初始化本地账号、部门、客户渠道和演示数据   |
 | `bun run format`       | 用 Biome 格式化代码                        |
 | `bun run format:check` | 检查格式                                   |
+| `bun run lint`         | 用 Biome 检查代码                          |
 | `bun run check-types`  | 检查前端、后端和数据库包的 TypeScript 类型 |
 | `bun run build`        | 构建前端                                   |
 

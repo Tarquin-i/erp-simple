@@ -9,7 +9,7 @@
     "db:studio": "turbo run db:studio --filter=@repo/db",
     "dev": "turbo run dev",
     "dev:server": "turbo run dev --filter=server",
-    "lint": "turbo run lint",
+    "lint": "biome lint .",
     "seed": "bun run --cwd apps/server seed",
     "format": "biome format --write .",
     "format:check": "biome format .",
