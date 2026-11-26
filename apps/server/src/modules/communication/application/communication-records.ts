@@ -13,7 +13,7 @@ import type {
   Database,
   DatabaseTransaction,
 } from "../../identity/auth/better-auth";
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 import {
   closeCommunicationUploads,
   readCommunicationAttachmentsToClean,

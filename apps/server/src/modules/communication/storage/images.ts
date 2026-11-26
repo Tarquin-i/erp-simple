@@ -1,7 +1,7 @@
 import { HTTPException } from "hono/http-exception";
 import sharp from "sharp";
 
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 
 const imageFormats = new Map([
   ["image/bmp", "bmp"],

@@ -1,4 +1,4 @@
-import { fail } from "../organization/errors";
+import { fail } from "../../errors";
 
 export type ListOptionFilter<T extends string = string> = {
   values: T[];

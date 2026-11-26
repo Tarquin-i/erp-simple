@@ -1,7 +1,7 @@
 import { HTTPException } from "hono/http-exception";
 
 import { ApplicationError } from "../../../errors";
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 import { LocalAttachmentSizeError } from "../storage/local-files";
 
 const tagConflicts = {

@@ -9,8 +9,8 @@ import type {
   Database,
   DatabaseTransaction,
 } from "../../identity/auth/better-auth";
-import { lockDepartment } from "../../organization/departments";
-import { fail } from "../../organization/errors";
+import { lockDepartment } from "../../organization";
+import { fail } from "../../../errors";
 import type { AttachmentUploadInput } from "../domain/attachment-files";
 import {
   archiveAttachment,

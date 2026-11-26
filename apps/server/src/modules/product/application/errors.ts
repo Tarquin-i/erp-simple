@@ -1,6 +1,6 @@
 import { HTTPException } from "hono/http-exception";
 
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 import type { validateProductTypeFields } from "../domain/type-fields";
 
 type InvalidProductTypeFields = NonNullable<

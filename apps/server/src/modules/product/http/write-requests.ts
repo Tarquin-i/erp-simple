@@ -1,7 +1,7 @@
 import { productType } from "@repo/db/schema";
 
 import { readString, readUuid } from "../../../http/request-input";
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 
 import { failInvalidProductTypeFields } from "../application/errors";
 import {

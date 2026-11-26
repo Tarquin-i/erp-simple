@@ -10,7 +10,7 @@ import {
   readString,
   readUuid,
 } from "../../../http/request-input";
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 
 import type { ProductModule } from "../module";
 import {

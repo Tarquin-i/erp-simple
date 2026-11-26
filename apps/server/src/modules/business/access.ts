@@ -9,8 +9,8 @@ import type {
   Database,
   DatabaseTransaction,
 } from "../identity/auth/better-auth";
-import { fail } from "../organization/errors";
-import { requireAccountId } from "../organization/request";
+import { fail } from "../../errors";
+import { requireAccountId } from "../identity/auth/session";
 
 export type BusinessAccess =
   | { scope: "company"; userId: string }

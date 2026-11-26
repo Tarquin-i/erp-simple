@@ -1,7 +1,7 @@
 import type { PayoutDefinition } from "@repo/db/schema";
 import { HTTPException } from "hono/http-exception";
 
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 import { countWinningTickets } from "../domain/payout-calculations";
 
 /** 基于当前发行张数检查奖项定义。 */

@@ -3,7 +3,7 @@ import { bodyLimit } from "hono/body-limit";
 
 import type { BusinessAccessEnv } from "../../business/access";
 import { readListOptionFilter } from "../../business/list-option-filter";
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 import { createCustomerError } from "../application/errors";
 import type {
   createProfileUseCases,

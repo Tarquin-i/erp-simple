@@ -1,7 +1,7 @@
 import type { PayoutDefinition } from "@repo/db/schema";
 
 import { readString, readUuid } from "../../../http/request-input";
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 import type { PayoutCreateInput, PayoutPatch } from "../persistence/payouts";
 
 const maxPayoutNameLength = 128;

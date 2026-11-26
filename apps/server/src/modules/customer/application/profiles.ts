@@ -11,7 +11,7 @@ import type {
   Database,
   DatabaseTransaction,
 } from "../../identity/auth/better-auth";
-import { lockDepartment } from "../../organization/departments";
+import { lockDepartment } from "../../organization";
 import {
   lockCustomerForWrite,
   requireAssignableOwner,

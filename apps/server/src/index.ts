@@ -10,9 +10,8 @@ import { createCommunicationRoutes } from "./modules/communication/http/routes";
 import { createCustomerModule } from "./modules/customer";
 import { createCustomerRoutes } from "./modules/customer/http/routes";
 import { auth, database } from "./modules/identity/auth/better-auth";
-import { departmentAdminRoutes } from "./modules/organization/admin-routes";
-import { departmentApplicationRoutes } from "./modules/organization/application-routes";
-import { organizationReadRoutes } from "./modules/organization/read-routes";
+import { createOrganizationModule } from "./modules/organization";
+import { createOrganizationRoutes } from "./modules/organization/http/routes";
 import { createPayoutModule } from "./modules/payout";
 import { createPayoutRoutes } from "./modules/payout/http/routes";
 import { createProductModule } from "./modules/product";
@@ -24,13 +23,12 @@ const { deliveryAddresses } = createAddressModule(database.db);
 const communication = createCommunicationModule(database.db);
 const { products } = createProductModule(database.db);
 const { payouts } = createPayoutModule(database.db);
+const organization = createOrganizationModule(database.db);
 
 app.onError(handleServerError);
 app.get("/", (c) => c.text("Hello Hono!"));
 app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
-app.route("/api/organization/admin", departmentAdminRoutes);
-app.route("/api/organization", departmentApplicationRoutes);
-app.route("/api/organization", organizationReadRoutes);
+app.route("/api/organization", createOrganizationRoutes(organization));
 app.route(
   "/api/customers",
   createCustomerRoutes(

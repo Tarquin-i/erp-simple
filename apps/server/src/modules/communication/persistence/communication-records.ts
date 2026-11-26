@@ -25,8 +25,8 @@ import { businessScopeWhere, readBusinessAccess } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
 import type { ListOptionFilter } from "../../business/list-option-filter";
 import type { DatabaseTransaction } from "../../identity/auth/better-auth";
-import { lockDepartment } from "../../organization/departments";
-import { fail } from "../../organization/errors";
+import { lockDepartment } from "../../organization";
+import { fail } from "../../../errors";
 
 type CommunicationStatus = typeof communication.$inferSelect.status;
 

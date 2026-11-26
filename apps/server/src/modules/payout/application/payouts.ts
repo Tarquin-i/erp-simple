@@ -9,7 +9,7 @@ import type {
   Database,
   DatabaseTransaction,
 } from "../../identity/auth/better-auth";
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 import { lockProductPayoutSource } from "../../product";
 import { calculatePayoutMetrics } from "../domain/payout-calculations";
 import {

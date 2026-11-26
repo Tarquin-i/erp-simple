@@ -9,7 +9,7 @@ import {
   readUuid,
 } from "../../../http/request-input";
 import type { BusinessAccessEnv } from "../../business/access";
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 import { attachmentUploadLimit } from "../application/attachments";
 import {
   listAttachmentMimeTypes,

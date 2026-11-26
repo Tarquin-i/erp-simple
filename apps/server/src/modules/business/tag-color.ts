@@ -3,7 +3,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 
 import { readString } from "../../http/request-input";
 import type { Database } from "../identity/auth/better-auth";
-import { fail } from "../organization/errors";
+import { fail } from "../../errors";
 
 type TagTable = typeof customerTag | typeof communicationTag;
 

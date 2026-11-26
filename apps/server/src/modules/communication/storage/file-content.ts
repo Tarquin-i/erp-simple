@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 import { extensionOf } from "../domain/attachment-files";
 import type { AttachmentUploadInput } from "../domain/attachment-files";
 

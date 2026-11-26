@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 
-import { fail } from "../modules/organization/errors";
+import { fail } from "../errors";
 
 const uuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 

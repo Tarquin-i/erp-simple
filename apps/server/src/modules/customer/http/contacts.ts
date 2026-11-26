@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 
 import type { BusinessAccessEnv } from "../../business/access";
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 import {
   readContactMethods,
   readMethod,

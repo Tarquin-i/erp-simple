@@ -21,7 +21,7 @@ import type {
   Database,
   DatabaseTransaction,
 } from "../../identity/auth/better-auth";
-import { fail } from "../../organization/errors";
+import { fail } from "../../../errors";
 import type { AttachmentUploadInput } from "../domain/attachment-files";
 
 export type Attachment = typeof communicationAttachment.$inferSelect;
