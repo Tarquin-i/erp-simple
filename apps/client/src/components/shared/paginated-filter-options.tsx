@@ -80,6 +80,7 @@ export function PaginatedFilterOptions<TOption extends ListOption>({
   const keyword = search.trim();
   const { loadErrorText } = labels;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(retry): 重试时重新加载当前搜索条件和页码的候选。
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;

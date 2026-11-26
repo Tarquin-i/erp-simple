@@ -43,6 +43,7 @@ export function AttachmentDropZone({
   const [limitRetry, setLimitRetry] = useState(0);
   const selectionDisabled = disabled || typeof limit !== "number";
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(limitRetry): 重试时重新读取附件上传限制。
   useEffect(() => {
     const controller = new AbortController();
     void getCommunicationAttachmentUploadLimit(controller.signal).then(

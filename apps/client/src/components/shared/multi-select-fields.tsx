@@ -114,6 +114,7 @@ export function TagMultiSelectField({
     : Boolean(createTag && !atTagLimit && newTagName);
 
   // 仅在下拉打开时查询。搜索首屏防抖，条件变化时取消上一笔请求。
+  // biome-ignore lint/correctness/useExhaustiveDependencies(reload): 重新加载当前搜索条件和页码的标签候选。
   useEffect(() => {
     if (!open) return;
 

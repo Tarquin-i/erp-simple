@@ -178,6 +178,7 @@ export function CommunicationList({
   const result =
     loadedPage && loadedPage.page <= pageCount ? loadedPage : undefined;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(retry): 重试时按同一查询条件重新加载沟通列表。
   useEffect(() => {
     const controller = new AbortController();
     void listCommunications({ ...query, customerId }, controller.signal).then(

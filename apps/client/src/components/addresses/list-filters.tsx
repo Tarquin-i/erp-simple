@@ -54,6 +54,7 @@ export function useAddressListFilters(
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(retry): 重试时重新读取地址筛选的业务员候选。
   useEffect(() => {
     const controller = new AbortController();
     void listCustomerOwners(controller.signal).then(

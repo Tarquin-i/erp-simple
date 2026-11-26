@@ -54,6 +54,7 @@ export function CustomerDetail({
     useRouterState({ select: (state) => state.location.state })
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(activeTab): 切换页签后重新定位当前页签，即使容器宽度相同。
   useEffect(() => {
     const viewport = tabViewport.current;
     const trigger = activeTabTrigger.current;

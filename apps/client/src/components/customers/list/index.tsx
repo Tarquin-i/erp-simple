@@ -66,6 +66,7 @@ export function CustomerList({
   const filterModel = useCustomerListFilters(query, onQueryChange, pageTags);
 
   // 查询条件变化时取消上一次请求，避免旧响应覆盖新列表。
+  // biome-ignore lint/correctness/useExhaustiveDependencies(retry): 重试时按同一查询条件重新加载客户列表。
   useEffect(() => {
     const controller = new AbortController();
     listCustomers(query, controller.signal)

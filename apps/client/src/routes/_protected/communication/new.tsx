@@ -232,6 +232,7 @@ function NewCommunicationForm({
   >();
   const [attempt, setAttempt] = useState(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(attempt): 重试时重新读取当前客户的详情。
   useEffect(() => {
     if (!customerId) return;
     const controller = new AbortController();

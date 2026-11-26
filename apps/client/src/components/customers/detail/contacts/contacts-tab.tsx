@@ -92,6 +92,7 @@ export function CustomerContacts({
   );
   const overwrite = conflict ? prepareContactOverwrite(conflict) : null;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(loadAttempt): 重试或主动刷新时重新加载当前客户的联系人。
   useEffect(() => {
     // 切换客户或重新加载时取消上一笔请求，防止旧结果覆盖当前列表。
     const abort = new AbortController();

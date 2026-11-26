@@ -19,6 +19,7 @@ export function ExpandableText({ text }: { text: string }) {
     preview: number;
   }>();
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(text): 正文变化时重新测量完整高度，折叠后的可见高度可能相同。
   useLayoutEffect(() => {
     const element = paragraph.current;
     if (!element) return;

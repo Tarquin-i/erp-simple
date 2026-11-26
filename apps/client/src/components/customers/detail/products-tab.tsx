@@ -86,6 +86,7 @@ export function CustomerProductsTab({
   const result =
     loadedPage && loadedPage.page <= pageCount ? loadedPage : undefined;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(retry): 重试时重新加载当前客户的产品页。
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;

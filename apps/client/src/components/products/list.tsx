@@ -91,6 +91,7 @@ export function ProductList({
     return () => window.clearTimeout(timer);
   }, [trimmedSearch, search, onQueryChange]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(retry): 重试时按同一查询条件重新加载产品列表。
   useEffect(() => {
     const controller = new AbortController();
     void listProducts(query, controller.signal).then(

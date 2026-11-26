@@ -154,6 +154,7 @@ export function CommunicationFilterToolbar({
     [records]
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(ownerRetry): 重试时重新读取沟通筛选的业务员候选。
   useEffect(() => {
     const controller = new AbortController();
     void listCommunicationOwners(controller.signal).then(

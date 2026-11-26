@@ -55,6 +55,7 @@ export function CustomerOwnerFields({
           ? "请选择业务员"
           : "该部门暂无可选业务员";
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(rosterRetry): 重试时重新读取当前部门的业务员候选。
   useEffect(() => {
     if (!departmentId) return;
     const controller = new AbortController();

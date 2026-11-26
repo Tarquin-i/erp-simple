@@ -71,6 +71,7 @@ function OwnerSelect({
   const [retry, setRetry] = useState(0);
   const loading = Boolean(customerId && !roster);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(retry): 重试时重新读取当前客户可选的业务员。
   useEffect(() => {
     if (!customerId) return;
     const controller = new AbortController();

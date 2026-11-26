@@ -42,6 +42,7 @@ export function PayoutProductPicker({
   const result = lookup?.keyword === keyword ? lookup : undefined;
   const loading = !error && result?.page !== page;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(retry): 重试时重新查询当前页的产品候选。
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();

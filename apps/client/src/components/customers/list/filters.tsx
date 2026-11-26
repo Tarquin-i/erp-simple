@@ -84,6 +84,7 @@ function useFilterDictionary(
   const [state, setState] = useState<DictionaryState>({});
   const [attempt, setAttempt] = useState(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(attempt): 重试时重新加载当前字段的筛选候选。
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;

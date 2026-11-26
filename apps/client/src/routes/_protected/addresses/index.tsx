@@ -107,6 +107,7 @@ function AddressDirectory() {
   }, [applySearch, composing, normalizedSearch, searchTerm]);
 
   // 条件变化时只替换结果区，保留工具栏和筛选浮层，避免旧地址在刷新中仍可点击。
+  // biome-ignore lint/correctness/useExhaustiveDependencies(retry): 重试时按同一查询条件重新加载地址列表。
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
