@@ -1,17 +1,11 @@
 import type { communicationTag, customerTag } from "@repo/db/schema";
 import { and, eq, ne, sql } from "drizzle-orm";
-import type { Context } from "hono";
 
-import { readObject, readString, readUuid } from "../../http/request-input";
-import { database } from "../identity/auth/better-auth";
+import { readString } from "../../http/request-input";
 import type { Database } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
-import { readBusinessAccess } from "./access";
-import type { BusinessAccessEnv } from "./access";
 
 type TagTable = typeof customerTag | typeof communicationTag;
-
-const forbidden = "仅公司管理员可以修改共享标签颜色。";
 
 export function readTagColor(value: unknown, label = "标签颜色") {
   const color = readString(value, label, 7);
@@ -60,39 +54,4 @@ export async function updateStoredTagColor(
     return { kind: "saved", tag: current } as const;
   }
   return { kind: "conflict", current } as const;
-}
-
-export async function updateTagColor(
-  c: Context<BusinessAccessEnv>,
-  table: TagTable
-) {
-  const access = c.get("businessAccess");
-  if (access.scope !== "company") fail(403, forbidden);
-
-  const id = readUuid(c.req.param("tagId"), "标签 ID");
-  const body = await readObject(c, ["color", "expectedColor"]);
-  const color = readTagColor(body.color);
-  const expectedColor = readTagColor(body.expectedColor, "原标签颜色");
-
-  const currentAccess = await readBusinessAccess(database.db, access.userId);
-  if (currentAccess.scope !== "company") fail(403, forbidden);
-
-  const result = await updateStoredTagColor(
-    database.db,
-    table,
-    id,
-    color,
-    expectedColor
-  );
-  if (result.kind === "not-found") fail(404, "标签不存在。");
-  if (result.kind === "saved") return c.json({ tag: result.tag });
-
-  return c.json(
-    {
-      code: "tag_color_conflict",
-      message: "标签颜色已被更新，请查看当前颜色后再保存。",
-      current: result.current,
-    },
-    409
-  );
 }

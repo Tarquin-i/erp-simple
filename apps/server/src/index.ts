@@ -5,8 +5,8 @@ import {
   createAddressRoutes,
   createCustomerAddressRoutes,
 } from "./modules/address/http/routes";
-import { startAttachmentUploadCleanup } from "./modules/communication/attachments";
-import { communicationRoutes } from "./modules/communication/routes";
+import { createCommunicationModule } from "./modules/communication";
+import { createCommunicationRoutes } from "./modules/communication/http/routes";
 import { createCustomerModule } from "./modules/customer";
 import { createCustomerRoutes } from "./modules/customer/http/routes";
 import { auth, database } from "./modules/identity/auth/better-auth";
@@ -19,6 +19,7 @@ import { productRoutes } from "./modules/product/routes";
 const app = new Hono();
 const customer = createCustomerModule(database.db);
 const { deliveryAddresses } = createAddressModule(database.db);
+const communication = createCommunicationModule(database.db);
 
 app.onError(handleServerError);
 app.get("/", (c) => c.text("Hello Hono!"));
@@ -34,7 +35,7 @@ app.route(
   )
 );
 app.route("/api/addresses", createAddressRoutes(deliveryAddresses));
-app.route("/api/communications", communicationRoutes);
+app.route("/api/communications", createCommunicationRoutes(communication));
 app.route("/api/products", productRoutes);
 app.route("/api/payouts", payoutRoutes);
 
@@ -46,7 +47,7 @@ try {
   throw new Error("Could not connect to PostgreSQL", { cause: error });
 }
 
-startAttachmentUploadCleanup();
+communication.startAttachmentUploadCleanup();
 
 const server = {
   port: Number(process.env.SERVER_PORT || 4201),
