@@ -118,8 +118,11 @@ export function DataTable<TRow>({
                 })}
               </TableRow>
             ))
-          : Array.from({ length: loading.rowCount }, (_, index) => (
-              <TableRow aria-hidden="true" key={index}>
+          : Array.from(
+              { length: loading.rowCount },
+              (_, rowId) => rowId
+            ).map((rowId) => (
+              <TableRow aria-hidden="true" key={rowId}>
                 {columns.map((column) => (
                   <TableCell className="h-11" key={column.id}>
                     <Skeleton

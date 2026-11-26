@@ -48,6 +48,7 @@ const columns = [
   { label: "收货人", width: "w-[14%]" },
   { label: "联系电话", width: "w-[18%]" },
 ];
+const pendingRows = Array.from({ length: 5 }, (_, rowId) => rowId);
 
 export const Route = createFileRoute("/_protected/addresses/")({
   validateSearch: readAddressListQuery,
@@ -225,8 +226,8 @@ function AddressDirectory() {
         <div role="status">
           <span className="sr-only">正在加载地址</span>
           <AddressTable>
-            {Array.from({ length: 5 }, (_, index) => (
-              <TableRow aria-hidden="true" key={index}>
+            {pendingRows.map((rowId) => (
+              <TableRow aria-hidden="true" key={rowId}>
                 {columns.map(({ label }) => (
                   <TableCell className="h-11" key={label}>
                     <Skeleton className="h-4 w-24 max-w-full" />

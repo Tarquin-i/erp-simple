@@ -54,6 +54,7 @@ const columns = [
   { label: "赔付率", width: "w-[9%]" },
   { label: "创建时间", width: "w-[15%]" },
 ];
+const pendingRows = Array.from({ length: 5 }, (_, rowId) => rowId);
 const dateTime = new Intl.DateTimeFormat("zh-CN", {
   dateStyle: "short",
   timeStyle: "short",
@@ -212,8 +213,8 @@ export function PayoutList({
         <div role="status">
           <span className="sr-only">正在加载 Payout…</span>
           <PayoutTable>
-            {Array.from({ length: 5 }, (_, index) => (
-              <TableRow key={index} aria-hidden="true">
+            {pendingRows.map((rowId) => (
+              <TableRow key={rowId} aria-hidden="true">
                 {columns.map(({ label }) => (
                   <TableCell className="h-11" key={label}>
                     <Skeleton className="h-4 w-24 max-w-full" />

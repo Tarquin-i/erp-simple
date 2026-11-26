@@ -82,6 +82,7 @@ const defaultColumns = [
 const customerColumns = defaultColumns
   .filter(({ label }) => label !== "客户")
   .map(({ label }) => ({ label }));
+const pendingRows = Array.from({ length: 4 }, (_, rowId) => rowId);
 const pendingCreationLabel = "处理待确认提交";
 const noPendingCreation = () => false;
 const customerDetailRoute = getRouteApi("/_protected/customers/$customerId/");
@@ -354,8 +355,8 @@ export function CommunicationList({
         <div role="status">
           <span className="sr-only">正在加载沟通记录…</span>
           <CommunicationTable columns={columns} customerView={customerView}>
-            {Array.from({ length: 4 }, (_, index) => (
-              <TableRow aria-hidden="true" key={index}>
+            {pendingRows.map((rowId) => (
+              <TableRow aria-hidden="true" key={rowId}>
                 {columns.map(({ label }) => (
                   <TableCell
                     className={cn(customerView ? "h-14" : "h-11", cellPadding)}
