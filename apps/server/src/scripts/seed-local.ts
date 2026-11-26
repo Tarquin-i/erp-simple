@@ -23,7 +23,7 @@ import {
 import type { PayoutDefinition } from "@repo/db/schema";
 import { and, eq, getTableName, inArray, or, sql } from "drizzle-orm";
 
-import { readAddressCreateInput } from "../modules/address/input";
+import { readAddressCreateInput } from "../modules/address/http/routes";
 import type { DatabaseTransaction } from "../modules/identity/auth/better-auth";
 import {
   assertPayoutTicketCapacity,

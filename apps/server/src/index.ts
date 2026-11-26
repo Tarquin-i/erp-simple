@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { handleServerError } from "./errors";
-import { addressRoutes } from "./modules/address/routes";
+import { createAddressModule } from "./modules/address";
+import {
+  createAddressRoutes,
+  createCustomerAddressRoutes,
+} from "./modules/address/http/routes";
 import { startAttachmentUploadCleanup } from "./modules/communication/attachments";
 import { communicationRoutes } from "./modules/communication/routes";
 import { createCustomerModule } from "./modules/customer";
@@ -14,6 +18,7 @@ import { productRoutes } from "./modules/product/routes";
 
 const app = new Hono();
 const customer = createCustomerModule(database.db);
+const { deliveryAddresses } = createAddressModule(database.db);
 
 app.onError(handleServerError);
 app.get("/", (c) => c.text("Hello Hono!"));
@@ -21,8 +26,14 @@ app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
 app.route("/api/organization/admin", departmentAdminRoutes);
 app.route("/api/organization", departmentApplicationRoutes);
 app.route("/api/organization", organizationReadRoutes);
-app.route("/api/customers", createCustomerRoutes(customer));
-app.route("/api/addresses", addressRoutes);
+app.route(
+  "/api/customers",
+  createCustomerRoutes(
+    customer,
+    createCustomerAddressRoutes(deliveryAddresses.listCustomerAddresses)
+  )
+);
+app.route("/api/addresses", createAddressRoutes(deliveryAddresses));
 app.route("/api/communications", communicationRoutes);
 app.route("/api/products", productRoutes);
 app.route("/api/payouts", payoutRoutes);

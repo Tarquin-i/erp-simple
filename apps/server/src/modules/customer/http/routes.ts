@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 
-import { customerAddressRoutes } from "../../address/routes";
 import { requireBusinessAccess } from "../../business/access";
 import type { BusinessAccessEnv } from "../../business/access";
 import type { CustomerModule } from "../module";
@@ -10,13 +9,10 @@ import { createCustomerOwnerOptionRoutes } from "./owner-options";
 import { createCustomerProfileRoutes } from "./profiles";
 import { createCustomerTagRoutes } from "./tags";
 
-export function createCustomerRoutes({
-  contacts,
-  listChannels,
-  ownerOptions,
-  profiles,
-  tags,
-}: CustomerModule) {
+export function createCustomerRoutes(
+  { contacts, listChannels, ownerOptions, profiles, tags }: CustomerModule,
+  customerAddressRoutes: Hono<BusinessAccessEnv>
+) {
   const routes = new Hono<BusinessAccessEnv>();
 
   routes.use("*", requireBusinessAccess);
