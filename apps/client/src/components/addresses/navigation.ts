@@ -6,6 +6,7 @@ import {
   listOptionValue,
   readListOptionValues,
 } from "@/lib/list-option-query";
+import { readListPageSize } from "@/lib/list-page-size";
 import type { AddressListQuery } from "@/request/addresses";
 
 declare module "@tanstack/react-router" {
@@ -87,6 +88,7 @@ export function readAddressListQuery(
   );
   return {
     ...readAddressPage(raw),
+    pageSize: readListPageSize(raw.pageSize),
     search:
       typeof search === "string"
         ? search.replaceAll("\0", "").trim().slice(0, 128) || undefined

@@ -3,6 +3,7 @@ import {
   listOptionValue,
   readListOptionValues,
 } from "@/lib/list-option-query";
+import { readListPageSize } from "@/lib/list-page-size";
 import type { CustomerListQuery } from "@/request/customers";
 
 export {
@@ -29,7 +30,7 @@ function searchText(value: unknown, maximum: number) {
 /**
  * 清理路由搜索参数，生成可用于客户列表请求的查询条件。
  * @param search 从 URL 或导航历史读取的原始参数。
- * @returns 规范化的搜索词、筛选条件和页码。无效值和默认的第一页用 `undefined` 表示。
+ * @returns 规范化的搜索词、筛选条件和分页参数。无效值和默认值用 `undefined` 表示。
  */
 export function parseListQuery(
   search: Record<string, unknown>
@@ -72,6 +73,7 @@ export function parseListQuery(
       page <= 1_000_000
         ? page
         : undefined,
+    pageSize: readListPageSize(search.pageSize),
   };
 }
 

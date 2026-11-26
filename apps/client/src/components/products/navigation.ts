@@ -9,6 +9,7 @@ import {
   listOptionValue,
   readListOptionValues,
 } from "@/lib/list-option-query";
+import { readListPageSize } from "@/lib/list-page-size";
 import { isProductType } from "@/request/products";
 import type { ProductListQuery } from "@/request/products";
 
@@ -149,9 +150,8 @@ export function readProductListQuery(
     if (operator) query.productTypeOperator = operator;
   }
   const page = readProductPage(search.page);
-  const pageSize = positiveInteger(search.pageSize, 100);
   if (page) query.page = page;
-  if (pageSize && pageSize !== 20) query.pageSize = pageSize;
+  query.pageSize = readListPageSize(search.pageSize);
   return query;
 }
 

@@ -13,6 +13,7 @@ import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { tableLinkClassName } from "@/components/ui/table";
+import { readListPageSize } from "@/lib/list-page-size";
 import { shouldOpenTableRow } from "@/lib/should-open-table-row";
 import { listProducts, productTypeLabels } from "@/request/products";
 import type { ProductListItem, ProductListQuery } from "@/request/products";
@@ -254,12 +255,18 @@ export function ProductList({
             ? {
                 label: "产品列表分页",
                 page: visiblePage.page,
-                pageCount,
+                pageSize: visiblePage.pageSize,
                 total: visiblePage.total,
                 onPageChange: (page) =>
                   onQueryChange((previous) => ({
                     ...previous,
                     page: page > 1 ? page : undefined,
+                  })),
+                onPageSizeChange: (size) =>
+                  onQueryChange((previous) => ({
+                    ...previous,
+                    page: undefined,
+                    pageSize: readListPageSize(size),
                   })),
               }
             : undefined

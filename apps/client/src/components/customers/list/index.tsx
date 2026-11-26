@@ -13,6 +13,7 @@ import { ListPage } from "@/components/shared/list-page";
 import { ListSearchInput } from "@/components/shared/list-toolbar";
 import { Button } from "@/components/ui/button";
 import { tableLinkClassName } from "@/components/ui/table";
+import { readListPageSize } from "@/lib/list-page-size";
 import { shouldOpenTableRow } from "@/lib/should-open-table-row";
 import { listCustomers } from "@/request/customers";
 import type { Customer, CustomerListQuery } from "@/request/customers";
@@ -223,12 +224,18 @@ export function CustomerList({
             ? {
                 label: "客户列表分页",
                 page: visiblePage.page,
-                pageCount,
+                pageSize: visiblePage.pageSize,
                 total: visiblePage.total,
                 onPageChange: (page) =>
                   onQueryChange((previous) => ({
                     ...previous,
                     page: page > 1 ? page : undefined,
+                  })),
+                onPageSizeChange: (size) =>
+                  onQueryChange((previous) => ({
+                    ...previous,
+                    page: undefined,
+                    pageSize: readListPageSize(size),
                   })),
               }
             : undefined

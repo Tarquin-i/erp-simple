@@ -3,6 +3,7 @@ import {
   listOptionValue,
   readListOptionValues,
 } from "@/lib/list-option-query";
+import { readListPageSize } from "@/lib/list-page-size";
 import { communicationStatusLabels } from "@/request/communication";
 import type {
   CommunicationListQuery,
@@ -55,6 +56,7 @@ export function parseCommunicationListQuery(
     ownerUserId: listOptionValue(owners),
     ownerOperator: listOptionOperator(owners.length, search.ownerOperator),
     page: readCommunicationPage(search.page),
+    pageSize: readListPageSize(search.pageSize),
   };
 }
 

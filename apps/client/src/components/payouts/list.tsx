@@ -26,6 +26,7 @@ import {
   tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
+import { readListPageSize } from "@/lib/list-page-size";
 import {
   formatPayoutMoney,
   formatPayoutPercent,
@@ -73,11 +74,18 @@ export function PayoutList({
 }) {
   const [load, setLoad] = useState<ListState>();
   const [retry, setRetry] = useState(0);
-  const { search = "", productId, productOperator, page = 1 } = query;
+  const { search = "", productId, productOperator, page = 1, pageSize } = query;
   const [searchDraft, setSearchDraft] = useState(search);
   const lastSubmittedSearch = useRef<string | undefined>(undefined);
   const trimmedSearch = searchDraft.trim();
-  const key = JSON.stringify([search, productId, productOperator, page, retry]);
+  const key = JSON.stringify([
+    search,
+    productId,
+    productOperator,
+    page,
+    pageSize,
+    retry,
+  ]);
   const activeLoad =
     load?.key === key && trimmedSearch === search ? load : undefined;
   const result = activeLoad?.result;
@@ -117,7 +125,13 @@ export function PayoutList({
     const controller = new AbortController();
     const { signal } = controller;
     void listPayouts(
-      { search: search || undefined, productId, productOperator, page },
+      {
+        search: search || undefined,
+        productId,
+        productOperator,
+        page,
+        pageSize,
+      },
       signal
     ).then(
       (result) => {
@@ -136,7 +150,7 @@ export function PayoutList({
       }
     );
     return () => controller.abort();
-  }, [key, page, productId, productOperator, search]);
+  }, [key, page, pageSize, productId, productOperator, search]);
 
   useEffect(() => {
     if (result && result.page > pageCount)
@@ -279,13 +293,20 @@ export function PayoutList({
           <ListPagination
             label="Payout 列表分页"
             page={result.page}
-            pageCount={pageCount}
+            pageSize={result.pageSize}
             total={result.total}
             className="mt-5"
             onPageChange={(next) =>
               onChangeQuery((previous) => ({
                 ...previous,
                 page: next > 1 ? next : undefined,
+              }))
+            }
+            onPageSizeChange={(pageSize) =>
+              onChangeQuery((previous) => ({
+                ...previous,
+                page: undefined,
+                pageSize: readListPageSize(pageSize),
               }))
             }
           />

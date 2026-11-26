@@ -210,7 +210,7 @@ export function CustomerProductsTab({
       <ListPagination
         label="客户产品分页"
         page={result.page}
-        pageCount={pageCount}
+        pageSize={result.pageSize}
         total={result.total}
         className="mt-4"
         onPageChange={onPageChange}

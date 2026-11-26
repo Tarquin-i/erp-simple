@@ -29,6 +29,7 @@ import {
   tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
+import { readListPageSize } from "@/lib/list-page-size";
 import { shouldOpenTableRow } from "@/lib/should-open-table-row";
 import { AddressApiError, listDefaultAddresses } from "@/request/addresses";
 import type { AddressListQuery } from "@/request/addresses";
@@ -290,13 +291,20 @@ function AddressDirectory() {
           <ListPagination
             label="地址目录分页"
             page={result.page}
-            pageCount={Math.max(1, Math.ceil(result.total / result.pageSize))}
+            pageSize={result.pageSize}
             total={result.total}
             className="mt-5"
             onPageChange={(page) =>
               updateQuery((previous) => ({
                 ...previous,
                 page: page > 1 ? page : undefined,
+              }))
+            }
+            onPageSizeChange={(pageSize) =>
+              updateQuery((previous) => ({
+                ...previous,
+                page: undefined,
+                pageSize: readListPageSize(pageSize),
               }))
             }
           />

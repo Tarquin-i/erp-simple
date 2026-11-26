@@ -44,6 +44,7 @@ import {
   tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
+import { readListPageSize } from "@/lib/list-page-size";
 import { shouldOpenTableRow } from "@/lib/should-open-table-row";
 import {
   communicationStatusLabels,
@@ -460,7 +461,7 @@ export function CommunicationList({
           <ListPagination
             label="沟通记录分页"
             page={result.page}
-            pageCount={pageCount}
+            pageSize={result.pageSize}
             total={result.total}
             className={customerView ? "mt-4" : "mt-5"}
             onPageChange={(page) =>
@@ -468,6 +469,16 @@ export function CommunicationList({
                 ...previous,
                 page: page > 1 ? page : undefined,
               }))
+            }
+            onPageSizeChange={
+              customerView
+                ? undefined
+                : (size) =>
+                    onQueryChange((previous) => ({
+                      ...previous,
+                      page: undefined,
+                      pageSize: readListPageSize(size),
+                    }))
             }
           />
         </>

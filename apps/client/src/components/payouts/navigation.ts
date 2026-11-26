@@ -9,6 +9,7 @@ import {
   listOptionValue,
   readListOptionValues,
 } from "@/lib/list-option-query";
+import { readListPageSize } from "@/lib/list-page-size";
 import type { PayoutListQuery } from "@/request/payouts";
 
 const uuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu;
@@ -19,13 +20,14 @@ declare module "@tanstack/react-router" {
   }
 }
 
-export type PayoutListSearch = Omit<PayoutListQuery, "pageSize">;
+export type PayoutListSearch = PayoutListQuery;
 
 export function readPayoutListSearch({
   search,
   productId,
   productOperator,
   page,
+  pageSize,
 }: Record<string, unknown>): PayoutListSearch {
   const products = readListOptionValues(productId, (value) =>
     typeof value === "string" && uuidPattern.test(value)
@@ -38,6 +40,7 @@ export function readPayoutListSearch({
     productId: listOptionValue(products),
     productOperator: listOptionOperator(products.length, productOperator),
     page: readProductPage(page),
+    pageSize: readListPageSize(pageSize),
   };
 }
 
@@ -47,6 +50,7 @@ export function payoutListOrigin(query: PayoutListSearch) {
     listProductId: query.productId,
     listProductOperator: query.productOperator,
     listPage: query.page,
+    listPageSize: query.pageSize,
   };
 }
 
@@ -56,6 +60,7 @@ export function payoutListSearchFromOrigin(search: Record<string, unknown>) {
     productId: search.listProductId,
     productOperator: search.listProductOperator,
     page: search.listPage,
+    pageSize: search.listPageSize,
   });
 }
 
