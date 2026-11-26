@@ -25,10 +25,8 @@ import { and, eq, getTableName, inArray, or, sql } from "drizzle-orm";
 
 import { readAddressCreateInput } from "../modules/address/http/routes";
 import type { DatabaseTransaction } from "../modules/identity/auth/better-auth";
-import {
-  assertPayoutTicketCapacity,
-  readPayoutCreateInput,
-} from "../modules/payout/input";
+import { assertPayoutTicketCapacity } from "../modules/payout/application/errors";
+import { readPayoutCreateInput } from "../modules/payout/http/write-requests";
 import { readProductCreateInput } from "../modules/product/http/write-requests";
 
 const seedCustomerChannels = [

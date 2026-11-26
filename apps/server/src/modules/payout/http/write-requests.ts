@@ -1,7 +1,8 @@
 import type { PayoutDefinition } from "@repo/db/schema";
 
-import { readString, readUuid } from "../../http/request-input";
-import { fail } from "../organization/errors";
+import { readString, readUuid } from "../../../http/request-input";
+import { fail } from "../../organization/errors";
+import type { PayoutCreateInput, PayoutPatch } from "../persistence/payouts";
 
 const maxPayoutNameLength = 128;
 const maxRemarkLength = 2000;
@@ -24,21 +25,6 @@ export const payoutPatchFields = [
   "remark",
   "definition",
 ] as const;
-
-export interface PayoutCreateInput {
-  productId: string;
-  name: string;
-  ticketCount: number;
-  unitPrice: string;
-  remark: string;
-}
-
-export interface PayoutPatch {
-  name?: string;
-  unitPrice?: string;
-  remark?: string;
-  definition?: PayoutDefinition;
-}
 
 function readTicketQuantity(value: unknown, label: string) {
   if (
@@ -200,19 +186,4 @@ export function readPayoutPatch(body: Record<string, unknown>): PayoutPatch {
   }
   if (!Object.keys(patch).length) fail(400, "请提交需要更新的 Payout 资料。");
   return patch;
-}
-
-/** 基于当前发行张数检查奖项定义。 */
-export function assertPayoutTicketCapacity(
-  definition: PayoutDefinition,
-  ticketCount: number
-) {
-  const winning = definition.groups.reduce(
-    (total, group) =>
-      group.prizes.reduce((sum, prize) => sum + prize.quantity, total),
-    0
-  );
-  if (winning > ticketCount) {
-    fail(400, `中奖张数合计 ${winning}，不能超过总张数 ${ticketCount}。`);
-  }
 }
