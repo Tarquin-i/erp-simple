@@ -27,7 +27,11 @@ export function AddressBreadcrumbs() {
           <BreadcrumbItem>
             {addressId ? (
               <BreadcrumbLink asChild>
-                <Link to="/addresses" search={state.addressListQuery ?? {}}>
+                <Link
+                  to="/addresses"
+                  search={state.addressListQuery ?? {}}
+                  activeOptions={{ exact: true }}
+                >
                   地址
                 </Link>
               </BreadcrumbLink>

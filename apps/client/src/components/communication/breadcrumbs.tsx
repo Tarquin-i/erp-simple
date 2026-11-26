@@ -33,6 +33,7 @@ export function CommunicationBreadcrumbs() {
                 <Link
                   to="/communication"
                   search={state.communicationListQuery ?? {}}
+                  activeOptions={{ exact: true }}
                 >
                   沟通
                 </Link>
@@ -53,6 +54,7 @@ export function CommunicationBreadcrumbs() {
                       params={{ communicationId }}
                       search={origin}
                       state={state}
+                      activeOptions={{ exact: true }}
                     >
                       沟通详情
                     </Link>

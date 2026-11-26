@@ -32,7 +32,11 @@ export function CustomerBreadcrumbs() {
           <BreadcrumbItem>
             {customerId ? (
               <BreadcrumbLink asChild>
-                <Link to="/customers" search={listQuery}>
+                <Link
+                  to="/customers"
+                  search={listQuery}
+                  activeOptions={{ exact: true }}
+                >
                   客户
                 </Link>
               </BreadcrumbLink>
@@ -50,6 +54,7 @@ export function CustomerBreadcrumbs() {
                       to="/customers/$customerId"
                       params={{ customerId }}
                       state={{ customerListQuery: listQuery }}
+                      activeOptions={{ exact: true }}
                     >
                       客户详情
                     </Link>

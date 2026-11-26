@@ -29,7 +29,11 @@ export function PayoutBreadcrumbs() {
           <BreadcrumbItem>
             {payoutId ? (
               <BreadcrumbLink asChild>
-                <Link to="/payouts" search={payoutListSearchFromOrigin(search)}>
+                <Link
+                  to="/payouts"
+                  search={payoutListSearchFromOrigin(search)}
+                  activeOptions={{ exact: true }}
+                >
                   Payout
                 </Link>
               </BreadcrumbLink>
