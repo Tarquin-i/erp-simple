@@ -8,7 +8,7 @@ export function intersection<T>(a: T[], b: T[]): T[] {
  * It uses a cache (WeakMap) to avoid rehashing the same object twice, which is
  * particularly beneficial if an object appears in multiple places.
  */
-function deepHash(value: any, cache = new WeakMap<object, string>()): string {
+function deepHash(value: unknown, cache = new WeakMap<object, string>()): string {
   // Handle primitives and null/undefined.
   if (value === null) return 'null'
   if (value === undefined) return 'undefined'
@@ -24,18 +24,18 @@ function deepHash(value: any, cache = new WeakMap<object, string>()): string {
   // For objects and arrays, use caching to avoid repeated work.
   if (type === 'object') {
     // If we’ve seen this object before, return the cached hash.
-    if (cache.has(value)) {
-      return cache.get(value)!
-    }
+    const cachedHash = cache.get(value)
+    if (cachedHash !== undefined) return cachedHash
     let hash: string
     if (Array.isArray(value)) {
       // Compute hash for each element in order.
       hash = `array:[${value.map((v) => deepHash(v, cache)).join(',')}]`
     } else {
       // For objects, sort keys to ensure the representation is stable.
-      const keys = Object.keys(value).sort()
+      const record = value as Record<string, unknown>
+      const keys = Object.keys(record).sort()
       const props = keys
-        .map((k) => `${k}:${deepHash(value[k], cache)}`)
+        .map((k) => `${k}:${deepHash(record[k], cache)}`)
         .join(',')
       hash = `object:{${props}}`
     }
@@ -51,7 +51,7 @@ function deepHash(value: any, cache = new WeakMap<object, string>()): string {
  * Performs deep equality check for any two values.
  * This recursively checks primitives, arrays, and plain objects.
  */
-function deepEqual(a: any, b: any): boolean {
+function deepEqual(a: unknown, b: unknown): boolean {
   // Check strict equality first.
   if (a === b) return true
   // If types differ, they’re not equal.
@@ -71,12 +71,14 @@ function deepEqual(a: any, b: any): boolean {
   // Check objects.
   if (typeof a === 'object') {
     if (typeof b !== 'object') return false
-    const aKeys = Object.keys(a).sort()
-    const bKeys = Object.keys(b).sort()
+    const left = a as Record<string, unknown>
+    const right = b as Record<string, unknown>
+    const aKeys = Object.keys(left).sort()
+    const bKeys = Object.keys(right).sort()
     if (aKeys.length !== bKeys.length) return false
     for (let i = 0; i < aKeys.length; i++) {
       if (aKeys[i] !== bKeys[i]) return false
-      if (!deepEqual(a[aKeys[i]], b[bKeys[i]])) return false
+      if (!deepEqual(left[aKeys[i]], right[bKeys[i]])) return false
     }
     return true
   }
@@ -99,9 +101,9 @@ export function uniq<T>(arr: T[]): T[] {
 
   for (const item of arr) {
     const hash = deepHash(item)
-    if (seen.has(hash)) {
+    const itemsWithHash = seen.get(hash)
+    if (itemsWithHash !== undefined) {
       // There is a potential duplicate; check the stored items with the same hash.
-      const itemsWithHash = seen.get(hash)!
       let duplicateFound = false
       for (const existing of itemsWithHash) {
         if (deepEqual(existing, item)) {

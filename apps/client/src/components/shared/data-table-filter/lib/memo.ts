@@ -1,20 +1,16 @@
-export function memo<TDeps extends readonly any[], TResult>(
+export function memo<TDeps extends readonly unknown[], TResult>(
   getDeps: () => TDeps,
   compute: (deps: TDeps) => TResult,
 ): () => TResult {
-  let prevDeps: TDeps | undefined
-  let cachedResult: TResult | undefined
+  let cached: { deps: TDeps; result: TResult } | undefined
 
   return () => {
     const deps = getDeps()
+    if (cached && shallowEqual(cached.deps, deps)) return cached.result
 
-    // If no previous deps or deps have changed, recompute
-    if (!prevDeps || !shallowEqual(prevDeps, deps)) {
-      cachedResult = compute(deps)
-      prevDeps = deps
-    }
-
-    return cachedResult!
+    const result = compute(deps)
+    cached = { deps, result }
+    return result
   }
 }
 
