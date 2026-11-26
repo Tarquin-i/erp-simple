@@ -7,10 +7,9 @@ import type {
   FilterValues,
 } from './types'
 
-export const DEFAULT_OPERATORS: Record<
-  ColumnDataType,
-  Record<FilterOperatorTarget, FilterOperators[ColumnDataType]>
-> = {
+export const DEFAULT_OPERATORS: {
+  [Type in ColumnDataType]: Record<FilterOperatorTarget, FilterOperators[Type]>
+} = {
   text: {
     single: 'contains',
     multiple: 'contains',

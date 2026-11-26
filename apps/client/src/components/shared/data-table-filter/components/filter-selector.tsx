@@ -32,6 +32,7 @@ import type {
   Column,
   ColumnDataType,
   DataTableFilterActions,
+  FilterModel,
   FilterStrategy,
   FiltersState,
   OptionBasedColumnDataType,
@@ -424,7 +425,10 @@ function __QuickSearchFilters<TData>({
   return (
     <>
       {cols.map((column) => {
-        const filter = filters.find((f) => f.columnId === column.id)
+        const filter = filters.find(
+          (f): f is FilterModel<OptionBasedColumnDataType> =>
+            f.columnId === column.id && f.type === column.type,
+        )
         const options = column.getOptions()
         const optionsCount = column.getFacetedUniqueValues()
 

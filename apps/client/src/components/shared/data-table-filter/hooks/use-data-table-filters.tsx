@@ -3,7 +3,11 @@
 import type React from 'react'
 import { useMemo, useState } from 'react'
 import { createColumns } from '../core/filters'
-import { DEFAULT_OPERATORS, determineNewOperator } from '../core/operators'
+import {
+  DEFAULT_OPERATORS,
+  determineNewOperator,
+  filterTypeOperatorDetails,
+} from '../core/operators'
 import type {
   ColumnConfig,
   ColumnDataType,
@@ -11,6 +15,7 @@ import type {
   DataTableFilterActions,
   FilterModel,
   FilterStrategy,
+  FilterValues,
   FiltersState,
   NumberColumnIds,
   OptionBasedColumnDataType,
@@ -26,6 +31,27 @@ import {
   isColumnOptionMap,
   isMinMaxTuple,
 } from '../lib/helpers'
+
+const normalizeFilterValues: {
+  [Type in ColumnDataType]: (values: FilterValues<Type>) => FilterValues<Type>
+} = {
+  text: uniq,
+  number: createNumberFilterValue,
+  date: createDateFilterValue,
+  option: uniq,
+  multiOption: uniq,
+}
+
+function findFilter<Type extends ColumnDataType>(
+  filters: FiltersState,
+  columnId: string,
+  type: Type,
+) {
+  return filters.find(
+    (filter): filter is FilterModel<Type> =>
+      filter.columnId === columnId && filter.type === type,
+  )
+}
 
 export interface DataTableFiltersOptions<
   TData,
@@ -132,18 +158,18 @@ export function useDataTableFilters<
       ) {
         if (column.type === 'option') {
           setFilters((prev) => {
-            const filter = prev.find((f) => f.columnId === column.id)
+            const filter = findFilter(prev, column.id, 'option')
             const isColumnFiltered = filter && filter.values.length > 0
             if (!isColumnFiltered) {
               return [
                 ...prev,
                 {
                   columnId: column.id,
-                  type: column.type,
+                  type: 'option',
                   operator:
                     values.length > 1
-                      ? DEFAULT_OPERATORS[column.type].multiple
-                      : DEFAULT_OPERATORS[column.type].single,
+                      ? DEFAULT_OPERATORS.option.multiple
+                      : DEFAULT_OPERATORS.option.single,
                   values,
                 },
               ]
@@ -160,7 +186,7 @@ export function useDataTableFilters<
               f.columnId === column.id
                 ? {
                     columnId: column.id,
-                    type: column.type,
+                    type: 'option',
                     operator: newOperator,
                     values: newValues,
                   }
@@ -171,18 +197,18 @@ export function useDataTableFilters<
         }
         if (column.type === 'multiOption') {
           setFilters((prev) => {
-            const filter = prev.find((f) => f.columnId === column.id)
+            const filter = findFilter(prev, column.id, 'multiOption')
             const isColumnFiltered = filter && filter.values.length > 0
             if (!isColumnFiltered) {
               return [
                 ...prev,
                 {
                   columnId: column.id,
-                  type: column.type,
+                  type: 'multiOption',
                   operator:
                     values.length > 1
-                      ? DEFAULT_OPERATORS[column.type].multiple
-                      : DEFAULT_OPERATORS[column.type].single,
+                      ? DEFAULT_OPERATORS.multiOption.multiple
+                      : DEFAULT_OPERATORS.multiOption.single,
                   values,
                 },
               ]
@@ -202,7 +228,7 @@ export function useDataTableFilters<
               f.columnId === column.id
                 ? {
                     columnId: column.id,
-                    type: column.type,
+                    type: 'multiOption',
                     operator: newOperator,
                     values: newValues,
                   }
@@ -221,7 +247,7 @@ export function useDataTableFilters<
       ) {
         if (column.type === 'option') {
           setFilters((prev) => {
-            const filter = prev.find((f) => f.columnId === column.id)
+            const filter = findFilter(prev, column.id, 'option')
             const isColumnFiltered = filter && filter.values.length > 0
             if (!isColumnFiltered) {
               return [...prev]
@@ -241,7 +267,7 @@ export function useDataTableFilters<
               f.columnId === column.id
                 ? {
                     columnId: column.id,
-                    type: column.type,
+                    type: 'option',
                     operator: newOperator,
                     values: newValues,
                   }
@@ -252,7 +278,7 @@ export function useDataTableFilters<
         }
         if (column.type === 'multiOption') {
           setFilters((prev) => {
-            const filter = prev.find((f) => f.columnId === column.id)
+            const filter = findFilter(prev, column.id, 'multiOption')
             const isColumnFiltered = filter && filter.values.length > 0
             if (!isColumnFiltered) {
               return [...prev]
@@ -272,7 +298,7 @@ export function useDataTableFilters<
               f.columnId === column.id
                 ? {
                     columnId: column.id,
-                    type: column.type,
+                    type: 'multiOption',
                     operator: newOperator,
                     values: newValues,
                   }
@@ -287,48 +313,32 @@ export function useDataTableFilters<
       },
       setFilterValue<TData, TType extends ColumnDataType>(
         column: ColumnConfig<TData, TType>,
-        values: FilterModel<TType>['values'],
+        values: FilterValues<TType>,
       ) {
         setFilters((prev) => {
-          const filter = prev.find((f) => f.columnId === column.id)
-          const isColumnFiltered = filter && filter.values.length > 0
-          const newValues =
-            column.type === 'number'
-              ? createNumberFilterValue(values as number[])
-              : column.type === 'date'
-                ? createDateFilterValue(
-                    values as [Date, Date] | [Date] | [] | undefined,
-                  )
-                : uniq(values)
+          const filter = findFilter(prev, column.id, column.type)
+          const newValues = normalizeFilterValues[column.type](values)
           if (newValues.length === 0) return prev
-          if (!isColumnFiltered) {
-            return [
-              ...prev,
-              {
-                columnId: column.id,
-                type: column.type,
-                operator:
-                  values.length > 1
-                    ? DEFAULT_OPERATORS[column.type].multiple
-                    : DEFAULT_OPERATORS[column.type].single,
-                values: newValues,
-              },
-            ]
-          }
-          const oldValues = filter.values
-          const newOperator = determineNewOperator(
-            column.type,
-            oldValues,
-            newValues,
-            filter.operator,
-          )
+          const isColumnFiltered = filter && filter.values.length > 0
+          const operator = isColumnFiltered
+            ? determineNewOperator(
+                column.type,
+                filter.values,
+                newValues,
+                filter.operator,
+              )
+            : DEFAULT_OPERATORS[column.type][
+                values.length > 1 ? 'multiple' : 'single'
+              ]
           const newFilter = {
             columnId: column.id,
             type: column.type,
-            operator: newOperator,
-            values: newValues as any,
-          } satisfies FilterModel<TType>
-          return prev.map((f) => (f.columnId === column.id ? newFilter : f))
+            operator,
+            values: newValues,
+          } as FilterModel<TType>
+          return isColumnFiltered
+            ? prev.map((f) => (f.columnId === column.id ? newFilter : f))
+            : [...prev, newFilter]
         })
       },
       setFilterOperator<TType extends ColumnDataType>(
@@ -336,7 +346,12 @@ export function useDataTableFilters<
         operator: FilterModel<TType>['operator'],
       ) {
         setFilters((prev) =>
-          prev.map((f) => (f.columnId === columnId ? { ...f, operator } : f)),
+          prev.map((filter) =>
+            filter.columnId === columnId &&
+            Object.hasOwn(filterTypeOperatorDetails[filter.type], operator)
+              ? ({ ...filter, operator } as FilterModel)
+              : filter,
+          ),
         )
       },
       removeFilter(columnId: string) {

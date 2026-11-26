@@ -227,7 +227,7 @@ export interface DataTableFilterActions {
 
   setFilterValue: <TData, TType extends ColumnDataType>(
     column: Column<TData, TType>,
-    values: FilterModel<TType>['values'],
+    values: FilterValues<NoInfer<TType>>,
   ) => void
 
   setFilterOperator: <TType extends ColumnDataType>(
@@ -297,12 +297,17 @@ export type FilterOperators = {
  * - Values: An array of values to be used for the filter.
  *
  */
-export type FilterModel<TType extends ColumnDataType = any> = {
-  columnId: string
-  type: TType
-  operator: FilterOperators[TType]
-  values: FilterValues<TType>
+type FilterModels = {
+  [Type in ColumnDataType]: {
+    columnId: string
+    type: Type
+    operator: FilterOperators[Type]
+    values: FilterValues<Type>
+  }
 }
+
+export type FilterModel<TType extends ColumnDataType = ColumnDataType> =
+  FilterModels[TType]
 
 export type FiltersState = Array<FilterModel>
 

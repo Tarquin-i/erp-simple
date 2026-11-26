@@ -20,12 +20,10 @@ export function createNumberFilterValue(
   return [values[0], values[1]]
 }
 
-export function createDateFilterValue(
-  values: [Date, Date] | [Date] | [] | undefined,
-) {
+export function createDateFilterValue(values: Date[] | undefined) {
   if (!values || values.length === 0) return []
   if (values.length === 1) return [values[0]]
-  if (values.length === 2) return createDateRange(values)
+  if (values.length === 2) return createDateRange([values[0], values[1]])
   throw new Error('Cannot create date filter value from more than 2 values')
 }
 
