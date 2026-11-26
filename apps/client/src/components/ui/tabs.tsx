@@ -51,7 +51,10 @@ function TabsList({
   const indicatorRef = React.useRef<HTMLSpanElement>(null);
   const animated = animatedIndicator && variant === "default" && !props.asChild;
 
-  React.useImperativeHandle(ref, () => listRef.current!);
+  React.useImperativeHandle<HTMLDivElement | null, HTMLDivElement | null>(
+    ref,
+    () => listRef.current
+  );
 
   React.useLayoutEffect(() => {
     const list = listRef.current;

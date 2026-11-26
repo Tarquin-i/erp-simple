@@ -4,7 +4,8 @@ import { getRouter } from "./router";
 
 const router = getRouter();
 
-const rootElement = document.getElementById("app")!;
+const rootElement = document.getElementById("app");
+if (!rootElement) throw new Error("找不到前端挂载节点 #app。");
 
 if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
