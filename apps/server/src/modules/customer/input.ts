@@ -1,7 +1,8 @@
 import type { Context } from "hono";
-import { HTTPException } from "hono/http-exception";
 
 import { fail } from "../organization/errors";
+
+export { failVersionConflict } from "../../errors";
 
 const uuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
@@ -104,25 +105,6 @@ export function readExpectedVersion(value: unknown) {
     fail(400, "请提交有效的记录版本。");
   }
   return value;
-}
-
-/**
- * 在版本不匹配时中止写入，提供最新资料供客户端比较。
- * @param current 从数据库读取的当前记录快照。
- * @returns 无正常返回。
- * @throws 始终抛出 HTTP 409，响应包含 `version_conflict` 和 `current`。
- */
-export function failVersionConflict(current: unknown): never {
-  throw new HTTPException(409, {
-    res: Response.json(
-      {
-        code: "version_conflict",
-        message: "资料已被更新，请查看最新资料后确认是否覆盖。",
-        current,
-      },
-      { status: 409 }
-    ),
-  });
 }
 
 /**
