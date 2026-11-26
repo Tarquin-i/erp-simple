@@ -32,7 +32,7 @@ const readError = "无法读取本地提交记录。请恢复浏览器站点存�
 const attempts = new Map<string, Promise<CreationResult>>();
 
 function creationStorageKey(accountId: string) {
-  return "communication-submission:v2:" + JSON.stringify(accountId);
+  return `communication-submission:v2:${JSON.stringify(accountId)}`;
 }
 
 function isUuid(value: unknown): value is string {
@@ -82,8 +82,7 @@ function readCreationSubmission(accountId: string): CreationSubmission | null {
     const raw = sessionStorage.getItem(key);
     if (raw !== null) return parseCreationSubmission(key, raw);
 
-    const legacyPrefix =
-      "communication-submission:v1:[" + JSON.stringify(accountId) + ",";
+    const legacyPrefix = `communication-submission:v1:[${JSON.stringify(accountId)},`;
     for (let index = 0; index < sessionStorage.length; index++) {
       const legacyKey = sessionStorage.key(index);
       if (!legacyKey?.startsWith(legacyPrefix)) continue;

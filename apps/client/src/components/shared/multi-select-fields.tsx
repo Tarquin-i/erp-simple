@@ -91,7 +91,7 @@ export function TagMultiSelectField({
   const [editorError, setEditorError] = useState("");
   const [colorConflict, setColorConflict] = useState(false);
   const [saving, setSaving] = useState(false);
-  const tagLimitId = props.id + "-limit";
+  const tagLimitId = `${props.id}-limit`;
   const atTagLimit = props.value.length >= maxTags;
   const keyword = search.trim();
   const currentResult = results?.keyword === keyword ? results : null;
@@ -288,7 +288,7 @@ export function TagMultiSelectField({
         action={
           showCreate
             ? {
-                label: keyword ? "新建标签「" + keyword + "」" : "新建标签",
+                label: keyword ? `新建标签「${keyword}」` : "新建标签",
                 onClick: () => {
                   setEditorError("");
                   setTagColor(null);
