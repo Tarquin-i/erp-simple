@@ -29,7 +29,7 @@ import {
   assertPayoutTicketCapacity,
   readPayoutCreateInput,
 } from "../modules/payout/input";
-import { readProductCreateInput } from "../modules/product/input";
+import { readProductCreateInput } from "../modules/product/http/write-requests";
 
 const seedCustomerChannels = [
   { code: "huivo_international_station", name: "汇合国际站" },
