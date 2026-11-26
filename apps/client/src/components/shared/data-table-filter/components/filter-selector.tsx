@@ -56,9 +56,11 @@ type HoveredField = {
   side: 'left' | 'right'
 }
 
-export const FilterSelector = memo(__FilterSelector) as typeof __FilterSelector
+export const FilterSelector = memo(
+  FilterSelectorImpl,
+) as typeof FilterSelectorImpl
 
-function __FilterSelector<TData>({
+function FilterSelectorImpl<TData>({
   filters,
   columns,
   actions,
