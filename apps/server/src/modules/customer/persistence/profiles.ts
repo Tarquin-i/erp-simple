@@ -27,7 +27,7 @@ import { businessScopeWhere } from "../../business/access";
 import type { BusinessAccess } from "../../business/access";
 import type { ListOptionFilter } from "../../business/list-option-filter";
 import type { DatabaseTransaction } from "../../identity/auth/better-auth";
-import { archiveCustomerContacts } from "../contact-archive";
+import { archiveCustomerContacts } from "./contacts";
 
 export interface CustomerWriteInput {
   companyName?: string;

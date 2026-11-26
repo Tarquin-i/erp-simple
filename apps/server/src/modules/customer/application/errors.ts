@@ -16,6 +16,24 @@ const customerErrors = {
     status: 403,
     message: "只有公司管理员可指定客户所属部门。",
   },
+  contactNotFound: { status: 404, message: "联系人不存在。" },
+  contactDuplicateEmail: {
+    status: 409,
+    message: "同一联系人不能重复添加相同邮箱。",
+  },
+  contactDuplicateType: {
+    status: 409,
+    message: "除邮箱外，同一联系人每种联系方式最多一条。",
+  },
+  contactMultiplePrimary: {
+    status: 400,
+    message: "每个联系人只能有一个主要联系方式。",
+  },
+  contactPrimaryRequired: { status: 400, message: "请选择一个主要联系方式。" },
+  contactOnlyMethodPrimary: {
+    status: 400,
+    message: "唯一的联系方式必须保留为主要联系方式。",
+  },
   tagNotFound: { status: 404, message: "标签不存在。" },
   tagNameExists: {
     status: 409,
