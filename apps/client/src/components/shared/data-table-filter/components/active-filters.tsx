@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   Column,
   ColumnDataType,
@@ -112,7 +112,7 @@ export function ActiveFiltersMobileContainer({
   const [showRightBlur, setShowRightBlur] = useState(true)
 
   // Check if there's content to scroll and update blur states
-  const checkScroll = () => {
+  const checkScroll = useCallback(() => {
     if (scrollContainerRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } =
         scrollContainerRef.current
@@ -124,7 +124,7 @@ export function ActiveFiltersMobileContainer({
       // Add a small buffer (1px) to account for rounding errors
       setShowRightBlur(scrollLeft + clientWidth < scrollWidth - 1)
     }
-  }
+  }, [])
 
   // Log blur states for debugging
   // useEffect(() => {
@@ -132,24 +132,19 @@ export function ActiveFiltersMobileContainer({
   // }, [showLeftBlur, showRightBlur])
 
   // Set up ResizeObserver to monitor container size
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
-    if (scrollContainerRef.current) {
-      const resizeObserver = new ResizeObserver(() => {
-        checkScroll()
-      })
-      resizeObserver.observe(scrollContainerRef.current)
-      return () => {
-        resizeObserver.disconnect()
-      }
-    }
-  }, [])
+    const container = scrollContainerRef.current
+    if (!container) return
 
-  // Update blur states when children change
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
+    const resizeObserver = new ResizeObserver(checkScroll)
+    resizeObserver.observe(container)
+    return () => resizeObserver.disconnect()
+  }, [checkScroll])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies(children): 筛选项增删会改变滚动内容宽度，即使容器尺寸相同。
   useEffect(() => {
     checkScroll()
-  }, [children])
+  }, [checkScroll, children])
 
   return (
     <div className="relative w-full overflow-x-hidden">

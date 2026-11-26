@@ -552,7 +552,7 @@ export function FilterValueMultiOptionController<TData>({
   locale = 'en',
 }: FilterValueControllerProps<TData, 'multiOption'>) {
   // Compute initial options once per mount
-  const initialOptions = useMemo(() => {
+  const [options, setOptions] = useState(() => {
     const counts = column.getFacetedUniqueValues()
     return column.getOptions().map((o) => {
       const selected = filter?.values.includes(o.value)
@@ -563,9 +563,7 @@ export function FilterValueMultiOptionController<TData>({
         count: counts?.get(o.value) ?? 0,
       }
     })
-  }, [])
-
-  const [options, setOptions] = useState(initialOptions)
+  })
 
   // Update selected state when filter values change
   useEffect(() => {
