@@ -22,7 +22,7 @@ type AttachmentDropZoneProps = {
   }) => ReactNode;
 };
 
-function isInsideDropZone(event: DragEvent<HTMLDivElement>) {
+function isInsideDropZone(event: DragEvent<HTMLElement>) {
   return (
     event.target instanceof Node && event.currentTarget.contains(event.target)
   );
@@ -111,7 +111,8 @@ export function AttachmentDropZone({
   );
 
   return (
-    <div
+    <section
+      aria-label="添加沟通附件"
       className={children ? "relative min-w-0 rounded-lg" : undefined}
       data-drag-active={dragActive && !selectionDisabled}
       onDragEnter={(event) => {
@@ -198,6 +199,6 @@ export function AttachmentDropZone({
       ) : (
         dropButton
       )}
-    </div>
+    </section>
   );
 }

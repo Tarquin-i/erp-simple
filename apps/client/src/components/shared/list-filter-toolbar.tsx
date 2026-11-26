@@ -85,8 +85,7 @@ export function ListFilterToolbar<TData>({
             style={hasFilters ? undefined : { height: appliedHeight }}
           >
             {hasFilters && (
-              <div
-                role="group"
+              <section
                 aria-label={`已应用的${title}筛选`}
                 className="flex min-w-0 items-start gap-2"
               >
@@ -102,7 +101,7 @@ export function ListFilterToolbar<TData>({
                 <div className="flex shrink-0 [&>button]:size-8 [&>button]:bg-destructive [&>button]:text-white [&>button:hover]:bg-destructive/90 md:[&>button]:w-auto">
                   <FilterActions hasFilters actions={appliedActions} />
                 </div>
-              </div>
+              </section>
             )}
           </div>
         </div>

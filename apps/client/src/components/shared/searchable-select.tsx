@@ -210,6 +210,7 @@ export function SearchableSelect<Option extends SelectOption>({
             compactTrigger ? "w-64" : "w-(--radix-popover-trigger-width)"
           )}
         >
+          {/* biome-ignore lint/a11y/useSemanticElements: 分组的是弹层内可用键盘切换的选项按钮。 */}
           <div
             className={cn(
               formDropdownStyles.list,

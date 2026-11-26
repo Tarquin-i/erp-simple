@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
+    // biome-ignore lint/a11y/useSemanticElements: 原生 fieldset 会改变附加区与输入框的对齐，区号下拉也随之下移。
     <div
       data-slot="input-group"
       role="group"
@@ -49,6 +50,8 @@ function InputGroupAddon({
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>) {
   return (
+    // biome-ignore lint/a11y/useSemanticElements: 附加区可放图标和按钮，属于输入框内部布局。
+    // biome-ignore lint/a11y/useKeyWithClickEvents: 点击附加区的空白会聚焦输入框，键盘可直接用 Tab 聚焦输入框和其中的按钮。
     <div
       role="group"
       data-slot="input-group-addon"

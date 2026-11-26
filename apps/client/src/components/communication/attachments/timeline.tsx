@@ -183,6 +183,7 @@ function AttachmentTile({
               aria-label={fileName}
               className="absolute inset-0 grid place-items-center text-muted-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
               role="img"
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: 键盘聚焦文件图标时可查看文件名、大小和上传信息。
               tabIndex={0}
             >
               <FileVisual attachment={attachment} />
@@ -366,7 +367,7 @@ export function AttachmentTimeline({
           actionsSlot
         )}
       {groups.length ? (
-        <div aria-label="沟通附件时间线" className="space-y-4" role="group">
+        <div className="space-y-4">
           {groups.map(({ date, label, attachments: items }) => {
             const collapsed = collapsedDates.has(date);
             const groupId = `${idPrefix}-${date}`;

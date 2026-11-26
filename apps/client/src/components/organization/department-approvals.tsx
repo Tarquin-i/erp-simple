@@ -53,6 +53,7 @@ function PendingApplicationItem({
           </time>
         </p>
       </div>
+      {/* biome-ignore lint/a11y/useSemanticElements: 将申请的两个操作按钮归到同一个有名称的分组。 */}
       <div
         className="flex shrink-0 flex-wrap gap-2"
         role="group"

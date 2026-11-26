@@ -329,6 +329,7 @@ function PreviewImage({
         )}
       </div>
       {state === "ready" && (
+        // biome-ignore lint/a11y/useSemanticElements: 图像查看器的缩放按钮属于工具操作分组。
         <div
           aria-label="图片缩放"
           className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 z-20 flex -translate-x-1/2 items-center rounded-full border bg-background p-1 shadow-sm"

@@ -14,13 +14,10 @@ export const addressCreatePageClass =
 
 export function AddressCollectionPending() {
   return (
-    <div
-      className={addressCollectionClass}
-      aria-label="正在加载客户地址"
-      aria-busy="true"
-    >
-      <Skeleton className="h-28 w-full" />
-      <Skeleton className="h-28 w-full" />
+    <div className={addressCollectionClass} role="status">
+      <span className="sr-only">正在加载客户地址</span>
+      <Skeleton aria-hidden="true" className="h-28 w-full" />
+      <Skeleton aria-hidden="true" className="h-28 w-full" />
     </div>
   );
 }
@@ -72,7 +69,7 @@ export function AddressCreatePending() {
       aria-label="正在加载地址"
       className={cn(addressCreatePageClass, "space-y-5")}
     >
-      <header
+      <div
         aria-hidden="true"
         className="flex flex-wrap items-center justify-between gap-4"
       >
@@ -81,7 +78,7 @@ export function AddressCreatePending() {
           <Skeleton className="h-10 w-16" />
           <Skeleton className="h-10 w-20" />
         </div>
-      </header>
+      </div>
       <AddressFieldPending />
       <div className="grid gap-4 sm:grid-cols-2">
         {addressFields.map((field) => (

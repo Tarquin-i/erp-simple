@@ -143,9 +143,10 @@ function AddressCardDetailStatus({
 }) {
   if (!error) {
     return (
-      <div aria-label="正在加载地址详情" aria-busy="true" className="space-y-2">
-        <Skeleton className="h-4 w-32" />
-        <Skeleton className="h-4 w-full max-w-56" />
+      <div role="status" className="space-y-2">
+        <span className="sr-only">正在加载地址详情</span>
+        <Skeleton aria-hidden="true" className="h-4 w-32" />
+        <Skeleton aria-hidden="true" className="h-4 w-full max-w-56" />
       </div>
     );
   }

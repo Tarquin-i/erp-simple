@@ -651,6 +651,7 @@ export function FilterValueDateController<TData>({
     <Command>
       <CommandList className="max-h-fit">
         <CommandGroup>
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: 容器拦下冒泡到命令菜单的 Enter，把选择交给日历自身的按钮。 */}
           <div
             onKeyDown={(event) => {
               // 日期按钮使用原生 Enter，避免命令菜单接管。

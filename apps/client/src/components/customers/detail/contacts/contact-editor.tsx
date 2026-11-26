@@ -58,6 +58,7 @@ export function CustomerContactEditor({
   onSubmit: (method: CustomerContactMethodInput) => void;
 }) {
   const id = useId();
+  const primaryId = `${id}-primary`;
   const contentRef = useRef<HTMLDivElement>(null);
   const [type, setType] = useState<CustomerContactMethodType | "">("");
   const [value, setValue] = useState("");
@@ -214,8 +215,12 @@ export function CustomerContactEditor({
               )}
             </Field>
             {contact.methods.length > 0 && (
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <label
+                className="flex cursor-pointer items-center gap-2 text-sm"
+                htmlFor={primaryId}
+              >
                 <Checkbox
+                  id={primaryId}
                   checked={isPrimary && !typeTaken}
                   disabled={locked || typeTaken}
                   onCheckedChange={(checked) => setIsPrimary(checked === true)}

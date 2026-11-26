@@ -60,7 +60,7 @@ export function ProductFormPending() {
       aria-label="正在加载产品"
       className="min-w-0 flex-1 space-y-5 bg-background px-5 py-6 sm:px-7 lg:px-8"
     >
-      <header
+      <div
         aria-hidden="true"
         className="flex flex-wrap items-center justify-between gap-4"
       >
@@ -69,7 +69,7 @@ export function ProductFormPending() {
           <Skeleton className="h-10 w-16" />
           <Skeleton className="h-10 w-20" />
         </div>
-      </header>
+      </div>
       <div aria-hidden="true" className="space-y-2">
         <Skeleton className="h-6 w-16" />
         <div className="grid gap-4 sm:grid-cols-2">
