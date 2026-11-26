@@ -2,8 +2,7 @@ import { communicationStatus } from "@repo/db/schema";
 import { Hono } from "hono";
 import { getBunServer } from "hono/bun";
 
-import type { BusinessAccessEnv } from "../../business/access";
-import { readListOptionFilter } from "../../business/list-option-filter";
+import type { RecordAccessEnv } from "../../identity/http/record-access-context";
 import {
   readExpectedVersion,
   readObject,
@@ -73,6 +72,32 @@ function readCommunicationWrite(body: Record<string, unknown>) {
   };
 }
 
+/** 校验列表筛选参数，去重后按不同选项数校验运算符。省略运算符时包含所选项。 */
+function readListOptionFilter<T extends string>(
+  values: string[] | undefined,
+  operators: string[] | undefined,
+  label: string,
+  parse: (item: string) => T
+) {
+  if (operators && operators.length > 1) {
+    fail(400, `${label}筛选只接受一个运算符。`);
+  }
+  const operator = operators?.[0];
+  if (!values?.length) {
+    if (operator !== undefined) fail(400, `请选择要筛选的${label}。`);
+    return;
+  }
+  if (values.length > 100) fail(400, `${label}筛选最多接受 100 项。`);
+  const distinctValues = [...new Set(values.map(parse))];
+  const multiple = distinctValues.length > 1;
+  const include = multiple ? "is any of" : "is";
+  const exclude = multiple ? "is none of" : "is not";
+  if (operator !== undefined && operator !== include && operator !== exclude) {
+    fail(400, `请选择与${label}所选项数量匹配的筛选运算符。`);
+  }
+  return { values: distinctValues, excluded: operator === exclude };
+}
+
 export function createCommunicationRecordRoutes({
   archiveCommunication,
   createCommunication,
@@ -81,12 +106,12 @@ export function createCommunicationRecordRoutes({
   listCommunications,
   updateCommunication,
 }: CommunicationModule["records"]) {
-  const routes = new Hono<BusinessAccessEnv>();
+  const routes = new Hono<RecordAccessEnv>();
 
   routes.get("/", async (c) => {
     const query = c.req.queries();
     const { search, customerId, page, pageSize } = c.req.query();
-    const result = await listCommunications(c.get("businessAccess"), {
+    const result = await listCommunications(c.get("recordAccess"), {
       search: search?.trim() ? readString(search, "搜索词", 256) : undefined,
       customerId:
         customerId === undefined ? undefined : readUuid(customerId, "客户 ID"),
@@ -115,12 +140,12 @@ export function createCommunicationRecordRoutes({
   });
 
   routes.get("/owners", async (c) => {
-    const owners = await listCommunicationOwners(c.get("businessAccess"));
+    const owners = await listCommunicationOwners(c.get("recordAccess"));
     return c.json({ owners });
   });
 
   routes.post("/", async (c) => {
-    const access = c.get("businessAccess");
+    const access = c.get("recordAccess");
     const expectedAccountId = c.req.header("X-Expected-Account-Id");
     if (
       expectedAccountId !== undefined &&
@@ -148,7 +173,7 @@ export function createCommunicationRecordRoutes({
 
   routes.get("/:communicationId", async (c) => {
     const id = readUuid(c.req.param("communicationId"), "沟通 ID");
-    const communication = await getCommunication(c.get("businessAccess"), id);
+    const communication = await getCommunication(c.get("recordAccess"), id);
     return c.json({ communication });
   });
 
@@ -160,7 +185,7 @@ export function createCommunicationRecordRoutes({
     }
 
     const communication = await updateCommunication(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       id,
       {
         ...readCommunicationWrite(body),
@@ -180,7 +205,7 @@ export function createCommunicationRecordRoutes({
     // 批量清理未完成上传可能超过 Bun 默认的 HTTP 空闲时间。
     if (c.env) getBunServer<Bun.Server<unknown>>(c)?.timeout?.(c.req.raw, 0);
     const communication = await archiveCommunication(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       id,
       expectedVersion
     );

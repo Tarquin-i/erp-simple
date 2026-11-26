@@ -2,11 +2,11 @@ import type { Database, DatabaseTransaction } from "@repo/db";
 import { HTTPException } from "hono/http-exception";
 
 import {
-  readBusinessAccess,
-  withBusinessReadSnapshot,
-} from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
-import { lockDepartment } from "../../organization";
+  lockDepartment,
+  readAccountRecordAccess,
+  withRecordReadSnapshot,
+} from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { fail } from "../../../errors";
 import type { AttachmentUploadInput } from "../domain/attachment-files";
 import {
@@ -102,7 +102,7 @@ export function createAttachmentUseCases(
    * @returns 写入或读取结果。
    */
   function withAttachmentWrite<T>(
-    access: BusinessAccess,
+    access: AccountRecordAccess,
     communicationId: string,
     write: (tx: DatabaseTransaction) => Promise<T>,
     { allowDuringArchive = false } = {}
@@ -114,7 +114,7 @@ export function createAttachmentUseCases(
         communicationId
       );
       await lockDepartment(tx, departmentId, "share");
-      const current = await readBusinessAccess(tx, access.userId);
+      const current = await readAccountRecordAccess(tx, access.userId);
       const record = await requireCommunication(
         tx,
         current,
@@ -130,7 +130,7 @@ export function createAttachmentUseCases(
 
   function assertSameUpload(
     row: Attachment,
-    access: BusinessAccess,
+    access: AccountRecordAccess,
     file: AttachmentUploadInput
   ) {
     if (
@@ -164,7 +164,7 @@ export function createAttachmentUseCases(
    * @throws 无权访问、重复文件或同一上传 ID 对应的内容不同。
    */
   async function initCommunicationAttachment(
-    access: BusinessAccess,
+    access: AccountRecordAccess,
     communicationId: string,
     file: AttachmentUploadInput
   ) {
@@ -257,7 +257,7 @@ export function createAttachmentUseCases(
 
   async function readUpload(
     tx: DatabaseTransaction,
-    access: BusinessAccess,
+    access: AccountRecordAccess,
     communicationId: string,
     uploadClientId: string
   ) {
@@ -280,11 +280,11 @@ export function createAttachmentUseCases(
    * @throws 无权查看沟通时返回 404。
    */
   function getCommunicationAttachmentUpload(
-    access: BusinessAccess,
+    access: AccountRecordAccess,
     communicationId: string,
     uploadClientId: string
   ) {
-    return withBusinessReadSnapshot(
+    return withRecordReadSnapshot(
       access.userId,
       async (tx, freshAccess) => {
         await requireCommunication(tx, freshAccess, communicationId);
@@ -305,7 +305,7 @@ export function createAttachmentUseCases(
 
   /** 按当前沟通权限和原上传人校验，将请求体流式写入本地暂存区。 */
   async function writeLocalCommunicationAttachment(
-    access: BusinessAccess,
+    access: AccountRecordAccess,
     communicationId: string,
     uploadClientId: string,
     request: Request
@@ -418,7 +418,7 @@ export function createAttachmentUseCases(
    * @throws 无权访问沟通时返回 404，文件清理失败时返回 503，可用同一上传 ID 重试。
    */
   async function cancelCommunicationAttachmentUpload(
-    access: BusinessAccess,
+    access: AccountRecordAccess,
     communicationId: string,
     uploadClientId: string
   ) {
@@ -450,7 +450,10 @@ export function createAttachmentUseCases(
     return { state };
   }
 
-  async function archivePendingUpload(access: BusinessAccess, row: Attachment) {
+  async function archivePendingUpload(
+    access: AccountRecordAccess,
+    row: Attachment
+  ) {
     return withAttachmentWrite(access, row.communicationId, (tx) =>
       archiveOwnedPendingAttachment(tx, row.id, access.userId)
     );
@@ -472,7 +475,7 @@ export function createAttachmentUseCases(
    * @throws 内容无效、重复文件、权限变化或存储未就绪时返回业务错误。
    */
   async function completeCommunicationAttachment(
-    access: BusinessAccess,
+    access: AccountRecordAccess,
     communicationId: string,
     uploadClientId: string
   ) {
@@ -550,7 +553,7 @@ export function createAttachmentUseCases(
    * @returns 删除完成或已完成时正常结束。
    */
   async function deleteCommunicationAttachment(
-    access: BusinessAccess,
+    access: AccountRecordAccess,
     communicationId: string,
     attachmentId: string
   ) {
@@ -569,11 +572,11 @@ export function createAttachmentUseCases(
   }
 
   function readDownloadableAttachment(
-    access: BusinessAccess,
+    access: AccountRecordAccess,
     communicationId: string,
     attachmentId: string
   ) {
-    return withBusinessReadSnapshot(
+    return withRecordReadSnapshot(
       access.userId,
       async (tx, freshAccess) => {
         await requireCommunication(tx, freshAccess, communicationId);
@@ -601,11 +604,11 @@ export function createAttachmentUseCases(
       };
     },
     listCommunicationAttachments(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       communicationId: string,
       pagination: AttachmentPagination
     ) {
-      return withBusinessReadSnapshot(
+      return withRecordReadSnapshot(
         access.userId,
         async (tx, freshAccess) => {
           await requireCommunication(tx, freshAccess, communicationId);
@@ -616,7 +619,7 @@ export function createAttachmentUseCases(
     },
     /** 校验当前沟通权限和附件状态后，返回当前存储模式的下载地址。 */
     async downloadCommunicationAttachment(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       communicationId: string,
       attachmentId: string
     ) {
@@ -639,7 +642,7 @@ export function createAttachmentUseCases(
 
     /** 打开本地正式文件的流。每次请求链路都会重新检查沟通权限。 */
     async readLocalCommunicationAttachment(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       communicationId: string,
       attachmentId: string
     ) {
@@ -677,7 +680,7 @@ export function createAttachmentUseCases(
      * @throws 无权查看及附件不可用时返回 404，非图片返回 415，存储失败时返回 503。
      */
     async readCommunicationAttachmentImage(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       communicationId: string,
       attachmentId: string,
       variant: "thumbnail" | "preview",
@@ -698,11 +701,11 @@ export function createAttachmentUseCases(
       );
     },
     readCommunicationAttachmentDeletion(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       communicationId: string,
       attachmentId: string
     ) {
-      return withBusinessReadSnapshot(
+      return withRecordReadSnapshot(
         access.userId,
         async (tx, freshAccess) => {
           await requireCommunication(tx, freshAccess, communicationId);

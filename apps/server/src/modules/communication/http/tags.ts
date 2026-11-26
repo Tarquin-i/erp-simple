@@ -1,20 +1,28 @@
 import { Hono } from "hono";
 
+import { fail } from "../../../errors";
 import {
   readObject,
   readPositiveInteger,
   readString,
   readUuid,
 } from "../../../http/request-input";
-import type { BusinessAccessEnv } from "../../business/access";
-import { readTagColor } from "../../business/tag-color";
+import type { RecordAccessEnv } from "../../identity/http/record-access-context";
 import { requireTagColorAccess } from "../application/tags";
 import type { CommunicationModule } from "../module";
+
+function readTagColor(value: unknown, label = "标签颜色") {
+  const color = readString(value, label, 7);
+  if (!/^#[0-9a-f]{6}$/i.test(color)) {
+    fail(400, `${label}须为 #RRGGBB 格式。`);
+  }
+  return color;
+}
 
 export function createCommunicationTagRoutes(
   tags: CommunicationModule["tags"]
 ) {
-  const routes = new Hono<BusinessAccessEnv>();
+  const routes = new Hono<RecordAccessEnv>();
 
   routes.get("/tags", async (c) => {
     const {
@@ -28,17 +36,17 @@ export function createCommunicationTagRoutes(
       ? readString(rawSearch, "标签搜索词", 64)
       : undefined;
     return c.json(
-      await tags.list(c.get("businessAccess"), { search, page, pageSize })
+      await tags.list(c.get("recordAccess"), { search, page, pageSize })
     );
   });
 
   routes.get("/tags/:tagId", async (c) => {
     const id = readUuid(c.req.param("tagId"), "标签 ID");
-    return c.json({ tag: await tags.get(c.get("businessAccess"), id) });
+    return c.json({ tag: await tags.get(c.get("recordAccess"), id) });
   });
 
   routes.patch("/tags/:tagId", async (c) => {
-    const access = c.get("businessAccess");
+    const access = c.get("recordAccess");
     requireTagColorAccess(access);
     const id = readUuid(c.req.param("tagId"), "标签 ID");
     const body = await readObject(c, ["color", "expectedColor"]);

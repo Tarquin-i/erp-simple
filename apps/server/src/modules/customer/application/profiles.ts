@@ -4,11 +4,11 @@ import type { Database, DatabaseTransaction } from "@repo/db";
 
 import { ApplicationError, failVersionConflict } from "../../../errors";
 import {
-  readBusinessAccess,
-  withBusinessReadSnapshot,
-} from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
-import { lockDepartment } from "../../organization";
+  lockDepartment,
+  readAccountRecordAccess,
+  withRecordReadSnapshot,
+} from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import {
   lockCustomerForWrite,
   requireAssignableOwner,
@@ -41,7 +41,7 @@ type CreateCustomerInput = CustomerWriteInput & {
 
 async function readCustomer(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string,
   includeArchived = false
 ) {
@@ -79,22 +79,22 @@ function translateWriteError(error: unknown): never {
 
 export function createProfileUseCases(db: Database) {
   return {
-    listCustomers: (access: BusinessAccess, filters: CustomerFilters) =>
-      withBusinessReadSnapshot(
+    listCustomers: (access: AccountRecordAccess, filters: CustomerFilters) =>
+      withRecordReadSnapshot(
         access.userId,
         (tx, currentAccess) => selectCustomerPage(tx, currentAccess, filters),
         db
       ),
 
-    getCustomer: (access: BusinessAccess, id: string) =>
-      withBusinessReadSnapshot(
+    getCustomer: (access: AccountRecordAccess, id: string) =>
+      withRecordReadSnapshot(
         access.userId,
         (tx, currentAccess) => readCustomer(tx, currentAccess, id),
         db
       ),
 
     async createCustomer(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       input: CreateCustomerInput,
       requestId?: string
     ) {
@@ -153,7 +153,10 @@ export function createProfileUseCases(db: Database) {
             }
 
             await lockDepartment(tx, departmentId, "share");
-            const freshAccess = await readBusinessAccess(tx, access.userId);
+            const freshAccess = await readAccountRecordAccess(
+              tx,
+              access.userId
+            );
             if (input.departmentId !== undefined) {
               if (freshAccess.scope !== "company") {
                 throw createCustomerError("profileDepartmentForbidden");
@@ -205,7 +208,7 @@ export function createProfileUseCases(db: Database) {
     },
 
     async updateCustomer(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       id: string,
       input: CustomerWriteInput,
       expectedVersion: number
@@ -272,7 +275,7 @@ export function createProfileUseCases(db: Database) {
     },
 
     archiveCustomer(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       id: string,
       expectedVersion: number
     ) {

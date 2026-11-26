@@ -8,7 +8,7 @@ import {
   readString,
   readUuid,
 } from "../../../http/request-input";
-import type { BusinessAccessEnv } from "../../business/access";
+import type { RecordAccessEnv } from "../../identity/http/record-access-context";
 import { fail } from "../../../errors";
 import { attachmentUploadLimit } from "../application/attachments";
 import {
@@ -152,7 +152,7 @@ const uploadPath = `${path}/uploads/:uploadClientId`;
 export function createCommunicationAttachmentRoutes(
   attachments: CommunicationModule["attachments"]
 ) {
-  const routes = new Hono<BusinessAccessEnv>();
+  const routes = new Hono<RecordAccessEnv>();
 
   routes.get("/attachment-upload-limit", async (c) => {
     c.header("Cache-Control", "no-store");
@@ -173,7 +173,7 @@ export function createCommunicationAttachmentRoutes(
       100
     );
     const result = await attachments.listCommunicationAttachments(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       communicationId,
       page === undefined
         ? { cursor: readAttachmentListCursor(cursor), pageSize }
@@ -192,7 +192,7 @@ export function createCommunicationAttachmentRoutes(
     const communicationId = readUuid(c.req.param("communicationId"), "沟通 ID");
     const body = await readObject(c, attachmentUploadFields);
     const result = await attachments.initCommunicationAttachment(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       communicationId,
       readAttachmentUpload(body)
     );
@@ -202,7 +202,7 @@ export function createCommunicationAttachmentRoutes(
 
   routes.get(uploadPath, async (c) => {
     const result = await attachments.getCommunicationAttachmentUpload(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       readUuid(c.req.param("communicationId"), "沟通 ID"),
       readUuid(c.req.param("uploadClientId"), "上传 ID")
     );
@@ -212,7 +212,7 @@ export function createCommunicationAttachmentRoutes(
 
   routes.delete(uploadPath, async (c) => {
     const result = await attachments.cancelCommunicationAttachmentUpload(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       readUuid(c.req.param("communicationId"), "沟通 ID"),
       readUuid(c.req.param("uploadClientId"), "上传 ID")
     );
@@ -222,7 +222,7 @@ export function createCommunicationAttachmentRoutes(
 
   routes.put(`${uploadPath}/content`, async (c) => {
     await attachments.writeLocalCommunicationAttachment(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       readUuid(c.req.param("communicationId"), "沟通 ID"),
       readUuid(c.req.param("uploadClientId"), "上传 ID"),
       c.req.raw
@@ -236,7 +236,7 @@ export function createCommunicationAttachmentRoutes(
     // 文件转正和流式校验可能超过 Bun 默认的 HTTP 空闲时间。
     if (c.env) getBunServer<Bun.Server<unknown>>(c)?.timeout?.(c.req.raw, 0);
     const attachment = await attachments.completeCommunicationAttachment(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       communicationId,
       uploadClientId
     );
@@ -247,7 +247,7 @@ export function createCommunicationAttachmentRoutes(
     const communicationId = readUuid(c.req.param("communicationId"), "沟通 ID");
     const attachmentId = readUuid(c.req.param("attachmentId"), "附件 ID");
     const result = await attachments.downloadCommunicationAttachment(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       communicationId,
       attachmentId
     );
@@ -257,7 +257,7 @@ export function createCommunicationAttachmentRoutes(
 
   routes.get(`${path}/:attachmentId/content`, (c) =>
     attachments.readLocalCommunicationAttachment(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       readUuid(c.req.param("communicationId"), "沟通 ID"),
       readUuid(c.req.param("attachmentId"), "附件 ID")
     )
@@ -267,7 +267,7 @@ export function createCommunicationAttachmentRoutes(
     routes.get(`${path}/:attachmentId/${variant}`, (c) => {
       c.header("Cache-Control", "private, no-store");
       return attachments.readCommunicationAttachmentImage(
-        c.get("businessAccess"),
+        c.get("recordAccess"),
         readUuid(c.req.param("communicationId"), "沟通 ID"),
         readUuid(c.req.param("attachmentId"), "附件 ID"),
         variant,
@@ -279,7 +279,7 @@ export function createCommunicationAttachmentRoutes(
   routes.get(`${path}/:attachmentId`, async (c) => {
     c.header("Cache-Control", "private, no-store");
     const result = await attachments.readCommunicationAttachmentDeletion(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       readUuid(c.req.param("communicationId"), "沟通 ID"),
       readUuid(c.req.param("attachmentId"), "附件 ID")
     );
@@ -290,7 +290,7 @@ export function createCommunicationAttachmentRoutes(
     const communicationId = readUuid(c.req.param("communicationId"), "沟通 ID");
     const attachmentId = readUuid(c.req.param("attachmentId"), "附件 ID");
     await attachments.deleteCommunicationAttachment(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       communicationId,
       attachmentId
     );

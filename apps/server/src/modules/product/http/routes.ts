@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 
-import { requireBusinessAccess } from "../../business/access";
-import type { BusinessAccessEnv } from "../../business/access";
-import { readListOptionFilter } from "../../business/list-option-filter";
+import type {
+  RecordAccessEnv,
+  RecordAccessMiddleware,
+} from "../../identity/http/record-access-context";
 import {
   readExpectedVersion,
   readObject,
@@ -20,16 +21,45 @@ import {
   readProductType,
 } from "./write-requests";
 
-export function createProductRoutes({
-  archiveProduct,
-  createProduct,
-  getProduct,
-  listProducts,
-  updateProduct,
-}: ProductModule["products"]) {
-  const routes = new Hono<BusinessAccessEnv>();
+/** 校验列表筛选参数，去重后按不同选项数校验运算符。省略运算符时包含所选项。 */
+function readListOptionFilter<T extends string>(
+  values: string[] | undefined,
+  operators: string[] | undefined,
+  label: string,
+  parse: (item: string) => T
+) {
+  if (operators && operators.length > 1) {
+    fail(400, `${label}筛选只接受一个运算符。`);
+  }
+  const operator = operators?.[0];
+  if (!values?.length) {
+    if (operator !== undefined) fail(400, `请选择要筛选的${label}。`);
+    return;
+  }
+  if (values.length > 100) fail(400, `${label}筛选最多接受 100 项。`);
+  const distinctValues = [...new Set(values.map(parse))];
+  const multiple = distinctValues.length > 1;
+  const include = multiple ? "is any of" : "is";
+  const exclude = multiple ? "is none of" : "is not";
+  if (operator !== undefined && operator !== include && operator !== exclude) {
+    fail(400, `请选择与${label}所选项数量匹配的筛选运算符。`);
+  }
+  return { values: distinctValues, excluded: operator === exclude };
+}
 
-  routes.use("*", requireBusinessAccess);
+export function createProductRoutes(
+  {
+    archiveProduct,
+    createProduct,
+    getProduct,
+    listProducts,
+    updateProduct,
+  }: ProductModule["products"],
+  requireRecordAccess: RecordAccessMiddleware
+) {
+  const routes = new Hono<RecordAccessEnv>();
+
+  routes.use("*", requireRecordAccess);
 
   routes.get("/", async (c) => {
     const { page, pageSize, search, sortDirection = "desc" } = c.req.query();
@@ -43,7 +73,7 @@ export function createProductRoutes({
     ].flatMap((value) => value.split(","));
     if (typeValues.length > 20) fail(400, "最多可筛选 20 个产品类型。");
 
-    const result = await listProducts(c.get("businessAccess"), {
+    const result = await listProducts(c.get("recordAccess"), {
       page: readPositiveInteger(page, "页码", 1, 1_000_000),
       pageSize: readPositiveInteger(pageSize, "每页条数", 20, 100),
       search: search?.trim() ? readString(search, "搜索词", 256) : undefined,
@@ -66,7 +96,7 @@ export function createProductRoutes({
 
   routes.get("/:productId", async (c) => {
     const product = await getProduct(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       readUuid(c.req.param("productId"), "产品 ID")
     );
     return c.json({ product });
@@ -75,7 +105,7 @@ export function createProductRoutes({
   routes.post("/", async (c) => {
     const body = await readObject(c, [...productWriteFields, "customerId"]);
     const product = await createProduct(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       readProductCreateInput(body),
       readUuid(c.req.header("Idempotency-Key"), "提交 ID")
     );
@@ -89,7 +119,7 @@ export function createProductRoutes({
       "expectedVersion",
     ]);
     const product = await updateProduct(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       id,
       readProductPatch(body),
       readExpectedVersion(body.expectedVersion)
@@ -101,7 +131,7 @@ export function createProductRoutes({
     const id = readUuid(c.req.param("productId"), "产品 ID");
     const version = c.req.query("expectedVersion");
     const product = await archiveProduct(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       id,
       readExpectedVersion(
         version && /^\d+$/u.test(version) ? Number(version) : undefined

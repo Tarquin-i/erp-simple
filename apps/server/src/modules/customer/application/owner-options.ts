@@ -1,6 +1,6 @@
 import type { Database } from "@repo/db";
-import { withBusinessReadSnapshot } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
+import { withRecordReadSnapshot } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import {
   findOwnerDepartment,
   findVisibleCustomerDepartment,
@@ -11,17 +11,17 @@ import { createCustomerError } from "./errors";
 
 export function createOwnerOptionUseCases(db: Database) {
   return {
-    listVisibleOwners: (access: BusinessAccess) =>
-      withBusinessReadSnapshot(access.userId, selectVisibleOwners, db),
+    listVisibleOwners: (access: AccountRecordAccess) =>
+      withRecordReadSnapshot(access.userId, selectVisibleOwners, db),
 
     listAssignableOwners(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       {
         customerId,
         departmentId,
       }: { customerId?: string; departmentId?: string }
     ) {
-      return withBusinessReadSnapshot(
+      return withRecordReadSnapshot(
         access.userId,
         async (tx, freshAccess) => {
           if (departmentId !== undefined) {

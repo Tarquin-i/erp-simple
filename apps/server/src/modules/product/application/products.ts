@@ -3,8 +3,8 @@ import { isConstraintError } from "@repo/db";
 import type { Database, DatabaseTransaction } from "@repo/db";
 
 import { failVersionConflict } from "../../../errors";
-import { withBusinessReadSnapshot } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
+import { withRecordReadSnapshot } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { lockCustomerForWrite } from "../../customer";
 import { fail } from "../../../errors";
 import { resolveProductPatch } from "../domain/type-fields";
@@ -70,7 +70,7 @@ async function writeProduct<T>(
 /** 先锁客户并重新确认可访问范围，再锁产品并核对版本。 */
 async function lockProductForWrite(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string,
   expectedVersion: number,
   operation: "update" | "archive"
@@ -107,16 +107,16 @@ async function lockProductForWrite(
 export function createProductUseCases(db: Database) {
   return {
     /** 在同一个只读快照中按客户权限查询有效产品和总条数。 */
-    listProducts(access: BusinessAccess, filters: ProductFilters) {
-      return withBusinessReadSnapshot(
+    listProducts(access: AccountRecordAccess, filters: ProductFilters) {
+      return withRecordReadSnapshot(
         access.userId,
         (tx, freshAccess) => selectProductPage(tx, freshAccess, filters),
         db
       );
     },
     /** 产品详情的可见范围跟随当前所属客户。 */
-    getProduct(access: BusinessAccess, id: string) {
-      return withBusinessReadSnapshot(
+    getProduct(access: AccountRecordAccess, id: string) {
+      return withRecordReadSnapshot(
         access.userId,
         async (tx, freshAccess) => {
           const row = await selectProductDetail(tx, freshAccess, id);
@@ -128,7 +128,7 @@ export function createProductUseCases(db: Database) {
     },
     /** 同一账号重复提交同一份资料时，读取原产品并再次核对客户权限。 */
     createProduct(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       input: ProductCreateInput,
       requestId: string
     ) {
@@ -169,7 +169,7 @@ export function createProductUseCases(db: Database) {
     },
     /** 合并并校验修改，只有实际字段变更才增加版本。 */
     updateProduct(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       id: string,
       input: ProductPatch,
       expectedVersion: number
@@ -203,7 +203,7 @@ export function createProductUseCases(db: Database) {
     },
     /** 已完成的归档可按原预期版本重试，直接返回归档结果。 */
     archiveProduct(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       id: string,
       expectedVersion: number
     ) {

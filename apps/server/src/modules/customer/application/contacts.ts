@@ -9,8 +9,8 @@ import {
 import { HTTPException } from "hono/http-exception";
 
 import { ApplicationError, failVersionConflict } from "../../../errors";
-import { withBusinessReadSnapshot } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
+import { withRecordReadSnapshot } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { fail } from "../../../errors";
 import {
   findNextPrimaryMethod,
@@ -217,7 +217,7 @@ interface ContactMethodPatch {
 export function createContactUseCases(db: Database) {
   // 写入顺序为部门、客户、联系人。单条编辑在持锁后校验自己的版本。
   async function changeContact(
-    access: BusinessAccess,
+    access: AccountRecordAccess,
     customerId: string,
     contactId: string,
     expectedContactVersion: number | undefined,
@@ -277,8 +277,8 @@ export function createContactUseCases(db: Database) {
   }
 
   return {
-    listContacts(access: BusinessAccess, customerId: string) {
-      return withBusinessReadSnapshot(
+    listContacts(access: AccountRecordAccess, customerId: string) {
+      return withRecordReadSnapshot(
         access.userId,
         async (tx, currentAccess) => {
           const contacts = await selectCustomerContacts(
@@ -294,7 +294,7 @@ export function createContactUseCases(db: Database) {
     },
 
     createContact(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       customerId: string,
       name: string,
       methods: MethodInput[],
@@ -356,7 +356,7 @@ export function createContactUseCases(db: Database) {
     },
 
     updateContact(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       customerId: string,
       contactId: string,
       expectedVersion: number,
@@ -400,7 +400,7 @@ export function createContactUseCases(db: Database) {
     },
 
     archiveContact(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       customerId: string,
       contactId: string,
       expectedVersion: number
@@ -449,7 +449,7 @@ export function createContactUseCases(db: Database) {
     },
 
     addMethod(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       customerId: string,
       contactId: string,
       expectedVersion: number,
@@ -470,7 +470,7 @@ export function createContactUseCases(db: Database) {
     },
 
     updateMethod(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       customerId: string,
       contactId: string,
       methodId: string,
@@ -595,7 +595,7 @@ export function createContactUseCases(db: Database) {
     },
 
     deleteMethod(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       customerId: string,
       contactId: string,
       methodId: string,

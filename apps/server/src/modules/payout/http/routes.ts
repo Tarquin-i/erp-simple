@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 
-import { requireBusinessAccess } from "../../business/access";
-import type { BusinessAccessEnv } from "../../business/access";
-import { readListOptionFilter } from "../../business/list-option-filter";
+import { fail } from "../../../errors";
+import type {
+  RecordAccessEnv,
+  RecordAccessMiddleware,
+} from "../../identity/http/record-access-context";
 import {
   readExpectedVersion,
   readObject,
@@ -19,27 +21,51 @@ import {
   readPayoutPatch,
 } from "./write-requests";
 
-export function createPayoutRoutes({
-  archivePayout,
-  createPayout,
-  getPayout,
-  listPayouts,
-  updatePayout,
-}: PayoutModule["payouts"]) {
-  const routes = new Hono<BusinessAccessEnv>();
+/** 校验列表筛选参数，去重后按不同选项数校验运算符。省略运算符时包含所选项。 */
+function readProductFilter(
+  values: string[] | undefined,
+  operators: string[] | undefined
+) {
+  if (operators && operators.length > 1) {
+    fail(400, "产品筛选只接受一个运算符。");
+  }
+  const operator = operators?.[0];
+  if (!values?.length) {
+    if (operator !== undefined) fail(400, "请选择要筛选的产品。");
+    return;
+  }
+  if (values.length > 100) fail(400, "产品筛选最多接受 100 项。");
+  const distinctValues = [
+    ...new Set(values.map((value) => readUuid(value, "产品 ID"))),
+  ];
+  const multiple = distinctValues.length > 1;
+  const include = multiple ? "is any of" : "is";
+  const exclude = multiple ? "is none of" : "is not";
+  if (operator !== undefined && operator !== include && operator !== exclude) {
+    fail(400, "请选择与产品所选项数量匹配的筛选运算符。");
+  }
+  return { values: distinctValues, excluded: operator === exclude };
+}
 
-  routes.use("*", requireBusinessAccess);
+export function createPayoutRoutes(
+  {
+    archivePayout,
+    createPayout,
+    getPayout,
+    listPayouts,
+    updatePayout,
+  }: PayoutModule["payouts"],
+  requireRecordAccess: RecordAccessMiddleware
+) {
+  const routes = new Hono<RecordAccessEnv>();
+
+  routes.use("*", requireRecordAccess);
 
   routes.get("/", async (c) => {
     const { page, pageSize, search } = c.req.query();
     const query = c.req.queries();
-    const result = await listPayouts(c.get("businessAccess"), {
-      products: readListOptionFilter(
-        query.productId,
-        query.productOperator,
-        "产品",
-        (value) => readUuid(value, "产品 ID")
-      ),
+    const result = await listPayouts(c.get("recordAccess"), {
+      products: readProductFilter(query.productId, query.productOperator),
       page: readPositiveInteger(page, "页码", 1, 1_000_000),
       pageSize: readPositiveInteger(pageSize, "每页条数", 20, 100),
       search: search?.trim() ? readString(search, "搜索词", 256) : undefined,
@@ -49,7 +75,7 @@ export function createPayoutRoutes({
 
   routes.get("/:payoutId", async (c) => {
     const record = await getPayout(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       readUuid(c.req.param("payoutId"), "Payout ID")
     );
     return c.json({ payout: record });
@@ -58,7 +84,7 @@ export function createPayoutRoutes({
   routes.post("/", async (c) => {
     const body = await readObject(c, payoutCreateFields);
     const record = await createPayout(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       readPayoutCreateInput(body),
       readUuid(c.req.header("Idempotency-Key"), "提交 ID")
     );
@@ -69,7 +95,7 @@ export function createPayoutRoutes({
     const id = readUuid(c.req.param("payoutId"), "Payout ID");
     const body = await readObject(c, [...payoutPatchFields, "expectedVersion"]);
     const record = await updatePayout(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       id,
       readPayoutPatch(body),
       readExpectedVersion(body.expectedVersion)
@@ -80,7 +106,7 @@ export function createPayoutRoutes({
   routes.delete("/:payoutId", async (c) => {
     const version = c.req.query("expectedVersion");
     const record = await archivePayout(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       readUuid(c.req.param("payoutId"), "Payout ID"),
       readExpectedVersion(
         version && /^\d+$/u.test(version) ? Number(version) : undefined

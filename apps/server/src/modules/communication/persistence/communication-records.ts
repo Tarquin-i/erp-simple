@@ -22,13 +22,20 @@ import {
 } from "drizzle-orm";
 import type { SelectedFieldsFlat } from "drizzle-orm/pg-core";
 
-import { businessScopeWhere, readBusinessAccess } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
-import type { ListOptionFilter } from "../../business/list-option-filter";
-import { lockDepartment } from "../../organization";
+import {
+  lockDepartment,
+  readAccountRecordAccess,
+  recordScopeWhere,
+} from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { fail } from "../../../errors";
 
 type CommunicationStatus = typeof communication.$inferSelect.status;
+
+type ListOptionFilter<T extends string = string> = {
+  values: T[];
+  excluded: boolean;
+};
 
 export interface CommunicationFilters {
   search?: string;
@@ -76,11 +83,11 @@ const tagFields = {
 };
 const activeCommunication = isNull(communication.archivedAt);
 
-function visibleCustomerJoin(access: BusinessAccess) {
+function visibleCustomerJoin(access: AccountRecordAccess) {
   // 沟通归属和客户归属可能不同。客户权限不足时，不从数据库取出名称和编号。
   return and(
     eq(customer.id, communication.customerId),
-    businessScopeWhere(access, customer)
+    recordScopeWhere(access, customer)
   );
 }
 
@@ -122,7 +129,7 @@ async function readTags<
 /** 在调用方的只读快照中读取沟通、标签与总数。 */
 export async function selectCommunicationPage(
   tx: DatabaseTransaction,
-  freshAccess: BusinessAccess,
+  freshAccess: AccountRecordAccess,
   filters: CommunicationFilters
 ) {
   const { page, pageSize, search, customerId, statuses, tags, owners } =
@@ -137,7 +144,7 @@ export async function selectCommunicationPage(
       .where(
         and(
           eq(customer.id, customerId),
-          businessScopeWhere(freshAccess, customer)
+          recordScopeWhere(freshAccess, customer)
         )
       );
     if (!visibleCustomer) fail(404, "客户不存在。");
@@ -145,7 +152,7 @@ export async function selectCommunicationPage(
 
   const filter = and(
     activeCommunication,
-    businessScopeWhere(freshAccess, communication),
+    recordScopeWhere(freshAccess, communication),
     customerId === undefined
       ? undefined
       : eq(communication.customerId, customerId),
@@ -178,7 +185,7 @@ export async function selectCommunicationPage(
               .where(
                 and(
                   eq(customer.id, communication.customerId),
-                  businessScopeWhere(freshAccess, customer),
+                  recordScopeWhere(freshAccess, customer),
                   or(
                     sql`position(lower(${search}::text) in ${customer.normalizedCompanyName}) > 0`,
                     sql`position(lower(${search}::text) in lower(${customer.customerNo})) > 0`
@@ -222,7 +229,7 @@ export async function selectCommunicationPage(
 
 export async function readCommunication(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string,
   includeArchived = false
 ) {
@@ -243,7 +250,7 @@ export async function readCommunication(
       and(
         eq(communication.id, id),
         includeArchived ? undefined : activeCommunication,
-        businessScopeWhere(access, communication)
+        recordScopeWhere(access, communication)
       )
     );
   const [record] = await readTags(tx, rows, tagFields);
@@ -253,13 +260,13 @@ export async function readCommunication(
 
 export function selectCommunicationOwners(
   tx: DatabaseTransaction,
-  access: BusinessAccess
+  access: AccountRecordAccess
 ) {
   return tx
     .selectDistinct({ id: user.id, name: user.name })
     .from(communication)
     .innerJoin(user, eq(user.id, communication.ownerUserId))
-    .where(and(activeCommunication, businessScopeWhere(access, communication)))
+    .where(and(activeCommunication, recordScopeWhere(access, communication)))
     .orderBy(asc(user.name), asc(user.id));
 }
 
@@ -277,7 +284,7 @@ async function insertTags(
 
 export async function lockCommunicationForWrite(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string,
   includeArchived = false
 ) {
@@ -288,14 +295,14 @@ export async function lockCommunicationForWrite(
       and(
         eq(communication.id, id),
         includeArchived ? undefined : activeCommunication,
-        businessScopeWhere(access, communication)
+        recordScopeWhere(access, communication)
       )
     );
   if (!target) fail(404, "沟通记录不存在。");
 
   await lockDepartment(tx, target.departmentId, "share");
   // 等待部门锁或记录锁期间可能发生主管降级或记录改派，按最新权限锁定记录。
-  const freshAccess = await readBusinessAccess(tx, access.userId);
+  const freshAccess = await readAccountRecordAccess(tx, access.userId);
   const [record] = await tx
     .select({
       departmentId: communication.departmentId,
@@ -309,7 +316,7 @@ export async function lockCommunicationForWrite(
         eq(communication.id, id),
         eq(communication.departmentId, target.departmentId),
         includeArchived ? undefined : activeCommunication,
-        businessScopeWhere(freshAccess, communication)
+        recordScopeWhere(freshAccess, communication)
       )
     )
     .for("update");
@@ -350,14 +357,14 @@ export async function lockCreatedCommunication(
   existing: { departmentId: string; id: string }
 ) {
   await lockDepartment(tx, existing.departmentId, "share");
-  const freshAccess = await readBusinessAccess(tx, userId);
+  const freshAccess = await readAccountRecordAccess(tx, userId);
   const [visible] = await tx
     .select({ id: communication.id })
     .from(communication)
     .where(
       and(
         eq(communication.id, existing.id),
-        businessScopeWhere(freshAccess, communication)
+        recordScopeWhere(freshAccess, communication)
       )
     )
     .for("share");

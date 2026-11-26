@@ -2,9 +2,12 @@ import type { DatabaseTransaction } from "@repo/db";
 import { customer, member } from "@repo/db/schema";
 import { and, eq } from "drizzle-orm";
 
-import { businessScopeWhere, readBusinessAccess } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
-import { lockDepartment } from "../../organization";
+import {
+  lockDepartment,
+  readAccountRecordAccess,
+  recordScopeWhere,
+} from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { fail } from "../../../errors";
 import { selectAssignableOwners } from "./owner-options";
 
@@ -20,7 +23,7 @@ import { selectAssignableOwners } from "./owner-options";
  */
 export async function lockCustomerForWrite(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   customerId: string,
   lockMode: "no key update" | "share" = "no key update",
   includeArchived = false
@@ -35,14 +38,14 @@ export async function lockCustomerForWrite(
       and(
         eq(customer.id, customerId),
         activeOnly,
-        businessScopeWhere(access, customer)
+        recordScopeWhere(access, customer)
       )
     );
   if (!target) fail(404, "客户不存在。");
 
   await lockDepartment(tx, target.departmentId, "share");
   // 等待部门锁期间，主管可能已失去部门级访问权限。
-  const freshAccess = await readBusinessAccess(tx, access.userId);
+  const freshAccess = await readAccountRecordAccess(tx, access.userId);
   const [record] = await tx
     .select()
     .from(customer)
@@ -51,7 +54,7 @@ export async function lockCustomerForWrite(
         eq(customer.id, customerId),
         eq(customer.departmentId, target.departmentId),
         activeOnly,
-        businessScopeWhere(freshAccess, customer)
+        recordScopeWhere(freshAccess, customer)
       )
     )
     .for(lockMode);

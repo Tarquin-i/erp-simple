@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import type { BusinessAccessEnv } from "../../business/access";
+import type { RecordAccessEnv } from "../../identity/http/record-access-context";
 import { createCustomerError } from "../application/errors";
 import type { createOwnerOptionUseCases } from "../application/owner-options";
 import { readString, readUuid } from "../../../http/request-input";
@@ -8,15 +8,15 @@ import { readString, readUuid } from "../../../http/request-input";
 export function createCustomerOwnerOptionRoutes(
   options: ReturnType<typeof createOwnerOptionUseCases>
 ) {
-  const routes = new Hono<BusinessAccessEnv>();
+  const routes = new Hono<RecordAccessEnv>();
 
   routes.get("/owners", async (c) => {
-    const owners = await options.listVisibleOwners(c.get("businessAccess"));
+    const owners = await options.listVisibleOwners(c.get("recordAccess"));
     return c.json({ owners });
   });
 
   routes.get("/assignable-owners", async (c) => {
-    const access = c.get("businessAccess");
+    const access = c.get("recordAccess");
     const requestedDepartment = c.req.query("departmentId");
     if (requestedDepartment !== undefined && access.scope !== "company") {
       throw createCustomerError("ownerDepartmentForbidden");
@@ -32,7 +32,7 @@ export function createCustomerOwnerOptionRoutes(
 
   routes.get("/:customerId/assignable-owners", async (c) => {
     const customerId = readUuid(c.req.param("customerId"), "客户 ID");
-    const owners = await options.listAssignableOwners(c.get("businessAccess"), {
+    const owners = await options.listAssignableOwners(c.get("recordAccess"), {
       customerId,
     });
     return c.json({ owners });

@@ -3,8 +3,8 @@ import { isConstraintError } from "@repo/db";
 import type { Database, DatabaseTransaction } from "@repo/db";
 
 import { failVersionConflict } from "../../../errors";
-import { withBusinessReadSnapshot } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
+import { withRecordReadSnapshot } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { lockCustomerForWrite } from "../../customer";
 import {
   formatAddress,
@@ -87,7 +87,7 @@ function addressView(
 
 async function lockAddressAtVersion(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   addressId: string,
   expectedVersion: number,
   includeArchived: boolean
@@ -131,8 +131,11 @@ function addressPageView({
 
 export function createDeliveryAddressUseCases(db: Database) {
   return {
-    listDefaultAddresses(access: BusinessAccess, query: AddressDirectoryQuery) {
-      return withBusinessReadSnapshot(
+    listDefaultAddresses(
+      access: AccountRecordAccess,
+      query: AddressDirectoryQuery
+    ) {
+      return withRecordReadSnapshot(
         access.userId,
         async (tx, currentAccess) =>
           addressPageView(await selectAddressPage(tx, currentAccess, query)),
@@ -140,11 +143,11 @@ export function createDeliveryAddressUseCases(db: Database) {
       );
     },
     listCustomerAddresses(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       customerId: string,
       pagination: AddressPagination
     ) {
-      return withBusinessReadSnapshot(
+      return withRecordReadSnapshot(
         access.userId,
         async (tx, currentAccess) => {
           const owner = await findAddressCustomer(
@@ -165,8 +168,8 @@ export function createDeliveryAddressUseCases(db: Database) {
         db
       );
     },
-    getAddress(access: BusinessAccess, addressId: string) {
-      return withBusinessReadSnapshot(
+    getAddress(access: AccountRecordAccess, addressId: string) {
+      return withRecordReadSnapshot(
         access.userId,
         async (tx, currentAccess) => {
           const record = await findAddress(tx, currentAccess, addressId);
@@ -181,7 +184,7 @@ export function createDeliveryAddressUseCases(db: Database) {
      * 同一个提交 ID 重试时，在当前客户权限下返回原记录。
      */
     createAddress(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       customerId: string,
       input: AddressCreateInput,
       expectedDefault: { id: string; version: number } | null | undefined,
@@ -239,7 +242,7 @@ export function createDeliveryAddressUseCases(db: Database) {
     },
     /** 更新地址资料。切换默认时先清除原记录上的默认标记。 */
     updateAddress(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       addressId: string,
       input: AddressPatch,
       expectedVersion: number
@@ -274,7 +277,7 @@ export function createDeliveryAddressUseCases(db: Database) {
     },
     /** 归档默认地址时在同一事务内递补。同一原版本可重试。 */
     archiveAddress(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       addressId: string,
       expectedVersion: number
     ) {

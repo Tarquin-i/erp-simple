@@ -1,13 +1,13 @@
 import type { Database, DatabaseTransaction } from "@repo/db";
 import { communicationTag } from "@repo/db/schema";
-import { asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, ne, sql } from "drizzle-orm";
 
-import {
-  tagDictionaryFields,
-  updateStoredTagColor,
-} from "../../business/tag-color";
-
-const tagFields = tagDictionaryFields(communicationTag);
+const tagFields = {
+  id: communicationTag.id,
+  name: communicationTag.name,
+  color: communicationTag.color,
+  createdAt: communicationTag.createdAt,
+};
 
 export async function selectTagPage(
   tx: DatabaseTransaction,
@@ -54,11 +54,35 @@ export async function insertTag(
   return tag;
 }
 
-export function updateTagColor(
+export async function updateTagColor(
   db: Database,
   id: string,
   color: string,
   expectedColor: string
 ) {
-  return updateStoredTagColor(db, communicationTag, id, color, expectedColor);
+  const tagById = eq(communicationTag.id, id);
+  const storedColor = sql<string>`lower(${communicationTag.color})`;
+  const [tag] = await db
+    .update(communicationTag)
+    .set({ color })
+    .where(
+      and(
+        tagById,
+        eq(storedColor, expectedColor.toLowerCase()),
+        ne(storedColor, color.toLowerCase())
+      )
+    )
+    .returning(tagFields);
+  if (tag) return { kind: "saved", tag } as const;
+
+  const [current] = await db
+    .select(tagFields)
+    .from(communicationTag)
+    .where(tagById);
+  if (!current) return { kind: "not-found" } as const;
+  // 上次保存成功但响应丢失时，相同目标颜色可以直接重试。
+  if (current.color.toLowerCase() === color.toLowerCase()) {
+    return { kind: "saved", tag: current } as const;
+  }
+  return { kind: "conflict", current } as const;
 }

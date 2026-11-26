@@ -17,9 +17,8 @@ import {
   sql,
 } from "drizzle-orm";
 
-import { businessScopeWhere } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
-import type { ListOptionFilter } from "../../business/list-option-filter";
+import { recordScopeWhere } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 
 export type PayoutRow = typeof payout.$inferSelect;
 export type PayoutCreateInput = Pick<
@@ -41,7 +40,7 @@ export interface PayoutSource {
 }
 
 export interface PayoutFilters {
-  products?: ListOptionFilter;
+  products?: { values: string[]; excluded: boolean };
   page: number;
   pageSize: number;
   search?: string;
@@ -57,11 +56,11 @@ const payoutSourceFields = {
   currencyCode: product.currencyCode,
 };
 
-function activePayoutScope(access: BusinessAccess) {
+function activePayoutScope(access: AccountRecordAccess) {
   return and(
     eq(payout.status, "active"),
     eq(product.status, "active"),
-    businessScopeWhere(access, customer)
+    recordScopeWhere(access, customer)
   );
 }
 
@@ -75,7 +74,7 @@ function payoutSearchWhere(search: string) {
 
 export async function selectPayoutPage(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   { products, page, pageSize, search }: PayoutFilters
 ) {
   const productMatches = products?.excluded ? notInArray : inArray;
@@ -104,7 +103,7 @@ export async function selectPayoutPage(
 
 export async function selectPayoutDetail(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string
 ) {
   const [row] = await tx

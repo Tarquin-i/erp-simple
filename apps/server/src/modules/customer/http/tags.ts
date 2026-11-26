@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 
-import type { BusinessAccessEnv } from "../../business/access";
-import { readTagColor } from "../../business/tag-color";
+import { fail } from "../../../errors";
+import type { RecordAccessEnv } from "../../identity/http/record-access-context";
 import { createCustomerError } from "../application/errors";
 import type { createTagUseCases } from "../application/tags";
 import {
@@ -11,10 +11,18 @@ import {
   readUuid,
 } from "../../../http/request-input";
 
+function readTagColor(value: unknown, label = "标签颜色") {
+  const color = readString(value, label, 7);
+  if (!/^#[0-9a-f]{6}$/i.test(color)) {
+    fail(400, `${label}须为 #RRGGBB 格式。`);
+  }
+  return color;
+}
+
 export function createCustomerTagRoutes(
   tags: ReturnType<typeof createTagUseCases>
 ) {
-  const routes = new Hono<BusinessAccessEnv>();
+  const routes = new Hono<RecordAccessEnv>();
 
   routes.get("/tags", async (c) => {
     const page = readPositiveInteger(c.req.query("page"), "页码", 1, 1_000_000);
@@ -38,7 +46,7 @@ export function createCustomerTagRoutes(
   });
 
   routes.patch("/tags/:tagId", async (c) => {
-    const access = c.get("businessAccess");
+    const access = c.get("recordAccess");
     if (access.scope !== "company") {
       throw createCustomerError("tagColorForbidden");
     }

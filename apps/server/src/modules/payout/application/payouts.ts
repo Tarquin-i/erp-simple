@@ -4,8 +4,8 @@ import { isConstraintError } from "@repo/db";
 import type { Database, DatabaseTransaction } from "@repo/db";
 
 import { failVersionConflict } from "../../../errors";
-import { withBusinessReadSnapshot } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
+import { withRecordReadSnapshot } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { fail } from "../../../errors";
 import { lockProductPayoutSource } from "../../product";
 import { calculatePayoutMetrics } from "../domain/payout-calculations";
@@ -83,7 +83,7 @@ async function writePayout<T>(
 
 async function lockPayoutForWrite(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string,
   operation: "replay" | "update" | "archive"
 ) {
@@ -110,8 +110,8 @@ async function lockPayoutForWrite(
 export function createPayoutUseCases(db: Database) {
   return {
     /** 使用同一只读快照读取权限、列表及总数。 */
-    listPayouts(access: BusinessAccess, filters: PayoutFilters) {
-      return withBusinessReadSnapshot(
+    listPayouts(access: AccountRecordAccess, filters: PayoutFilters) {
+      return withRecordReadSnapshot(
         access.userId,
         async (tx, freshAccess) => {
           const { rows, total, page, pageSize } = await selectPayoutPage(
@@ -130,8 +130,8 @@ export function createPayoutUseCases(db: Database) {
       );
     },
     /** 详情权限随产品关联客户变更，归档或不可见时返回 404。 */
-    getPayout(access: BusinessAccess, id: string) {
-      return withBusinessReadSnapshot(
+    getPayout(access: AccountRecordAccess, id: string) {
+      return withRecordReadSnapshot(
         access.userId,
         async (tx, freshAccess) => {
           const row = await selectPayoutDetail(tx, freshAccess, id);
@@ -144,7 +144,7 @@ export function createPayoutUseCases(db: Database) {
 
     /** 同一账号用同一提交 ID 重试，只会得到第一次保存的记录。 */
     createPayout(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       input: PayoutCreateInput,
       requestId: string
     ) {
@@ -188,7 +188,7 @@ export function createPayoutUseCases(db: Database) {
     },
 
     updatePayout(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       id: string,
       input: PayoutPatch,
       expectedVersion: number
@@ -230,7 +230,11 @@ export function createPayoutUseCases(db: Database) {
       });
     },
 
-    archivePayout(access: BusinessAccess, id: string, expectedVersion: number) {
+    archivePayout(
+      access: AccountRecordAccess,
+      id: string,
+      expectedVersion: number
+    ) {
       return writePayout(db, async (tx) => {
         const { record, source } = await lockPayoutForWrite(
           tx,

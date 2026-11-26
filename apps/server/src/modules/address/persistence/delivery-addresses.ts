@@ -11,9 +11,8 @@ import {
   sql,
 } from "drizzle-orm";
 
-import { businessScopeWhere } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
-import type { ListOptionFilter } from "../../business/list-option-filter";
+import { recordScopeWhere } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { lockCustomerForWrite } from "../../customer";
 
 export type AddressCreateInput = {
@@ -40,7 +39,7 @@ export type AddressPagination = {
   search?: string;
 };
 export type AddressDirectoryQuery = AddressPagination & {
-  owners?: ListOptionFilter;
+  owners?: { values: string[]; excluded: boolean };
 };
 
 const customerFields = {
@@ -84,13 +83,13 @@ const listFields = {
  */
 export async function selectAddressPage(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   { page, pageSize, search, owners }: AddressDirectoryQuery,
   customerId?: string
 ) {
   const ownerMatches = owners?.excluded ? notInArray : inArray;
   const filter = and(
-    businessScopeWhere(access, customer),
+    recordScopeWhere(access, customer),
     eq(customer.status, "active"),
     eq(customerAddress.status, "active"),
     customerId === undefined
@@ -133,7 +132,7 @@ export async function selectAddressPage(
 
 export async function findAddressCustomer(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   customerId: string
 ) {
   const [owner] = await tx
@@ -143,7 +142,7 @@ export async function findAddressCustomer(
       and(
         eq(customer.id, customerId),
         eq(customer.status, "active"),
-        businessScopeWhere(access, customer)
+        recordScopeWhere(access, customer)
       )
     );
   return owner;
@@ -151,7 +150,7 @@ export async function findAddressCustomer(
 
 export async function findAddress(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   addressId: string
 ) {
   const [record] = await tx
@@ -163,7 +162,7 @@ export async function findAddress(
         eq(customerAddress.id, addressId),
         eq(customerAddress.status, "active"),
         eq(customer.status, "active"),
-        businessScopeWhere(access, customer)
+        recordScopeWhere(access, customer)
       )
     );
   return record;
@@ -209,7 +208,7 @@ export async function lockAddressCreateRequest(
 /** 先通过客户模块加锁并复核权限，再锁地址行。 */
 export async function lockAddressForWrite(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   addressId: string,
   includeArchived: boolean
 ) {
@@ -224,7 +223,7 @@ export async function lockAddressForWrite(
       and(
         eq(customerAddress.id, addressId),
         activeOnly,
-        businessScopeWhere(access, customer)
+        recordScopeWhere(access, customer)
       )
     );
   if (!target) return;

@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 
-import { requireBusinessAccess } from "../../business/access";
-import type { BusinessAccessEnv } from "../../business/access";
+import type {
+  RecordAccessEnv,
+  RecordAccessMiddleware,
+} from "../../identity/http/record-access-context";
 import type { CustomerModule } from "../module";
 import { createCustomerChannelRoutes } from "./channels";
 import { createCustomerContactRoutes } from "./contacts";
@@ -11,11 +13,12 @@ import { createCustomerTagRoutes } from "./tags";
 
 export function createCustomerRoutes(
   { contacts, listChannels, ownerOptions, profiles, tags }: CustomerModule,
-  customerAddressRoutes: Hono<BusinessAccessEnv>
+  customerAddressRoutes: Hono<RecordAccessEnv>,
+  requireRecordAccess: RecordAccessMiddleware
 ) {
-  const routes = new Hono<BusinessAccessEnv>();
+  const routes = new Hono<RecordAccessEnv>();
 
-  routes.use("*", requireBusinessAccess);
+  routes.use("*", requireRecordAccess);
   routes.route("/", createCustomerChannelRoutes(listChannels));
   routes.route("/", createCustomerOwnerOptionRoutes(ownerOptions));
   routes.route("/", createCustomerTagRoutes(tags));

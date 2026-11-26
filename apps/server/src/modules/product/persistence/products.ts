@@ -12,9 +12,8 @@ import {
   sql,
 } from "drizzle-orm";
 
-import { businessScopeWhere } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
-import type { ListOptionFilter } from "../../business/list-option-filter";
+import { recordScopeWhere } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { productTypeLabels } from "../domain/type-fields";
 import type {
   ProductCreateInput,
@@ -23,6 +22,11 @@ import type {
 } from "../domain/type-fields";
 
 type Product = typeof product.$inferSelect;
+
+type ListOptionFilter<T extends string = string> = {
+  values: T[];
+  excluded: boolean;
+};
 
 export interface ProductFilters {
   page: number;
@@ -97,7 +101,7 @@ export function productView(
 
 export async function selectProductPage(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   filters: ProductFilters
 ) {
   const { page, pageSize, search, customers, productTypes, sortDirection } =
@@ -106,7 +110,7 @@ export async function selectProductPage(
   const customerMatches = customers?.excluded ? notInArray : inArray;
   const typeMatches = productTypes?.excluded ? notInArray : inArray;
   const filter = and(
-    businessScopeWhere(access, customer),
+    recordScopeWhere(access, customer),
     eq(product.status, "active"),
     customers
       ? customerMatches(product.customerId, customers.values)
@@ -134,7 +138,7 @@ export async function selectProductPage(
 
 export async function selectProductDetail(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string
 ) {
   const [row] = await tx
@@ -145,7 +149,7 @@ export async function selectProductDetail(
       and(
         eq(product.id, id),
         eq(product.status, "active"),
-        businessScopeWhere(access, customer)
+        recordScopeWhere(access, customer)
       )
     );
   return row;
@@ -153,7 +157,7 @@ export async function selectProductDetail(
 
 export async function findProductCustomerId(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string,
   activeOnly: boolean
 ) {
@@ -165,7 +169,7 @@ export async function findProductCustomerId(
       and(
         eq(product.id, id),
         activeOnly ? eq(product.status, "active") : undefined,
-        businessScopeWhere(access, customer)
+        recordScopeWhere(access, customer)
       )
     );
   return target?.customerId;

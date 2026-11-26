@@ -1,7 +1,7 @@
 import { isConstraintError } from "@repo/db";
 import type { Database } from "@repo/db";
 
-import { readBusinessAccess } from "../../business/access";
+import { readAccountRecordAccess } from "../../organization";
 import {
   findCustomerTag,
   insertCustomerTag,
@@ -42,7 +42,7 @@ export function createTagUseCases(db: Database) {
       expectedColor: string;
     }) {
       const { userId, id, color, expectedColor } = input;
-      const access = await readBusinessAccess(db, userId);
+      const access = await readAccountRecordAccess(db, userId);
       if (access.scope !== "company") {
         throw createCustomerError("tagColorForbidden");
       }

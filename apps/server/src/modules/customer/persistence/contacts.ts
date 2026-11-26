@@ -6,8 +6,8 @@ import {
 } from "@repo/db/schema";
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
-import { businessScopeWhere } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
+import { recordScopeWhere } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 
 const contactColumns = {
   id: customerContact.id,
@@ -46,7 +46,7 @@ export type SubmittedMethod = MethodInput & { id?: string };
 
 export async function selectCustomerContacts(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   customerId: string
 ) {
   const rows = await tx
@@ -67,7 +67,7 @@ export async function selectCustomerContacts(
       and(
         eq(customer.id, customerId),
         eq(customer.status, "active"),
-        businessScopeWhere(access, customer)
+        recordScopeWhere(access, customer)
       )
     )
     .orderBy(

@@ -24,6 +24,7 @@ import {
 import type { PayoutDefinition } from "@repo/db/schema";
 import { and, eq, getTableName, inArray, or, sql } from "drizzle-orm";
 
+import { readAddressCreateInput } from "../modules/address/http/routes";
 import {
   createAccountProvisioning,
   lockCompanyAdminInitialization,
@@ -715,11 +716,6 @@ async function seedCustomerAddresses(
     (address) => address.customerIndex === customerIndex
   );
   if (!addresses.length) return 0;
-
-  // 地址路由会加载服务端认证实例，须等种子脚本完成目标库校验后再导入。
-  const { readAddressCreateInput } = await import(
-    "../modules/address/http/routes"
-  );
 
   const [currentDefault] = await tx
     .select({ id: customerAddress.id })

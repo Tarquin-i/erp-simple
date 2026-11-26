@@ -16,8 +16,8 @@ import {
   sql,
 } from "drizzle-orm";
 
-import { businessScopeWhere } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
+import { recordScopeWhere } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { fail } from "../../../errors";
 import type { AttachmentUploadInput } from "../domain/attachment-files";
 
@@ -49,7 +49,7 @@ const attachmentMetadata = {
 
 export async function requireCommunication(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   communicationId: string,
   lockedDepartmentId?: string
 ) {
@@ -63,7 +63,7 @@ export async function requireCommunication(
       and(
         eq(communication.id, communicationId),
         isNull(communication.archivedAt),
-        businessScopeWhere(access, communication),
+        recordScopeWhere(access, communication),
         lockedDepartmentId === undefined
           ? undefined
           : eq(communication.departmentId, lockedDepartmentId)

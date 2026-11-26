@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 
-import type { BusinessAccessEnv } from "../../business/access";
+import type { RecordAccessEnv } from "../../identity/http/record-access-context";
 import { fail } from "../../../errors";
 import {
   readContactMethods,
@@ -35,20 +35,17 @@ const contactBodyLimit = bodyLimit({
 export function createCustomerContactRoutes(
   contacts: ReturnType<typeof createContactUseCases>
 ) {
-  const routes = new Hono<BusinessAccessEnv>();
+  const routes = new Hono<RecordAccessEnv>();
 
   routes.get("/:customerId/contacts", async (c) => {
     const customerId = readUuid(c.req.param("customerId"), "客户 ID");
     return c.json({
-      contacts: await contacts.listContacts(
-        c.get("businessAccess"),
-        customerId
-      ),
+      contacts: await contacts.listContacts(c.get("recordAccess"), customerId),
     });
   });
 
   routes.post("/:customerId/contacts", contactBodyLimit, async (c) => {
-    const access = c.get("businessAccess");
+    const access = c.get("recordAccess");
     const expectedAccountId = c.req.header("X-Expected-Account-Id");
     if (
       expectedAccountId !== undefined &&
@@ -91,7 +88,7 @@ export function createCustomerContactRoutes(
           ? undefined
           : readString(body.name, "联系人姓名", 128);
       const contact = await contacts.updateContact(
-        c.get("businessAccess"),
+        c.get("recordAccess"),
         customerId,
         contactId,
         readExpectedVersion(body.expectedVersion),
@@ -109,7 +106,7 @@ export function createCustomerContactRoutes(
       version && /^\d+$/.test(version) ? Number(version) : undefined
     );
     const contact = await contacts.archiveContact(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       customerId,
       contactId,
       expectedVersion
@@ -123,7 +120,7 @@ export function createCustomerContactRoutes(
     const body = await readObject(c, versionedMethodFields);
     const method = readMethod(body);
     const contact = await contacts.addMethod(
-      c.get("businessAccess"),
+      c.get("recordAccess"),
       customerId,
       contactId,
       readExpectedVersion(body.expectedVersion),
@@ -186,7 +183,7 @@ export function createCustomerContactRoutes(
             )
           : undefined;
       const contact = await contacts.updateMethod(
-        c.get("businessAccess"),
+        c.get("recordAccess"),
         customerId,
         contactId,
         methodId,
@@ -215,7 +212,7 @@ export function createCustomerContactRoutes(
         version && /^\d+$/.test(version) ? Number(version) : undefined
       );
       const contact = await contacts.deleteMethod(
-        c.get("businessAccess"),
+        c.get("recordAccess"),
         customerId,
         contactId,
         methodId,

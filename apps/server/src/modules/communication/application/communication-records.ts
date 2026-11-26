@@ -4,11 +4,8 @@ import type { Database, DatabaseTransaction } from "@repo/db";
 import { HTTPException } from "hono/http-exception";
 
 import { failVersionConflict } from "../../../errors";
-import {
-  assertBusinessWriteTarget,
-  withBusinessReadSnapshot,
-} from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
+import { withRecordReadSnapshot } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { lockCustomerForWrite, requireAssignableOwner } from "../../customer";
 import { fail } from "../../../errors";
 import {
@@ -37,6 +34,27 @@ import {
   CommunicationArchiveInProgress,
   createCommunicationConflict,
 } from "./errors";
+
+/**
+ * 校验新增记录或变更负责人后的目标范围。具体模块仍需校验负责人资格。
+ * @param access 当前账号的业务范围。
+ * @param target 目标部门和负责人，未指定负责人时传 `null`。
+ * @returns 校验通过时无返回值。
+ * @throws 目标超出当前账号的数据范围时抛出 HTTP 403。
+ */
+function assertCommunicationWriteTarget(
+  access: AccountRecordAccess,
+  target: { departmentId: string; ownerUserId: string | null }
+) {
+  if (access.scope === "company") return;
+
+  if (
+    target.departmentId !== access.departmentId ||
+    (access.scope === "own" && target.ownerUserId !== access.userId)
+  ) {
+    fail(403, "无权将业务数据写入该范围。");
+  }
+}
 
 /**
  * 运行完整写入事务，遇到数据库死锁时最多尝试三次。
@@ -97,7 +115,7 @@ function fingerprintCreation(input: CreateCommunicationInput) {
 
 async function finishCommunicationArchive(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string
 ) {
   await markCommunicationArchived(tx, id, access.userId);
@@ -106,7 +124,7 @@ async function finishCommunicationArchive(
 
 async function lockCommunicationForArchive(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string,
   expectedVersion: number
 ) {
@@ -132,29 +150,32 @@ export function createCommunicationRecordUseCases(
   >
 ) {
   return {
-    listCommunications(access: BusinessAccess, filters: CommunicationFilters) {
-      return withBusinessReadSnapshot(
+    listCommunications(
+      access: AccountRecordAccess,
+      filters: CommunicationFilters
+    ) {
+      return withRecordReadSnapshot(
         access.userId,
         (tx, freshAccess) => selectCommunicationPage(tx, freshAccess, filters),
         db
       );
     },
-    getCommunication(access: BusinessAccess, id: string) {
-      return withBusinessReadSnapshot(
+    getCommunication(access: AccountRecordAccess, id: string) {
+      return withRecordReadSnapshot(
         access.userId,
         (tx, freshAccess) => readCommunication(tx, freshAccess, id),
         db
       );
     },
-    listCommunicationOwners(access: BusinessAccess) {
-      return withBusinessReadSnapshot(
+    listCommunicationOwners(access: AccountRecordAccess) {
+      return withRecordReadSnapshot(
         access.userId,
         selectCommunicationOwners,
         db
       );
     },
     createCommunication(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       input: CreateCommunicationInput,
       requestId: string
     ) {
@@ -187,7 +208,10 @@ export function createCommunicationRecordUseCases(
         }
         const departmentId = linkedCustomer.departmentId;
         const ownerUserId = input.ownerUserId ?? freshAccess.userId;
-        assertBusinessWriteTarget(freshAccess, { departmentId, ownerUserId });
+        assertCommunicationWriteTarget(freshAccess, {
+          departmentId,
+          ownerUserId,
+        });
         await requireAssignableOwner(tx, departmentId, ownerUserId);
         const id = await insertCommunication(
           tx,
@@ -200,7 +224,7 @@ export function createCommunicationRecordUseCases(
       });
     },
     updateCommunication(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       id: string,
       input: UpdateCommunicationInput,
       expectedVersion: number
@@ -231,7 +255,7 @@ export function createCommunicationRecordUseCases(
       });
     },
     async archiveCommunication(
-      access: BusinessAccess,
+      access: AccountRecordAccess,
       id: string,
       expectedVersion: number
     ) {

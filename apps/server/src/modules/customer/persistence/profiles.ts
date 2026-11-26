@@ -24,9 +24,8 @@ import {
   sql,
 } from "drizzle-orm";
 
-import { businessScopeWhere } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
-import type { ListOptionFilter } from "../../business/list-option-filter";
+import { recordScopeWhere } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import { archiveCustomerContacts } from "./contacts";
 
 export interface CustomerWriteInput {
@@ -36,6 +35,11 @@ export interface CustomerWriteInput {
   channelCodes?: string[];
   tagIds?: string[];
 }
+
+type ListOptionFilter = {
+  values: string[];
+  excluded: boolean;
+};
 
 export interface CustomerFilters {
   search?: string;
@@ -132,7 +136,7 @@ async function readAssignments(
 
 export async function selectCustomerPage(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   filters: CustomerFilters
 ) {
   const { page, pageSize, search, channels, tags, owners } = filters;
@@ -141,7 +145,7 @@ export async function selectCustomerPage(
   const ownerMatches = owners?.excluded ? notInArray : inArray;
 
   const filter = and(
-    businessScopeWhere(access, customer),
+    recordScopeWhere(access, customer),
     eq(customer.status, "active"),
     owners ? ownerMatches(customer.ownerUserId, owners.values) : undefined,
     search
@@ -197,14 +201,14 @@ export async function selectCustomerPage(
 
 export async function findCustomerProfile(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string,
   includeArchived = false
 ) {
   const rows = await selectCustomers(tx).where(
     and(
       eq(customer.id, id),
-      businessScopeWhere(access, customer),
+      recordScopeWhere(access, customer),
       includeArchived ? undefined : eq(customer.status, "active")
     )
   );
@@ -293,7 +297,7 @@ export async function hasActiveCustomerNameConflict(
 
 export async function updateCustomerProfile(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   id: string,
   input: CustomerWriteInput
 ) {
@@ -306,7 +310,7 @@ export async function updateCustomerProfile(
       updatedAt: new Date(),
       version: sql`${customer.version} + 1`,
     })
-    .where(and(eq(customer.id, id), businessScopeWhere(access, customer)));
+    .where(and(eq(customer.id, id), recordScopeWhere(access, customer)));
   if (input.channelCodes !== undefined) {
     await tx
       .delete(customerChannelAssignment)

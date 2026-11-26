@@ -8,20 +8,20 @@ import {
 } from "@repo/db/schema";
 import { and, asc, eq, isNull } from "drizzle-orm";
 
-import { businessScopeWhere } from "../../business/access";
-import type { BusinessAccess } from "../../business/access";
+import { recordScopeWhere } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 
 // 列表筛选项取自当前可见客户的负责人。
 export function selectVisibleOwners(
   tx: DatabaseTransaction,
-  access: BusinessAccess
+  access: AccountRecordAccess
 ) {
   return tx
     .selectDistinct({ id: user.id, name: user.name })
     .from(customer)
     .innerJoin(user, eq(user.id, customer.ownerUserId))
     .where(
-      and(eq(customer.status, "active"), businessScopeWhere(access, customer))
+      and(eq(customer.status, "active"), recordScopeWhere(access, customer))
     )
     .orderBy(asc(user.name), asc(user.id));
 }
@@ -60,7 +60,7 @@ export async function findOwnerDepartment(
 
 export async function findVisibleCustomerDepartment(
   tx: DatabaseTransaction,
-  access: BusinessAccess,
+  access: AccountRecordAccess,
   customerId: string
 ) {
   const [record] = await tx
@@ -70,7 +70,7 @@ export async function findVisibleCustomerDepartment(
       and(
         eq(customer.id, customerId),
         eq(customer.status, "active"),
-        businessScopeWhere(access, customer)
+        recordScopeWhere(access, customer)
       )
     );
   return record;
