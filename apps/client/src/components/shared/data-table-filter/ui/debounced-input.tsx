@@ -1,39 +1,41 @@
 'use client'
 
 import { Input } from '@/components/ui/input'
-import { useCallback, useEffect, useState } from 'react'
-import { debounce } from '../lib/debounce'
+import { useState } from 'react'
+import { useDebouncedChange } from '../hooks/use-debounced-change'
 
 export function DebouncedInput({
-  value: initialValue,
+  value: externalValue,
   onChange,
-  debounceMs = 500, // This is the wait time, not the function
+  debounceMs = 500,
   ...props
 }: {
   value: string | number
   onChange: (value: string | number) => void
   debounceMs?: number
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'>) {
-  const [value, setValue] = useState(initialValue)
+  const [draft, setDraft] = useState({
+    externalValue,
+    value: externalValue,
+    pending: false,
+  })
 
-  // Sync with initialValue when it changes
-  useEffect(() => {
-    setValue(initialValue)
-  }, [initialValue])
-
-  // Define the debounced function with useCallback
-  const debouncedOnChange = useCallback(
-    debounce((newValue: string | number) => {
-      onChange(newValue)
-    }, debounceMs), // Pass the wait time here
-    [debounceMs, onChange], // Dependencies
-  )
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value
-    setValue(newValue) // Update local state immediately
-    debouncedOnChange(newValue) // Call debounced version
+  if (!Object.is(draft.externalValue, externalValue)) {
+    setDraft({ externalValue, value: externalValue, pending: false })
   }
 
-  return <Input {...props} value={value} onChange={handleChange} />
+  useDebouncedChange(
+    draft.pending ? draft.value : null,
+    (value) => {
+      setDraft((current) => ({ ...current, pending: false }))
+      onChange(value)
+    },
+    debounceMs,
+  )
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setDraft({ externalValue, value: event.target.value, pending: true })
+  }
+
+  return <Input {...props} value={draft.value} onChange={handleChange} />
 }

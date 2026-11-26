@@ -46,7 +46,7 @@ import type {
   FilterModel,
   FilterStrategy,
 } from '../core/types'
-import { useDebounceCallback } from '../hooks/use-debounce-callback'
+import { useDebouncedChange } from '../hooks/use-debounced-change'
 import { take } from '../lib/array'
 import { createNumberRange } from '../lib/helpers'
 import { type Locale, t } from '../lib/i18n'
@@ -716,6 +716,7 @@ export function FilterValueNumberController<TData>({
 
   // Local state for values
   const [values, setValues] = useState(filter?.values ?? [0, 0])
+  const [pendingValues, setPendingValues] = useState<number[] | null>(null)
 
   // Sync with parent filter changes
   useEffect(() => {
@@ -732,30 +733,22 @@ export function FilterValueNumberController<TData>({
     // filter && values.length === 2
     filter && numberFilterOperators[filter.operator].target === 'multiple'
 
-  const setFilterOperatorDebounced = useDebounceCallback(
-    actions.setFilterOperator,
-    500,
-  )
-  const setFilterValueDebounced = useDebounceCallback(
-    actions.setFilterValue,
-    500,
-  )
+  useDebouncedChange(pendingValues, (nextValues) => {
+    setPendingValues(null)
+    actions.setFilterValue(column, nextValues)
+  })
 
   const changeNumber = (value: number[]) => {
     setValues(value)
-    setFilterValueDebounced(column as any, value)
+    setPendingValues(value)
   }
 
   const changeMinNumber = (value: number) => {
-    const newValues = createNumberRange([value, values[1]])
-    setValues(newValues)
-    setFilterValueDebounced(column as any, newValues)
+    changeNumber(createNumberRange([value, values[1]]))
   }
 
   const changeMaxNumber = (value: number) => {
-    const newValues = createNumberRange([values[0], value])
-    setValues(newValues)
-    setFilterValueDebounced(column as any, newValues)
+    changeNumber(createNumberRange([values[0], value]))
   }
 
   const changeType = useCallback(
@@ -775,12 +768,8 @@ export function FilterValueNumberController<TData>({
 
       const newOperator = type === 'single' ? 'is' : 'is between'
 
-      // Update local state
       setValues(newValues)
-
-      // Cancel in-flight debounced calls to prevent flicker/race conditions
-      setFilterOperatorDebounced.cancel()
-      setFilterValueDebounced.cancel()
+      setPendingValues(null)
 
       // Update global filter state atomically
       actions.setFilterOperator(column.id, newOperator)
