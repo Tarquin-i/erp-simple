@@ -206,22 +206,24 @@ export function getColumnOptions<TData, TType extends ColumnDataType, TVal>(
 
   let models = uniq(filtered)
 
-  if (column.orderFn) {
+  const orderFn = column.orderFn?.bind(column)
+  if (orderFn) {
     models = models.sort((m1, m2) =>
-      column.orderFn!(
+      orderFn(
         m1 as ElementType<NonNullable<TVal>>,
         m2 as ElementType<NonNullable<TVal>>,
       ),
     )
   }
 
-  if (column.transformOptionFn) {
+  const transformOptionFn = column.transformOptionFn?.bind(column)
+  if (transformOptionFn) {
     // Memoize transformOptionFn calls
     const memoizedTransform = memo(
       () => [models],
       (deps) =>
         deps[0].map((m) =>
-          column.transformOptionFn!(m as ElementType<NonNullable<TVal>>),
+          transformOptionFn(m as ElementType<NonNullable<TVal>>),
         ),
     )
     return memoizedTransform()
@@ -261,12 +263,13 @@ export function getColumnValues<TData, TType extends ColumnDataType, TVal>(
       .filter((v) => v !== undefined && v !== null)
   }
 
-  if (column.transformOptionFn) {
+  const transformOptionFn = column.transformOptionFn?.bind(column)
+  if (transformOptionFn) {
     const memoizedTransform = memo(
       () => [raw],
       (deps) =>
         deps[0].map(
-          (v) => column.transformOptionFn!(v) as ElementType<NonNullable<TVal>>,
+          (v) => transformOptionFn(v) as ElementType<NonNullable<TVal>>,
         ),
     )
     return memoizedTransform()

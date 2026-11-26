@@ -185,8 +185,8 @@ export function FilterValueOptionDisplay<TData>({
   return (
     <div className="inline-flex items-center gap-0.5">
       {hasOptionIcons &&
-        take(selected, 3).map(({ value, icon }) => {
-          const Icon = icon!
+        take(selected, 3).map(({ value, icon: Icon }) => {
+          if (!Icon) return null
           return isValidElement(Icon) ? (
             Icon
           ) : (
@@ -232,8 +232,8 @@ export function FilterValueMultiOptionDisplay<TData>({
     <div className="inline-flex items-center gap-1.5">
       {hasOptionIcons && (
         <div key="icons" className="inline-flex items-center gap-0.5">
-          {take(selected, 3).map(({ value, icon }) => {
-            const Icon = icon!
+          {take(selected, 3).map(({ value, icon: Icon }) => {
+            if (!Icon) return null
             return isValidElement(Icon) ? (
               cloneElement(Icon, { key: value })
             ) : (
