@@ -219,14 +219,14 @@ export function SearchableSelect<Option extends SelectOption>({
             role="group"
             aria-label="可选项"
             onKeyDown={(event) => {
+              const { target } = event;
+              if (!(target instanceof HTMLButtonElement)) return;
               const buttons = Array.from(
                 event.currentTarget.querySelectorAll<HTMLButtonElement>(
                   "button:not(:disabled)"
                 )
               );
-              const index = buttons.findIndex(
-                (button) => button === event.target
-              );
+              const index = buttons.indexOf(target);
               if (index < 0) return;
               let next: number;
               switch (event.key) {
