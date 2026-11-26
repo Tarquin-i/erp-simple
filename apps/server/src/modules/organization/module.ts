@@ -1,4 +1,5 @@
 import type { Database } from "@repo/db";
+import { readAccountRecordAccess } from "./application/account-record-access";
 import { createDepartmentApplicationUseCases } from "./application/department-applications";
 import { createDepartmentUseCases } from "./application/departments";
 import { createMemberUseCases } from "./application/members";
@@ -10,6 +11,8 @@ export function createOrganizationModule(db: Database) {
     members: createMemberUseCases(db),
     departmentApplications: createDepartmentApplicationUseCases(db),
     viewer: createViewerUseCases(db),
+    readAccountRecordAccess: (userId: string) =>
+      readAccountRecordAccess(db, userId),
   };
 }
 
