@@ -135,18 +135,16 @@ export function DataTable<TRow>({
     </Table>
   );
 
-  if (!rows) {
-    return (
-      <div role="status">
-        <span className="sr-only">{loading.label}</span>
-        {table}
-      </div>
-    );
-  }
-
   return (
     <>
-      {table}
+      {rows ? (
+        table
+      ) : (
+        <div role="status">
+          <span className="sr-only">{loading.label}</span>
+          {table}
+        </div>
+      )}
       {pagination && <ListPagination className="mt-5" {...pagination} />}
     </>
   );

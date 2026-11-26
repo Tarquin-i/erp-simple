@@ -110,23 +110,34 @@ function AddressDirectory() {
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
-    void listDefaultAddresses(query, signal)
-      .then((result) => {
-        const last = Math.max(1, Math.ceil(result.total / result.pageSize));
-        return result.page > last
-          ? listDefaultAddresses({ ...query, page: last }, signal)
-          : result;
-      })
-      .then(
-        (result) => {
-          if (!signal.aborted) setLoad({ status: "loaded", query, result });
-        },
-        (error: unknown) => {
-          if (!signal.aborted) setLoad({ status: "failed", query, error });
-        }
-      );
+    void listDefaultAddresses(query, signal).then(
+      (result) => {
+        if (!signal.aborted) setLoad({ status: "loaded", query, result });
+      },
+      (error: unknown) => {
+        if (!signal.aborted) setLoad({ status: "failed", query, error });
+      }
+    );
     return () => controller.abort();
   }, [query, retry]);
+
+  const loadedPage = current?.status === "loaded" ? current.result : undefined;
+  const pageCount = loadedPage
+    ? Math.max(1, Math.ceil(loadedPage.total / loadedPage.pageSize))
+    : 1;
+  const result =
+    loadedPage && loadedPage.page <= pageCount ? loadedPage : undefined;
+
+  useEffect(() => {
+    if (!loadedPage || loadedPage.page <= pageCount) return;
+    updateQuery(
+      (previous) => ({
+        ...previous,
+        page: pageCount > 1 ? pageCount : undefined,
+      }),
+      true
+    );
+  }, [loadedPage, pageCount, updateQuery]);
 
   function reload() {
     setLoad(undefined);
@@ -142,8 +153,6 @@ function AddressDirectory() {
       applySearch(normalizedSearch);
     }
   }
-
-  const result = current?.status === "loaded" ? current.result : undefined;
 
   return (
     <ListPage>
@@ -236,79 +245,77 @@ function AddressDirectory() {
           }
         />
       ) : (
-        <>
-          <AddressTable>
-            {result.addresses.map((address) => {
-              const destination = {
-                to: "/addresses/$addressId" as const,
-                params: { addressId: address.id },
-                search: {},
-                state: { addressListQuery: query },
-              };
+        <AddressTable>
+          {result.addresses.map((address) => {
+            const destination = {
+              to: "/addresses/$addressId" as const,
+              params: { addressId: address.id },
+              search: {},
+              state: { addressListQuery: query },
+            };
 
-              return (
-                <TableRow
-                  key={address.id}
-                  className="cursor-pointer"
-                  onClick={(event) => {
-                    if (shouldOpenTableRow(event)) void navigate(destination);
-                  }}
-                >
-                  <TableCell className="py-3">
-                    <Link
-                      to="/customers/$customerId"
-                      params={{ customerId: address.customer.id }}
-                      preload={false}
-                      title={address.customer.companyName}
-                      className={tableLinkClassName}
-                    >
-                      {address.customer.companyName}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {address.customer.customerNo}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      {...destination}
-                      preload={false}
-                      title={address.formattedAddress}
-                      className={tableLinkClassName}
-                    >
-                      {address.formattedAddress}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="truncate" title={address.recipientName}>
-                    {address.recipientName}
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    <AddressPhoneValue phone={address.phone} />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </AddressTable>
-          <ListPagination
-            label="地址目录分页"
-            page={result.page}
-            pageSize={result.pageSize}
-            total={result.total}
-            className="mt-5"
-            onPageChange={(page) =>
-              updateQuery((previous) => ({
-                ...previous,
-                page: page > 1 ? page : undefined,
-              }))
-            }
-            onPageSizeChange={(pageSize) =>
-              updateQuery((previous) => ({
-                ...previous,
-                page: undefined,
-                pageSize: readListPageSize(pageSize),
-              }))
-            }
-          />
-        </>
+            return (
+              <TableRow
+                key={address.id}
+                className="cursor-pointer"
+                onClick={(event) => {
+                  if (shouldOpenTableRow(event)) void navigate(destination);
+                }}
+              >
+                <TableCell className="py-3">
+                  <Link
+                    to="/customers/$customerId"
+                    params={{ customerId: address.customer.id }}
+                    preload={false}
+                    title={address.customer.companyName}
+                    className={tableLinkClassName}
+                  >
+                    {address.customer.companyName}
+                  </Link>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {address.customer.customerNo}
+                </TableCell>
+                <TableCell>
+                  <Link
+                    {...destination}
+                    preload={false}
+                    title={address.formattedAddress}
+                    className={tableLinkClassName}
+                  >
+                    {address.formattedAddress}
+                  </Link>
+                </TableCell>
+                <TableCell className="truncate" title={address.recipientName}>
+                  {address.recipientName}
+                </TableCell>
+                <TableCell className="tabular-nums">
+                  <AddressPhoneValue phone={address.phone} />
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </AddressTable>
+      )}
+      {current?.status !== "failed" && result?.addresses.length !== 0 && (
+        <ListPagination
+          label="地址目录分页"
+          result={result}
+          className="mt-5"
+          onPageChange={(page) =>
+            updateQuery((previous) => ({
+              ...previous,
+              page: page > 1 ? page : undefined,
+            }))
+          }
+          onPageSizeChange={(pageSize) =>
+            updateQuery((previous) => ({
+              ...previous,
+              page: undefined,
+              pageSize: readListPageSize(pageSize),
+            }))
+          }
+        />
       )}
     </ListPage>
   );

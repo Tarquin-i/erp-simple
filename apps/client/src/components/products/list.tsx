@@ -250,27 +250,21 @@ export function ProductList({
               }
             : undefined
         }
-        pagination={
-          visiblePage
-            ? {
-                label: "产品列表分页",
-                page: visiblePage.page,
-                pageSize: visiblePage.pageSize,
-                total: visiblePage.total,
-                onPageChange: (page) =>
-                  onQueryChange((previous) => ({
-                    ...previous,
-                    page: page > 1 ? page : undefined,
-                  })),
-                onPageSizeChange: (size) =>
-                  onQueryChange((previous) => ({
-                    ...previous,
-                    page: undefined,
-                    pageSize: readListPageSize(size),
-                  })),
-              }
-            : undefined
-        }
+        pagination={{
+          label: "产品列表分页",
+          result: visiblePage,
+          onPageChange: (page) =>
+            onQueryChange((previous) => ({
+              ...previous,
+              page: page > 1 ? page : undefined,
+            })),
+          onPageSizeChange: (size) =>
+            onQueryChange((previous) => ({
+              ...previous,
+              page: undefined,
+              pageSize: readListPageSize(size),
+            })),
+        }}
       />
     </ListPage>
   );

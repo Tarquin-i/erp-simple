@@ -171,10 +171,12 @@ export function CommunicationList({
   const openingRef = useRef(false);
   const current =
     load?.query === query && load.customerId === customerId ? load : undefined;
-  const result = current?.result;
-  const pageCount = result
-    ? Math.max(1, Math.ceil(result.total / result.pageSize))
+  const loadedPage = current?.result;
+  const pageCount = loadedPage
+    ? Math.max(1, Math.ceil(loadedPage.total / loadedPage.pageSize))
     : 1;
+  const result =
+    loadedPage && loadedPage.page <= pageCount ? loadedPage : undefined;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -198,7 +200,7 @@ export function CommunicationList({
   }, [customerId, query, retry]);
 
   useEffect(() => {
-    if (result && result.page > pageCount)
+    if (loadedPage && loadedPage.page > pageCount)
       onQueryChange(
         (current) => ({
           ...current,
@@ -206,7 +208,7 @@ export function CommunicationList({
         }),
         true
       );
-  }, [result, pageCount, onQueryChange]);
+  }, [loadedPage, pageCount, onQueryChange]);
 
   const submitSearch = useCallback(
     (search: string | undefined) =>
@@ -347,7 +349,7 @@ export function CommunicationList({
             重试
           </Button>
         </Empty>
-      ) : !result || result.page > pageCount ? (
+      ) : !result ? (
         <div role="status">
           <span className="sr-only">正在加载沟通记录…</span>
           <CommunicationTable columns={columns} customerView={customerView}>
@@ -379,109 +381,107 @@ export function CommunicationList({
           }
         />
       ) : (
-        <>
-          <CommunicationTable columns={columns} customerView={customerView}>
-            {result.communications.map((communication) => {
-              const updatedAt = new Date(communication.updatedAt);
-              const destination = {
-                to: "/communication/$communicationId" as const,
-                params: { communicationId: communication.id },
-                search: origin,
-                state: navigationState,
-              };
-              return (
-                <TableRow
-                  key={communication.id}
-                  className="cursor-pointer"
-                  onClick={(event) => {
-                    if (shouldOpenTableRow(event)) void navigate(destination);
-                  }}
+        <CommunicationTable columns={columns} customerView={customerView}>
+          {result.communications.map((communication) => {
+            const updatedAt = new Date(communication.updatedAt);
+            const destination = {
+              to: "/communication/$communicationId" as const,
+              params: { communicationId: communication.id },
+              search: origin,
+              state: navigationState,
+            };
+            return (
+              <TableRow
+                key={communication.id}
+                className="cursor-pointer"
+                onClick={(event) => {
+                  if (shouldOpenTableRow(event)) void navigate(destination);
+                }}
+              >
+                <TableCell
+                  className={cn(customerView ? "h-14" : "py-3", cellPadding)}
                 >
-                  <TableCell
-                    className={cn(customerView ? "h-14" : "py-3", cellPadding)}
+                  <Link
+                    {...destination}
+                    preload={false}
+                    className={tableLinkClassName}
+                    title={communication.title}
                   >
-                    <Link
-                      {...destination}
-                      preload={false}
+                    {communication.title}
+                  </Link>
+                </TableCell>
+                {!customerId && (
+                  <TableCell className="max-w-0 truncate">
+                    <CommunicationCustomerLink
                       className={tableLinkClassName}
-                      title={communication.title}
+                      customer={
+                        communication.canViewCustomer
+                          ? communication.customer
+                          : null
+                      }
+                    />
+                  </TableCell>
+                )}
+                <TableCell className={cn("max-w-0", cellPadding)}>
+                  <ListBadgeSummary items={communication.tags} />
+                </TableCell>
+                <TableCell className={cn("py-1", cellPadding)}>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <Badge
+                      variant={
+                        communication.status === "urgent"
+                          ? "destructive"
+                          : "secondary"
+                      }
                     >
-                      {communication.title}
-                    </Link>
-                  </TableCell>
-                  {!customerId && (
-                    <TableCell className="max-w-0 truncate">
-                      <CommunicationCustomerLink
-                        className={tableLinkClassName}
-                        customer={
-                          communication.canViewCustomer
-                            ? communication.customer
-                            : null
-                        }
-                      />
-                    </TableCell>
-                  )}
-                  <TableCell className={cn("max-w-0", cellPadding)}>
-                    <ListBadgeSummary items={communication.tags} />
-                  </TableCell>
-                  <TableCell className={cn("py-1", cellPadding)}>
-                    <div className="flex flex-wrap items-center gap-1">
-                      <Badge
-                        variant={
-                          communication.status === "urgent"
-                            ? "destructive"
-                            : "secondary"
-                        }
-                      >
-                        {communicationStatusLabels[communication.status]}
-                      </Badge>
-                      {communication.archiveStartedAt && (
-                        <Badge variant="outline">归档中</Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell
-                    className={cn("truncate", cellPadding)}
-                    title={communication.ownerName}
+                      {communicationStatusLabels[communication.status]}
+                    </Badge>
+                    {communication.archiveStartedAt && (
+                      <Badge variant="outline">归档中</Badge>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell
+                  className={cn("truncate", cellPadding)}
+                  title={communication.ownerName}
+                >
+                  {communication.ownerName}
+                </TableCell>
+                <TableCell className={cn("tabular-nums", cellPadding)}>
+                  <time
+                    dateTime={communication.updatedAt}
+                    title={updatedAt.toLocaleString("zh-CN")}
                   >
-                    {communication.ownerName}
-                  </TableCell>
-                  <TableCell className={cn("tabular-nums", cellPadding)}>
-                    <time
-                      dateTime={communication.updatedAt}
-                      title={updatedAt.toLocaleString("zh-CN")}
-                    >
-                      {updatedAt.toLocaleDateString("sv-SE")}
-                    </time>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </CommunicationTable>
-          <ListPagination
-            label="沟通记录分页"
-            page={result.page}
-            pageSize={result.pageSize}
-            total={result.total}
-            className={customerView ? "mt-4" : "mt-5"}
-            onPageChange={(page) =>
-              onQueryChange((previous) => ({
-                ...previous,
-                page: page > 1 ? page : undefined,
-              }))
-            }
-            onPageSizeChange={
-              customerView
-                ? undefined
-                : (size) =>
-                    onQueryChange((previous) => ({
-                      ...previous,
-                      page: undefined,
-                      pageSize: readListPageSize(size),
-                    }))
-            }
-          />
-        </>
+                    {updatedAt.toLocaleDateString("sv-SE")}
+                  </time>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </CommunicationTable>
+      )}
+      {!current?.error && result?.communications.length !== 0 && (
+        <ListPagination
+          label="沟通记录分页"
+          result={result}
+          className={customerView ? "mt-4" : "mt-5"}
+          onPageChange={(page) =>
+            onQueryChange((previous) => ({
+              ...previous,
+              page: page > 1 ? page : undefined,
+            }))
+          }
+          onPageSizeChange={
+            customerView
+              ? undefined
+              : (size) =>
+                  onQueryChange((previous) => ({
+                    ...previous,
+                    page: undefined,
+                    pageSize: readListPageSize(size),
+                  }))
+          }
+        />
       )}
     </section>
   );

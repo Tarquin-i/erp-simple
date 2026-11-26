@@ -88,10 +88,12 @@ export function PayoutList({
   ]);
   const activeLoad =
     load?.key === key && trimmedSearch === search ? load : undefined;
-  const result = activeLoad?.result;
-  const pageCount = result
-    ? Math.max(1, Math.ceil(result.total / result.pageSize))
+  const loadedPage = activeLoad?.result;
+  const pageCount = loadedPage
+    ? Math.max(1, Math.ceil(loadedPage.total / loadedPage.pageSize))
     : 1;
+  const result =
+    loadedPage && loadedPage.page <= pageCount ? loadedPage : undefined;
   const listOrigin = payoutListOrigin(query);
   const filterModel = usePayoutListFilters(
     query,
@@ -153,7 +155,7 @@ export function PayoutList({
   }, [key, page, pageSize, productId, productOperator, search]);
 
   useEffect(() => {
-    if (result && result.page > pageCount)
+    if (loadedPage && loadedPage.page > pageCount)
       onChangeQuery(
         (previous) => ({
           ...previous,
@@ -161,7 +163,7 @@ export function PayoutList({
         }),
         true
       );
-  }, [result, pageCount, onChangeQuery]);
+  }, [loadedPage, pageCount, onChangeQuery]);
 
   return (
     <ListPage>
@@ -206,7 +208,7 @@ export function PayoutList({
             重试
           </Button>
         </Empty>
-      ) : !result || result.page > pageCount ? (
+      ) : !result ? (
         <div role="status">
           <span className="sr-only">正在加载 Payout…</span>
           <PayoutTable>
@@ -231,86 +233,84 @@ export function PayoutList({
           }
         />
       ) : (
-        <>
-          <PayoutTable>
-            {result.payouts.map((payout) => (
-              <TableRow key={payout.id} className="relative cursor-pointer">
-                <TableCell className="max-w-0 py-3">
-                  <Link
-                    className={`${tableLinkClassName} after:absolute after:inset-0 after:content-['']`}
-                    to="/payouts/$payoutId"
-                    params={{ payoutId: payout.id }}
-                    search={listOrigin}
-                    state={{ payoutListEntryIndex: entryIndex }}
-                    title={payout.name}
-                  >
-                    {payout.name}
-                  </Link>
-                </TableCell>
-                <TableCell className="max-w-0">
-                  <Link
-                    className={`${tableLinkClassName} relative z-10`}
-                    to="/products/$productId"
-                    params={{ productId: payout.product.id }}
-                    title={payout.product.name}
-                  >
-                    {payout.product.name}
-                  </Link>
-                </TableCell>
-                <TableCell className="tabular-nums">
-                  {formatPayoutQuantity(payout.ticketCount)}
-                </TableCell>
-                <TableCell className="tabular-nums">
-                  {formatPayoutQuantity(payout.metrics.winningTicketCount)}
-                </TableCell>
-                <TableCell
-                  className="max-w-0 tabular-nums"
-                  title={`${payout.currencyCode} ${payout.metrics.payoutAmount}`}
+        <PayoutTable>
+          {result.payouts.map((payout) => (
+            <TableRow key={payout.id} className="relative cursor-pointer">
+              <TableCell className="max-w-0 py-3">
+                <Link
+                  className={`${tableLinkClassName} after:absolute after:inset-0 after:content-['']`}
+                  to="/payouts/$payoutId"
+                  params={{ payoutId: payout.id }}
+                  search={listOrigin}
+                  state={{ payoutListEntryIndex: entryIndex }}
+                  title={payout.name}
                 >
-                  <span className="block truncate">
-                    {formatPayoutMoney(
-                      payout.metrics.payoutAmount,
-                      payout.currencyCode
-                    )}
-                  </span>
-                </TableCell>
-                <TableCell
-                  className="max-w-0 tabular-nums"
-                  title={formatPayoutPercent(payout.metrics.paybackPercent)}
+                  {payout.name}
+                </Link>
+              </TableCell>
+              <TableCell className="max-w-0">
+                <Link
+                  className={`${tableLinkClassName} relative z-10`}
+                  to="/products/$productId"
+                  params={{ productId: payout.product.id }}
+                  title={payout.product.name}
                 >
-                  <span className="block truncate">
-                    {formatPayoutPercent(payout.metrics.paybackPercent)}
-                  </span>
-                </TableCell>
-                <TableCell className="text-muted-foreground tabular-nums">
-                  <time dateTime={payout.createdAt}>
-                    {dateTime.format(new Date(payout.createdAt))}
-                  </time>
-                </TableCell>
-              </TableRow>
-            ))}
-          </PayoutTable>
-          <ListPagination
-            label="Payout 列表分页"
-            page={result.page}
-            pageSize={result.pageSize}
-            total={result.total}
-            className="mt-5"
-            onPageChange={(next) =>
-              onChangeQuery((previous) => ({
-                ...previous,
-                page: next > 1 ? next : undefined,
-              }))
-            }
-            onPageSizeChange={(pageSize) =>
-              onChangeQuery((previous) => ({
-                ...previous,
-                page: undefined,
-                pageSize: readListPageSize(pageSize),
-              }))
-            }
-          />
-        </>
+                  {payout.product.name}
+                </Link>
+              </TableCell>
+              <TableCell className="tabular-nums">
+                {formatPayoutQuantity(payout.ticketCount)}
+              </TableCell>
+              <TableCell className="tabular-nums">
+                {formatPayoutQuantity(payout.metrics.winningTicketCount)}
+              </TableCell>
+              <TableCell
+                className="max-w-0 tabular-nums"
+                title={`${payout.currencyCode} ${payout.metrics.payoutAmount}`}
+              >
+                <span className="block truncate">
+                  {formatPayoutMoney(
+                    payout.metrics.payoutAmount,
+                    payout.currencyCode
+                  )}
+                </span>
+              </TableCell>
+              <TableCell
+                className="max-w-0 tabular-nums"
+                title={formatPayoutPercent(payout.metrics.paybackPercent)}
+              >
+                <span className="block truncate">
+                  {formatPayoutPercent(payout.metrics.paybackPercent)}
+                </span>
+              </TableCell>
+              <TableCell className="text-muted-foreground tabular-nums">
+                <time dateTime={payout.createdAt}>
+                  {dateTime.format(new Date(payout.createdAt))}
+                </time>
+              </TableCell>
+            </TableRow>
+          ))}
+        </PayoutTable>
+      )}
+      {!activeLoad?.error && result?.payouts.length !== 0 && (
+        <ListPagination
+          label="Payout 列表分页"
+          result={result}
+          className="mt-5"
+          onPageChange={(next) =>
+            onChangeQuery((previous) => ({
+              ...previous,
+              page: next > 1 ? next : undefined,
+            }))
+          }
+          onPageSizeChange={(pageSize) =>
+            onChangeQuery((previous) => ({
+              ...previous,
+              page: undefined,
+              pageSize: readListPageSize(pageSize),
+            }))
+          }
+        />
       )}
     </ListPage>
   );

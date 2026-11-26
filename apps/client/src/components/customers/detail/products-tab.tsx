@@ -79,10 +79,12 @@ export function CustomerProductsTab({
   const [retry, setRetry] = useState(0);
   const current =
     load?.customerId === customerId && load.page === page ? load : undefined;
-  const result = current?.result;
-  const pageCount = result
-    ? Math.max(1, Math.ceil(result.total / result.pageSize))
+  const loadedPage = current?.result;
+  const pageCount = loadedPage
+    ? Math.max(1, Math.ceil(loadedPage.total / loadedPage.pageSize))
     : 1;
+  const result =
+    loadedPage && loadedPage.page <= pageCount ? loadedPage : undefined;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -105,8 +107,9 @@ export function CustomerProductsTab({
   }, [customerId, page, retry]);
 
   useEffect(() => {
-    if (result && result.page > pageCount) onPageChange(pageCount, true);
-  }, [result, pageCount, onPageChange]);
+    if (loadedPage && loadedPage.page > pageCount)
+      onPageChange(pageCount, true);
+  }, [loadedPage, pageCount, onPageChange]);
 
   if (current?.error) {
     return (
@@ -129,25 +132,7 @@ export function CustomerProductsTab({
     );
   }
 
-  if (!result || result.page > pageCount) {
-    return (
-      <div aria-busy="true" aria-label="正在加载产品" role="status">
-        <CustomerProductTable>
-          {pendingRows.map((row) => (
-            <TableRow key={row} aria-hidden="true">
-              {columns.map((column) => (
-                <TableCell key={column} className="h-14 px-2.5">
-                  <Skeleton className="h-4 w-24 max-w-full" />
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </CustomerProductTable>
-      </div>
-    );
-  }
-
-  if (result.products.length === 0) {
+  if (result?.products.length === 0) {
     return (
       <Empty className="min-h-52 border">
         <EmptyHeader>
@@ -157,61 +142,79 @@ export function CustomerProductsTab({
     );
   }
 
+  const table = (
+    <CustomerProductTable>
+      {result
+        ? result.products.map((product) => (
+            <TableRow
+              key={product.id}
+              className="cursor-pointer"
+              onClick={(event) => {
+                if (
+                  event.defaultPrevented ||
+                  event.button !== 0 ||
+                  event.ctrlKey ||
+                  event.metaKey ||
+                  event.shiftKey ||
+                  event.altKey ||
+                  window.getSelection()?.toString() ||
+                  (event.target instanceof Element && event.target.closest("a"))
+                ) {
+                  return;
+                }
+                onOpenProduct(product.id);
+              }}
+            >
+              <TableCell className="h-14 truncate px-2.5 tabular-nums">
+                {product.productNo}
+              </TableCell>
+              <TableCell className="max-w-0 px-2.5">
+                <Link
+                  to="/products/$productId"
+                  params={{ productId: product.id }}
+                  state={productLinkState}
+                  preload={false}
+                  className={tableLinkClassName}
+                  title={product.name}
+                >
+                  {product.name}
+                </Link>
+              </TableCell>
+              <TableCell className="truncate px-2.5">
+                {product.customerDefinedType ??
+                  productTypeLabels[product.productType]}
+              </TableCell>
+              <TableCell className="px-2.5 tabular-nums">
+                <time dateTime={product.createdAt}>
+                  {creationDate.format(new Date(product.createdAt))}
+                </time>
+              </TableCell>
+            </TableRow>
+          ))
+        : pendingRows.map((row) => (
+            <TableRow key={row} aria-hidden="true">
+              {columns.map((column) => (
+                <TableCell key={column} className="h-14 px-2.5">
+                  <Skeleton className="h-4 w-24 max-w-full" />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+    </CustomerProductTable>
+  );
+
   return (
     <>
-      <CustomerProductTable>
-        {result.products.map((product) => (
-          <TableRow
-            key={product.id}
-            className="cursor-pointer"
-            onClick={(event) => {
-              if (
-                event.defaultPrevented ||
-                event.button !== 0 ||
-                event.ctrlKey ||
-                event.metaKey ||
-                event.shiftKey ||
-                event.altKey ||
-                window.getSelection()?.toString() ||
-                (event.target instanceof Element && event.target.closest("a"))
-              ) {
-                return;
-              }
-              onOpenProduct(product.id);
-            }}
-          >
-            <TableCell className="h-14 truncate px-2.5 tabular-nums">
-              {product.productNo}
-            </TableCell>
-            <TableCell className="max-w-0 px-2.5">
-              <Link
-                to="/products/$productId"
-                params={{ productId: product.id }}
-                state={productLinkState}
-                preload={false}
-                className={tableLinkClassName}
-                title={product.name}
-              >
-                {product.name}
-              </Link>
-            </TableCell>
-            <TableCell className="truncate px-2.5">
-              {product.customerDefinedType ??
-                productTypeLabels[product.productType]}
-            </TableCell>
-            <TableCell className="px-2.5 tabular-nums">
-              <time dateTime={product.createdAt}>
-                {creationDate.format(new Date(product.createdAt))}
-              </time>
-            </TableCell>
-          </TableRow>
-        ))}
-      </CustomerProductTable>
+      {result ? (
+        table
+      ) : (
+        <div aria-busy="true" aria-label="正在加载产品" role="status">
+          {table}
+        </div>
+      )}
       <ListPagination
         label="客户产品分页"
-        page={result.page}
-        pageSize={result.pageSize}
-        total={result.total}
+        result={result}
         className="mt-4"
         onPageChange={onPageChange}
       />

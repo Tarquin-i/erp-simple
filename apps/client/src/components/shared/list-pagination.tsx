@@ -1,5 +1,7 @@
 import { cn } from "cn";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useLayoutEffect, useRef } from "react";
+import type { MouseEvent } from "react";
 
 import {
   Pagination,
@@ -16,24 +18,58 @@ import {
 } from "@/components/ui/select";
 import { LIST_PAGE_SIZES } from "@/lib/list-page-size";
 
+type PageButton = "previous" | "current" | "next";
+
 export function ListPagination({
   label,
-  page,
-  pageSize,
-  total,
+  result,
   className,
   onPageChange,
   onPageSizeChange,
 }: {
   label: string;
-  page: number;
-  pageSize: number;
-  total: number;
+  result?: { page: number; pageSize: number; total: number };
   className?: string;
   onPageChange: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
 }) {
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const previousButton = useRef<HTMLButtonElement>(null);
+  const currentButton = useRef<HTMLButtonElement>(null);
+  const nextButton = useRef<HTMLButtonElement>(null);
+  const pendingFocus = useRef<{
+    page: number;
+    pageSize: number;
+    button: PageButton;
+  }>(undefined);
+  const pageCount = result
+    ? Math.max(1, Math.ceil(result.total / result.pageSize))
+    : 1;
+
+  // 等新页渲染后恢复键盘焦点。如果用户已在操作其他控件，保留其焦点。
+  useLayoutEffect(() => {
+    if (!result) return;
+    const focus = pendingFocus.current;
+    pendingFocus.current = undefined;
+    if (
+      !focus ||
+      result.page !== Math.min(focus.page, pageCount) ||
+      result.pageSize !== focus.pageSize ||
+      document.activeElement !== document.body
+    ) {
+      return;
+    }
+
+    const button = {
+      previous: previousButton,
+      current: currentButton,
+      next: nextButton,
+    }[focus.button].current;
+    (button?.disabled ? currentButton.current : button)?.focus();
+  }, [result, pageCount]);
+
+  if (!result) return null;
+
+  const { page, pageSize, total } = result;
   const currentPage = Math.min(pageCount, Math.max(1, page));
   const firstRecord = (currentPage - 1) * pageSize + 1;
   const lastRecord = Math.min(total, currentPage * pageSize);
@@ -45,6 +81,18 @@ export function ListPagination({
   const pageSizes = LIST_PAGE_SIZES.includes(pageSize)
     ? LIST_PAGE_SIZES
     : [...LIST_PAGE_SIZES, pageSize].sort((left, right) => left - right);
+
+  function changePage(
+    event: MouseEvent<HTMLButtonElement>,
+    page: number,
+    button: PageButton
+  ) {
+    pendingFocus.current =
+      event.detail === 0 && document.activeElement === event.currentTarget
+        ? { page, pageSize, button }
+        : undefined;
+    onPageChange(page);
+  }
 
   return (
     <div className={cn("@container text-sm", className)}>
@@ -91,9 +139,12 @@ export function ListPagination({
               <PaginationLink asChild>
                 <button
                   type="button"
+                  ref={previousButton}
                   aria-label="上一页"
                   disabled={currentPage === 1}
-                  onClick={() => onPageChange(currentPage - 1)}
+                  onClick={(event) =>
+                    changePage(event, currentPage - 1, "previous")
+                  }
                 >
                   <ChevronLeft aria-hidden="true" />
                 </button>
@@ -104,12 +155,13 @@ export function ListPagination({
                 <PaginationLink asChild isActive={targetPage === currentPage}>
                   <button
                     type="button"
+                    ref={targetPage === currentPage ? currentButton : undefined}
                     aria-label={`第 ${targetPage} 页`}
                     className="tabular-nums"
                     onClick={
                       targetPage === currentPage
                         ? undefined
-                        : () => onPageChange(targetPage)
+                        : (event) => changePage(event, targetPage, "current")
                     }
                   >
                     {targetPage}
@@ -121,9 +173,12 @@ export function ListPagination({
               <PaginationLink asChild>
                 <button
                   type="button"
+                  ref={nextButton}
                   aria-label="下一页"
                   disabled={currentPage === pageCount}
-                  onClick={() => onPageChange(currentPage + 1)}
+                  onClick={(event) =>
+                    changePage(event, currentPage + 1, "next")
+                  }
                 >
                   <ChevronRight aria-hidden="true" />
                 </button>
