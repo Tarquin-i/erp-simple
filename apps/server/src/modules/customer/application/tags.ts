@@ -1,6 +1,7 @@
+import { isConstraintError } from "@repo/db";
+
 import { readBusinessAccess } from "../../business/access";
 import type { Database } from "../../identity/auth/better-auth";
-import { isConstraintError } from "../input";
 import {
   findCustomerTag,
   insertCustomerTag,

@@ -9,7 +9,7 @@ import {
   readPositiveInteger,
   readString,
   readUuid,
-} from "../customer/input";
+} from "../../http/request-input";
 
 import {
   payoutCreateFields,

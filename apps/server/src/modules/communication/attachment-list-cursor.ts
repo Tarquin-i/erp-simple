@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 
-import { readUuid } from "../customer/input";
+import { readUuid } from "../../http/request-input";
 import { fail } from "../organization/errors";
 
 export type AttachmentListCursor = {

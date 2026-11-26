@@ -1,3 +1,4 @@
+import { isConstraintError } from "@repo/db";
 import { communication, communicationAttachment, user } from "@repo/db/schema";
 import {
   and,
@@ -21,7 +22,6 @@ import {
   withBusinessReadSnapshot,
 } from "../business/access";
 import type { BusinessAccess } from "../business/access";
-import { isConstraintError } from "../customer/input";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { lockDepartment } from "../organization/departments";

@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import type { BusinessAccessEnv } from "../../business/access";
 import { createCustomerError } from "../application/errors";
 import type { createOwnerOptionUseCases } from "../application/owner-options";
-import { readString, readUuid } from "../input";
+import { readString, readUuid } from "../../../http/request-input";
 
 export function createCustomerOwnerOptionRoutes(
   options: ReturnType<typeof createOwnerOptionUseCases>

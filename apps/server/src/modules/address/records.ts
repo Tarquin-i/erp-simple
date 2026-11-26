@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isConstraintError } from "@repo/db";
 import { customer, customerAddress } from "@repo/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
@@ -6,7 +7,7 @@ import { HTTPException } from "hono/http-exception";
 import { businessScopeWhere } from "../business/access";
 import type { BusinessAccess } from "../business/access";
 import { lockCustomerForWrite } from "../customer";
-import { failVersionConflict, isConstraintError } from "../customer/input";
+import { failVersionConflict } from "../../errors";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";

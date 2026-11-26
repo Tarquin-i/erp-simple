@@ -2,7 +2,11 @@ import { Hono } from "hono";
 import { getBunServer } from "hono/bun";
 
 import type { BusinessAccessEnv } from "../business/access";
-import { readObject, readPositiveInteger, readUuid } from "../customer/input";
+import {
+  readObject,
+  readPositiveInteger,
+  readUuid,
+} from "../../http/request-input";
 import { fail } from "../organization/errors";
 import {
   attachmentUploadFields,

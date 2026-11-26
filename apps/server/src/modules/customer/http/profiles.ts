@@ -16,7 +16,7 @@ import {
   readPositiveInteger,
   readString,
   readUuid,
-} from "../input";
+} from "../../../http/request-input";
 
 const editableFields = [
   "companyName",

@@ -2,7 +2,7 @@ import type { communicationTag, customerTag } from "@repo/db/schema";
 import { and, eq, ne, sql } from "drizzle-orm";
 import type { Context } from "hono";
 
-import { readObject, readString, readUuid } from "../customer/input";
+import { readObject, readString, readUuid } from "../../http/request-input";
 import { database } from "../identity/auth/better-auth";
 import type { Database } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";

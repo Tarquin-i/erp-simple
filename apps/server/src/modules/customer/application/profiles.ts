@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isConstraintError } from "@repo/db";
 
 import { ApplicationError, failVersionConflict } from "../../../errors";
 import {
@@ -11,7 +12,6 @@ import type {
   DatabaseTransaction,
 } from "../../identity/auth/better-auth";
 import { lockDepartment } from "../../organization/departments";
-import { isConstraintError } from "../input";
 import {
   lockCustomerForWrite,
   requireAssignableOwner,

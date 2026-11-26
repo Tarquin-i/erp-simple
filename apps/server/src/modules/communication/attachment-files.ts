@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { toUSVString } from "node:util";
 import { HTTPException } from "hono/http-exception";
 
-import { readString, readUuid } from "../customer/input";
+import { readString, readUuid } from "../../http/request-input";
 import { fail } from "../organization/errors";
 
 export const attachmentUploadFields = [

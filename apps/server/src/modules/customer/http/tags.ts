@@ -9,7 +9,7 @@ import {
   readPositiveInteger,
   readString,
   readUuid,
-} from "../input";
+} from "../../../http/request-input";
 
 export function createCustomerTagRoutes(
   tags: ReturnType<typeof createTagUseCases>

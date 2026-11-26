@@ -6,7 +6,7 @@ import {
 import { allCountries } from "country-region-data";
 import { format, getAllCountries } from "postal-code-checker";
 
-import { readString } from "../customer/input";
+import { readString } from "../../http/request-input";
 import { fail } from "../organization/errors";
 
 const postalCountries = new Set(

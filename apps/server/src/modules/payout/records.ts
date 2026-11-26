@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
+import { isConstraintError } from "@repo/db";
 import {
   customer,
   normalizePayoutName,
@@ -12,7 +13,7 @@ import { HTTPException } from "hono/http-exception";
 import { businessScopeWhere } from "../business/access";
 import type { BusinessAccess } from "../business/access";
 import { lockCustomerForWrite } from "../customer";
-import { failVersionConflict, isConstraintError } from "../customer/input";
+import { failVersionConflict } from "../../errors";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";

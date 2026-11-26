@@ -1,6 +1,6 @@
 import { productType } from "@repo/db/schema";
 
-import { readString, readUuid } from "../customer/input";
+import { readString, readUuid } from "../../http/request-input";
 import { fail } from "../organization/errors";
 
 export type ProductType = (typeof productType.enumValues)[number];

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isConstraintError } from "@repo/db";
 import {
   communication,
   communicationTag,
@@ -32,7 +33,7 @@ import {
 import type { BusinessAccess } from "../business/access";
 import type { ListOptionFilter } from "../business/list-option-filter";
 import { lockCustomerForWrite, requireAssignableOwner } from "../customer";
-import { failVersionConflict, isConstraintError } from "../customer/input";
+import { failVersionConflict } from "../../errors";
 import { database } from "../identity/auth/better-auth";
 import type { DatabaseTransaction } from "../identity/auth/better-auth";
 import { lockDepartment } from "../organization/departments";

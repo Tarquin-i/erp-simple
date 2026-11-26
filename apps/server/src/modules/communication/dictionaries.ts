@@ -1,3 +1,4 @@
+import { isConstraintError } from "@repo/db";
 import { communicationTag } from "@repo/db/schema";
 import { asc, count, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -10,12 +11,11 @@ import {
   updateTagColor,
 } from "../business/tag-color";
 import {
-  isConstraintError,
   readObject,
   readPositiveInteger,
   readString,
   readUuid,
-} from "../customer/input";
+} from "../../http/request-input";
 import { database } from "../identity/auth/better-auth";
 import { fail } from "../organization/errors";
 
