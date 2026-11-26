@@ -88,15 +88,36 @@ export function productView(
   row: Product,
   { id, customerNo, companyName }: ProductCustomer
 ) {
-  const {
-    normalizedName,
-    normalizedEnglishName,
-    normalizedCustomerDefinedType,
-    creationRequestId,
-    creationRequestHash,
-    ...detail
-  } = row;
-  return { ...detail, customer: { id, customerNo, companyName } };
+  return {
+    id: row.id,
+    productNo: row.productNo,
+    customerId: row.customerId,
+    createdByUserId: row.createdByUserId,
+    name: row.name,
+    englishName: row.englishName,
+    productType: row.productType,
+    customerDefinedType: row.customerDefinedType,
+    specification: row.specification,
+    packagingSpecification: row.packagingSpecification,
+    colorCount: row.colorCount,
+    paperType: row.paperType,
+    finishedSize: row.finishedSize,
+    finalMolding: row.finalMolding,
+    surfaceTreatment: row.surfaceTreatment,
+    variableColor: row.variableColor,
+    variationMethod: row.variationMethod,
+    dieCutDirection: row.dieCutDirection,
+    peelOffQuantity: row.peelOffQuantity,
+    scratchOffArea: row.scratchOffArea,
+    currencyCode: row.currencyCode,
+    unitPrice: row.unitPrice,
+    remark: row.remark,
+    status: row.status,
+    version: row.version,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    customer: { id, customerNo, companyName },
+  };
 }
 
 export async function selectProductPage(

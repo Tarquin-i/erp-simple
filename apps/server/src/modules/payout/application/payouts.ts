@@ -33,16 +33,21 @@ import { assertPayoutTicketCapacity, failPayoutConflict } from "./errors";
 const payoutNotFound = "Payout 不存在。";
 
 function payoutSummary(row: PayoutRow, source: PayoutSource) {
-  const {
-    normalizedName,
-    creationRequestId,
-    creationRequestHash,
-    definition,
-    ...fields
-  } = row;
   const { id, productNo, name, customerId, customerNo, companyName } = source;
   return {
-    ...fields,
+    id: row.id,
+    productId: row.productId,
+    name: row.name,
+    ticketCount: row.ticketCount,
+    currencyCode: row.currencyCode,
+    unitPrice: row.unitPrice,
+    remark: row.remark,
+    status: row.status,
+    version: row.version,
+    createdByUserId: row.createdByUserId,
+    updatedByUserId: row.updatedByUserId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
     product: { id, productNo, name },
     customer: { id: customerId, customerNo, companyName },
     metrics: calculatePayoutMetrics(row),

@@ -72,16 +72,27 @@ function addressView(
   row: Address,
   { id, customerNo, companyName }: AddressCustomer
 ) {
-  const {
-    creationActorUserId,
-    creationRequestId,
-    creationRequestHash,
-    ...address
-  } = row;
   return {
-    ...address,
+    id: row.id,
+    customerId: row.customerId,
+    recipientName: row.recipientName,
+    phone: row.phone,
+    phoneNormalized: row.phoneNormalized,
+    countryCode: row.countryCode,
+    province: row.province,
+    city: row.city,
+    district: row.district,
+    addressLine1: row.addressLine1,
+    addressLine2: row.addressLine2,
+    postalCode: row.postalCode,
+    remark: row.remark,
+    isDefault: row.isDefault,
+    status: row.status,
+    version: row.version,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
     customer: { id, customerNo, companyName },
-    formattedAddress: formatAddress(address),
+    formattedAddress: formatAddress(row),
   };
 }
 
