@@ -12,7 +12,7 @@ import {
   seedCommunicationTemplates,
 } from "./communication-definitions";
 import type { SeedCustomerDefinition } from "./customer-definitions";
-import { resolveSeedTags, seedId } from "./seed-ids";
+import { readSeedTagId, resolveSeedTags, seedId } from "./seed-ids";
 
 export async function seedCommunicationTagIds(tx: DatabaseTransaction) {
   const communicationTagValues = seedCommunicationTags.map((name, index) => ({
@@ -97,7 +97,7 @@ export async function seedCustomerCommunications(
           seedCommunicationTags[2 + (offset % 2)],
         ].map((name) => ({
           communicationId,
-          tagId: communicationTags.get(name)!,
+          tagId: readSeedTagId(communicationTags, name),
         }))
       );
     }

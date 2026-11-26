@@ -25,7 +25,7 @@ import {
   seedCustomerTags,
 } from "./customer-definitions";
 import { seedCustomerProducts } from "./products";
-import { resolveSeedTags, seedId } from "./seed-ids";
+import { readSeedTagId, resolveSeedTags, seedId } from "./seed-ids";
 
 export async function seedCustomers(
   tx: DatabaseTransaction,
@@ -156,7 +156,10 @@ export async function seedCustomers(
           [
             seedCustomerTags[offset % seedCustomerTags.length],
             seedCustomerTags[(offset + 1) % seedCustomerTags.length],
-          ].map((name) => ({ customerId, tagId: customerTags.get(name)! }))
+          ].map((name) => ({
+            customerId,
+            tagId: readSeedTagId(customerTags, name),
+          }))
         );
       const contactId = seedId("contact", index);
       await tx

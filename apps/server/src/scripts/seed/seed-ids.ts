@@ -14,6 +14,12 @@ export function seedId(kind: keyof typeof seedIdPrefixes, index: number) {
   return `${seedIdPrefixes[kind]}-0000-4000-8000-${String(index).padStart(12, "0")}`;
 }
 
+export function readSeedTagId(tags: ReadonlyMap<string, string>, name: string) {
+  const id = tags.get(name);
+  if (id === undefined) throw new Error(`缺少种子标签：${name}。`);
+  return id;
+}
+
 export function resolveSeedTags(
   names: readonly string[],
   kind: "customerTag" | "communicationTag",
