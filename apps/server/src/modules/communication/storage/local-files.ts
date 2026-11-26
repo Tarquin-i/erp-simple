@@ -92,8 +92,8 @@ export function createLocalAttachmentStorage(directory: string) {
     }
     if (!(await privateDirectory(root, create, true))) return null;
 
-    const segments = storageKey.split("/");
-    const fileName = segments.pop()!;
+    const segments = storageKey.split("/").slice(0, -1);
+    const fileName = match[2];
     if (staging) segments.unshift("single-staging");
     let parent = root;
     for (const segment of segments) {

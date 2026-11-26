@@ -224,7 +224,7 @@ export function createContactUseCases(db: Database) {
     change: (
       tx: DatabaseTransaction,
       lockedContact: Contact
-    ) => Promise<void | { name: string } | { methods: Method[] }>
+    ) => Promise<undefined | { name: string } | { methods: Method[] }>
   ) {
     try {
       return await db.transaction(async (tx) => {
@@ -465,6 +465,7 @@ export function createContactUseCases(db: Database) {
           const isPrimary = shouldAddPrimaryMethod(methods, method.isPrimary);
           if (isPrimary) await clearPrimary(tx, contactId);
           await insertContactMethod(tx, contactId, { ...method, isPrimary });
+          return undefined;
         }
       );
     },
@@ -590,6 +591,7 @@ export function createContactUseCases(db: Database) {
           if (plan.replacementId) {
             await promoteMethod(tx, contactId, plan.replacementId);
           }
+          return undefined;
         }
       );
     },
@@ -616,6 +618,7 @@ export function createContactUseCases(db: Database) {
             );
             if (next) await promoteMethod(tx, contactId, next.id);
           }
+          return undefined;
         }
       );
     },
