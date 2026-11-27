@@ -184,8 +184,8 @@ export function TagMultiSelectField({
     if (props.value.some(({ id }) => id === tag.id)) {
       props.onChange(refresh(props.value));
     }
-    setResults((current) =>
-      current && { ...current, items: refresh(current.items) }
+    setResults(
+      (current) => current && { ...current, items: refresh(current.items) }
     );
   }
 
@@ -230,7 +230,8 @@ export function TagMultiSelectField({
           current.id === editedTag.id &&
           "color" in current &&
           typeof current.color === "string" &&
-          (current.color === defaultTagColor || hasVisibleTagColor(current.color))
+          (current.color === defaultTagColor ||
+            hasVisibleTagColor(current.color))
         ) {
           refreshTag({ ...editedTag, color: current.color });
         }
@@ -338,7 +339,9 @@ export function TagMultiSelectField({
         inputLabel="标签名称"
         placeholder="输入标签名称"
         maxLength={64}
-        value={editor?.mode === "create" ? editor.name : editedTag?.name ?? ""}
+        value={
+          editor?.mode === "create" ? editor.name : (editedTag?.name ?? "")
+        }
         busy={saving}
         disabled={props.disabled}
         submitDisabled={!canSubmitEditor}

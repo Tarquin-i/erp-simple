@@ -1,5 +1,5 @@
 export function intersection<T>(a: T[], b: T[]): T[] {
-  return a.filter((x) => b.includes(x))
+  return a.filter((x) => b.includes(x));
 }
 
 /**
@@ -8,43 +8,46 @@ export function intersection<T>(a: T[], b: T[]): T[] {
  * It uses a cache (WeakMap) to avoid rehashing the same object twice, which is
  * particularly beneficial if an object appears in multiple places.
  */
-function deepHash(value: unknown, cache = new WeakMap<object, string>()): string {
+function deepHash(
+  value: unknown,
+  cache = new WeakMap<object, string>()
+): string {
   // Handle primitives and null/undefined.
-  if (value === null) return 'null'
-  if (value === undefined) return 'undefined'
-  const type = typeof value
-  if (type === 'number' || type === 'boolean' || type === 'string') {
-    return `${type}:${value.toString()}`
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  const type = typeof value;
+  if (type === "number" || type === "boolean" || type === "string") {
+    return `${type}:${value.toString()}`;
   }
-  if (type === 'function') {
+  if (type === "function") {
     // Note: using toString for functions.
-    return `function:${value.toString()}`
+    return `function:${value.toString()}`;
   }
 
   // For objects and arrays, use caching to avoid repeated work.
-  if (type === 'object') {
+  if (type === "object") {
     // If we’ve seen this object before, return the cached hash.
-    const cachedHash = cache.get(value)
-    if (cachedHash !== undefined) return cachedHash
-    let hash: string
+    const cachedHash = cache.get(value);
+    if (cachedHash !== undefined) return cachedHash;
+    let hash: string;
     if (Array.isArray(value)) {
       // Compute hash for each element in order.
-      hash = `array:[${value.map((v) => deepHash(v, cache)).join(',')}]`
+      hash = `array:[${value.map((v) => deepHash(v, cache)).join(",")}]`;
     } else {
       // For objects, sort keys to ensure the representation is stable.
-      const record = value as Record<string, unknown>
-      const keys = Object.keys(record).sort()
+      const record = value as Record<string, unknown>;
+      const keys = Object.keys(record).sort();
       const props = keys
         .map((k) => `${k}:${deepHash(record[k], cache)}`)
-        .join(',')
-      hash = `object:{${props}}`
+        .join(",");
+      hash = `object:{${props}}`;
     }
-    cache.set(value, hash)
-    return hash
+    cache.set(value, hash);
+    return hash;
   }
 
   // Fallback if no case matched.
-  return `${type}:${value.toString()}`
+  return `${type}:${value.toString()}`;
 }
 
 /**
@@ -53,38 +56,38 @@ function deepHash(value: unknown, cache = new WeakMap<object, string>()): string
  */
 function deepEqual(a: unknown, b: unknown): boolean {
   // Check strict equality first.
-  if (a === b) return true
+  if (a === b) return true;
   // If types differ, they’re not equal.
-  if (typeof a !== typeof b) return false
+  if (typeof a !== typeof b) return false;
   if (a === null || b === null || a === undefined || b === undefined)
-    return false
+    return false;
 
   // Check arrays.
   if (Array.isArray(a)) {
-    if (!Array.isArray(b) || a.length !== b.length) return false
+    if (!Array.isArray(b) || a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
-      if (!deepEqual(a[i], b[i])) return false
+      if (!deepEqual(a[i], b[i])) return false;
     }
-    return true
+    return true;
   }
 
   // Check objects.
-  if (typeof a === 'object') {
-    if (typeof b !== 'object') return false
-    const left = a as Record<string, unknown>
-    const right = b as Record<string, unknown>
-    const aKeys = Object.keys(left).sort()
-    const bKeys = Object.keys(right).sort()
-    if (aKeys.length !== bKeys.length) return false
+  if (typeof a === "object") {
+    if (typeof b !== "object") return false;
+    const left = a as Record<string, unknown>;
+    const right = b as Record<string, unknown>;
+    const aKeys = Object.keys(left).sort();
+    const bKeys = Object.keys(right).sort();
+    if (aKeys.length !== bKeys.length) return false;
     for (let i = 0; i < aKeys.length; i++) {
-      if (aKeys[i] !== bKeys[i]) return false
-      if (!deepEqual(left[aKeys[i]], right[bKeys[i]])) return false
+      if (aKeys[i] !== bKeys[i]) return false;
+      if (!deepEqual(left[aKeys[i]], right[bKeys[i]])) return false;
     }
-    return true
+    return true;
   }
 
   // For any other types (should be primitives by now), use strict equality.
-  return false
+  return false;
 }
 
 /**
@@ -96,51 +99,51 @@ function deepEqual(a: unknown, b: unknown): boolean {
  */
 export function uniq<T>(arr: T[]): T[] {
   // Use a Map where key is the deep hash and value is an array of items sharing the same hash.
-  const seen = new Map<string, T[]>()
-  const result: T[] = []
+  const seen = new Map<string, T[]>();
+  const result: T[] = [];
 
   for (const item of arr) {
-    const hash = deepHash(item)
-    const itemsWithHash = seen.get(hash)
+    const hash = deepHash(item);
+    const itemsWithHash = seen.get(hash);
     if (itemsWithHash !== undefined) {
       // There is a potential duplicate; check the stored items with the same hash.
-      let duplicateFound = false
+      let duplicateFound = false;
       for (const existing of itemsWithHash) {
         if (deepEqual(existing, item)) {
-          duplicateFound = true
-          break
+          duplicateFound = true;
+          break;
         }
       }
       if (!duplicateFound) {
-        itemsWithHash.push(item)
-        result.push(item)
+        itemsWithHash.push(item);
+        result.push(item);
       }
     } else {
       // First time this hash appears.
-      seen.set(hash, [item])
-      result.push(item)
+      seen.set(hash, [item]);
+      result.push(item);
     }
   }
 
-  return result
+  return result;
 }
 
 export function take<T>(a: T[], n: number): T[] {
-  return a.slice(0, n)
+  return a.slice(0, n);
 }
 
 export function flatten<T>(a: T[][]): T[] {
-  return a.flat()
+  return a.flat();
 }
 
 export function addUniq<T>(arr: T[], values: T[]): T[] {
-  return uniq([...arr, ...values])
+  return uniq([...arr, ...values]);
 }
 
 export function removeUniq<T>(arr: T[], values: T[]): T[] {
-  return arr.filter((v) => !values.includes(v))
+  return arr.filter((v) => !values.includes(v));
 }
 
 export function isAnyOf<T>(value: T, values: T[]): boolean {
-  return values.includes(value)
+  return values.includes(value);
 }

@@ -4,9 +4,9 @@ import {
   FilterMenuCommand,
   FilterMenuContent,
   FilterMenuSearch,
-} from '@/components/shared/filter-menu'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+} from "@/components/shared/filter-menu";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Command,
   CommandEmpty,
@@ -14,10 +14,14 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
-import { Popover, PopoverAnchor, PopoverTrigger } from '@/components/ui/popover'
-import { cn } from '@/lib/utils'
-import { ChevronRightIcon, FilterIcon } from 'lucide-react'
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { ChevronRightIcon, FilterIcon } from "lucide-react";
 import {
   isValidElement,
   memo,
@@ -25,9 +29,9 @@ import {
   useEffect,
   useRef,
   useState,
-} from 'react'
-import React from 'react'
-import type { PointerEvent } from 'react'
+} from "react";
+import React from "react";
+import type { PointerEvent } from "react";
 import type {
   Column,
   ColumnDataType,
@@ -36,126 +40,127 @@ import type {
   FilterStrategy,
   FiltersState,
   OptionBasedColumnDataType,
-} from '../core/types'
-import { isAnyOf } from '../lib/array'
-import { getColumn } from '../lib/helpers'
-import { type Locale, t } from '../lib/i18n'
-import { FilterValueController } from './filter-value'
+} from "../core/types";
+import { isAnyOf } from "../lib/array";
+import { getColumn } from "../lib/helpers";
+import { type Locale, t } from "../lib/i18n";
+import { FilterValueController } from "./filter-value";
 
 interface FilterSelectorProps<TData> {
-  filters: FiltersState
-  columns: Column<TData>[]
-  actions: DataTableFilterActions
-  strategy: FilterStrategy
-  locale?: Locale
-  trigger?: React.ReactElement
-  align?: 'start' | 'center' | 'end'
+  filters: FiltersState;
+  columns: Column<TData>[];
+  actions: DataTableFilterActions;
+  strategy: FilterStrategy;
+  locale?: Locale;
+  trigger?: React.ReactElement;
+  align?: "start" | "center" | "end";
 }
 
 type HoveredField = {
-  id: string
-  anchor: HTMLDivElement
-  side: 'left' | 'right'
-}
+  id: string;
+  anchor: HTMLDivElement;
+  side: "left" | "right";
+};
 
 export const FilterSelector = memo(
-  FilterSelectorImpl,
-) as typeof FilterSelectorImpl
+  FilterSelectorImpl
+) as typeof FilterSelectorImpl;
 
 function FilterSelectorImpl<TData>({
   filters,
   columns,
   actions,
   strategy,
-  locale = 'en',
+  locale = "en",
   trigger,
-  align = 'start',
+  align = "start",
 }: FilterSelectorProps<TData>) {
-  const [open, setOpen] = useState(false)
-  const [value, setValue] = useState('')
-  const [property, setProperty] = useState<string | undefined>(undefined)
-  const [hoveredField, setHoveredField] = useState<HoveredField>()
-  const inputRef = useRef<HTMLInputElement>(null)
-  const fieldMenuRef = useRef<HTMLDivElement>(null)
-  const valueMenuRef = useRef<HTMLDivElement>(null)
-  const hoverTimer = useRef<number>(undefined)
-  const allowSideFocus = useRef(false)
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const [property, setProperty] = useState<string | undefined>(undefined);
+  const [hoveredField, setHoveredField] = useState<HoveredField>();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const fieldMenuRef = useRef<HTMLDivElement>(null);
+  const valueMenuRef = useRef<HTMLDivElement>(null);
+  const hoverTimer = useRef<number>(undefined);
+  const allowSideFocus = useRef(false);
 
-  const column = property ? getColumn(columns, property) : undefined
+  const column = property ? getColumn(columns, property) : undefined;
   const filter = property
     ? filters.find((f) => f.columnId === property)
-    : undefined
+    : undefined;
 
-  const hasFilters = filters.length > 0
-  const flat = columns.some((column) => column.flatValueOptions)
-  const MenuCommand = flat ? FilterMenuCommand : Command
-  const MenuSearch = flat ? FilterMenuSearch : CommandInput
-  const hoveredColumn = hoveredField && getColumn(columns, hoveredField.id)
+  const hasFilters = filters.length > 0;
+  const flat = columns.some((column) => column.flatValueOptions);
+  const MenuCommand = flat ? FilterMenuCommand : Command;
+  const MenuSearch = flat ? FilterMenuSearch : CommandInput;
+  const hoveredColumn = hoveredField && getColumn(columns, hoveredField.id);
   const hoveredFilter =
-    hoveredField && filters.find(({ columnId }) => columnId === hoveredField.id)
+    hoveredField &&
+    filters.find(({ columnId }) => columnId === hoveredField.id);
 
   useEffect(() => {
     if (property && inputRef) {
-      inputRef.current?.focus()
-      setValue('')
+      inputRef.current?.focus();
+      setValue("");
     }
-  }, [property])
+  }, [property]);
 
   const cancelHoverTimer = useCallback(() => {
-    window.clearTimeout(hoverTimer.current)
-  }, [])
-  useEffect(() => cancelHoverTimer, [cancelHoverTimer])
+    window.clearTimeout(hoverTimer.current);
+  }, []);
+  useEffect(() => cancelHoverTimer, [cancelHoverTimer]);
 
   function openSideMenu(id: string, event: PointerEvent<HTMLDivElement>) {
-    if (!flat || event.pointerType !== 'mouse') return
-    cancelHoverTimer()
-    if (hoveredField?.id === id) return
-    const anchor = event.currentTarget
+    if (!flat || event.pointerType !== "mouse") return;
+    cancelHoverTimer();
+    if (hoveredField?.id === id) return;
+    const anchor = event.currentTarget;
     hoverTimer.current = window.setTimeout(() => {
-      const menu = fieldMenuRef.current?.getBoundingClientRect()
-      if (!menu || !anchor.isConnected) return
+      const menu = fieldMenuRef.current?.getBoundingClientRect();
+      if (!menu || !anchor.isConnected) return;
       // 预留侧面间距以及视口边缘空间。空间不足时沿用点击打开候选的方式。
-      const requiredSpace = menu.width + 16
+      const requiredSpace = menu.width + 16;
       const side =
         menu.left >= requiredSpace
-          ? 'left'
+          ? "left"
           : document.documentElement.clientWidth - menu.right >= requiredSpace
-            ? 'right'
-            : undefined
+            ? "right"
+            : undefined;
       if (valueMenuRef.current?.contains(document.activeElement)) {
-        inputRef.current?.focus({ preventScroll: true })
+        inputRef.current?.focus({ preventScroll: true });
       }
-      allowSideFocus.current = false
-      setHoveredField(side ? { id, anchor, side } : undefined)
-    }, 100)
+      allowSideFocus.current = false;
+      setHoveredField(side ? { id, anchor, side } : undefined);
+    }, 100);
   }
 
   function scheduleCloseSideMenu(event: PointerEvent) {
-    if (event.pointerType !== 'mouse') return
-    cancelHoverTimer()
+    if (event.pointerType !== "mouse") return;
+    cancelHoverTimer();
     // 鼠标经过两块面板之间的间隙时，仍可进入候选菜单。
     hoverTimer.current = window.setTimeout(() => {
       if (!valueMenuRef.current?.contains(document.activeElement)) {
-        setHoveredField(undefined)
+        setHoveredField(undefined);
       }
-    }, 160)
+    }, 160);
   }
 
   function selectField(id: string) {
-    cancelHoverTimer()
+    cancelHoverTimer();
     const valueInput =
       hoveredField?.id === id
         ? valueMenuRef.current?.querySelector<HTMLInputElement>(
-            '[data-slot="command-input"]',
+            '[data-slot="command-input"]'
           )
-        : undefined
+        : undefined;
     if (valueInput) {
-      allowSideFocus.current = true
-      valueInput.focus({ preventScroll: true })
-      return
+      allowSideFocus.current = true;
+      valueInput.focus({ preventScroll: true });
+      return;
     }
-    setHoveredField(undefined)
-    setProperty(id)
+    setHoveredField(undefined);
+    setProperty(id);
   }
 
   const content =
@@ -171,30 +176,30 @@ function FilterSelectorImpl<TData>({
       <MenuCommand
         loop
         onKeyDown={(event) => {
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-            cancelHoverTimer()
-            setHoveredField(undefined)
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            cancelHoverTimer();
+            setHoveredField(undefined);
           }
         }}
         filter={(value, search, keywords) => {
-          const extendValue = `${value} ${keywords?.join(' ')}`
+          const extendValue = `${value} ${keywords?.join(" ")}`;
           return extendValue.toLowerCase().includes(search.toLowerCase())
             ? 1
-            : 0
+            : 0;
         }}
       >
         <MenuSearch
           value={value}
           onValueChange={(nextValue) => {
-            cancelHoverTimer()
-            setHoveredField(undefined)
-            setValue(nextValue)
+            cancelHoverTimer();
+            setHoveredField(undefined);
+            setValue(nextValue);
           }}
           ref={inputRef}
-          placeholder={t('search', locale)}
+          placeholder={t("search", locale)}
         />
-        <CommandEmpty>{t('noresults', locale)}</CommandEmpty>
-        <CommandList className={flat ? undefined : 'max-h-fit'}>
+        <CommandEmpty>{t("noresults", locale)}</CommandEmpty>
+        <CommandList className={flat ? undefined : "max-h-fit"}>
           <CommandGroup>
             {columns.map((column) => (
               <FilterableColumn
@@ -216,29 +221,29 @@ function FilterSelectorImpl<TData>({
           </CommandGroup>
         </CommandList>
       </MenuCommand>
-    )
+    );
 
   return (
     <Popover
       open={open}
       onOpenChange={(nextOpen) => {
-        cancelHoverTimer()
-        setHoveredField(undefined)
+        cancelHoverTimer();
+        setHoveredField(undefined);
         if (nextOpen) {
-          setValue('')
-          setProperty(undefined)
+          setValue("");
+          setProperty(undefined);
         }
-        setOpen(nextOpen)
+        setOpen(nextOpen);
       }}
     >
       <PopoverTrigger asChild>
         {trigger ?? (
           <Button
             variant="outline"
-            className={cn('h-7', hasFilters && 'w-fit !px-2')}
+            className={cn("h-7", hasFilters && "w-fit !px-2")}
           >
             <FilterIcon className="size-4" />
-            {!hasFilters && <span>{t('filter', locale)}</span>}
+            {!hasFilters && <span>{t("filter", locale)}</span>}
           </Button>
         )}
       </PopoverTrigger>
@@ -252,7 +257,7 @@ function FilterSelectorImpl<TData>({
             event.target instanceof Node &&
             valueMenuRef.current?.contains(event.target)
           ) {
-            event.preventDefault()
+            event.preventDefault();
           }
         }}
       >
@@ -272,9 +277,9 @@ function FilterSelectorImpl<TData>({
               onPointerDownCapture={(event) => {
                 if (
                   event.target instanceof Element &&
-                  event.target.closest('input,button')
+                  event.target.closest("input,button")
                 ) {
-                  allowSideFocus.current = true
+                  allowSideFocus.current = true;
                 }
               }}
               onFocusCapture={(event) => {
@@ -283,7 +288,7 @@ function FilterSelectorImpl<TData>({
                   !allowSideFocus.current &&
                   event.relatedTarget === inputRef.current
                 ) {
-                  inputRef.current?.focus({ preventScroll: true })
+                  inputRef.current?.focus({ preventScroll: true });
                 }
               }}
               onOpenAutoFocus={(event) => event.preventDefault()}
@@ -293,7 +298,7 @@ function FilterSelectorImpl<TData>({
                   event.target instanceof Node &&
                   fieldMenuRef.current?.contains(event.target)
                 ) {
-                  event.preventDefault()
+                  event.preventDefault();
                 }
               }}
               onEscapeKeyDown={() =>
@@ -315,7 +320,7 @@ function FilterSelectorImpl<TData>({
         )}
       </FilterMenuContent>
     </Popover>
-  )
+  );
 }
 
 export function FilterableColumn<TData, TType extends ColumnDataType, TVal>({
@@ -326,46 +331,46 @@ export function FilterableColumn<TData, TType extends ColumnDataType, TVal>({
   showSubmenu,
   submenuOpen,
 }: {
-  column: Column<TData, TType, TVal>
-  setProperty: (value: string) => void
-  onHover: (id: string, event: PointerEvent<HTMLDivElement>) => void
-  onLeave: (event: PointerEvent<HTMLDivElement>) => void
-  showSubmenu: boolean
-  submenuOpen?: boolean
+  column: Column<TData, TType, TVal>;
+  setProperty: (value: string) => void;
+  onHover: (id: string, event: PointerEvent<HTMLDivElement>) => void;
+  onLeave: (event: PointerEvent<HTMLDivElement>) => void;
+  showSubmenu: boolean;
+  submenuOpen?: boolean;
 }) {
-  const itemRef = useRef<HTMLDivElement>(null)
+  const itemRef = useRef<HTMLDivElement>(null);
 
   const prefetch = useCallback(() => {
-    column.prefetchOptions()
-    column.prefetchValues()
-    column.prefetchFacetedUniqueValues()
-    column.prefetchFacetedMinMaxValues()
-  }, [column])
+    column.prefetchOptions();
+    column.prefetchValues();
+    column.prefetchFacetedUniqueValues();
+    column.prefetchFacetedMinMaxValues();
+  }, [column]);
 
   useEffect(() => {
-    const target = itemRef.current
+    const target = itemRef.current;
 
-    if (!target) return
+    if (!target) return;
 
     // Set up MutationObserver
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
-        if (mutation.type === 'attributes') {
-          const isSelected = target.getAttribute('data-selected') === 'true'
-          if (isSelected) prefetch()
+        if (mutation.type === "attributes") {
+          const isSelected = target.getAttribute("data-selected") === "true";
+          if (isSelected) prefetch();
         }
       }
-    })
+    });
 
     // Set up observer
     observer.observe(target, {
       attributes: true,
-      attributeFilter: ['data-selected'],
-    })
+      attributeFilter: ["data-selected"],
+    });
 
     // Cleanup on unmount
-    return () => observer.disconnect()
-  }, [prefetch])
+    return () => observer.disconnect();
+  }, [prefetch]);
 
   return (
     <CommandItem
@@ -376,12 +381,12 @@ export function FilterableColumn<TData, TType extends ColumnDataType, TVal>({
       onMouseEnter={prefetch}
       onPointerEnter={(event) => onHover(column.id, event)}
       onPointerLeave={onLeave}
-      aria-haspopup={showSubmenu ? 'dialog' : undefined}
+      aria-haspopup={showSubmenu ? "dialog" : undefined}
       data-submenu-open={submenuOpen || undefined}
       className={cn(
-        showSubmenu && '[&>svg:last-child]:hidden',
-        submenuOpen && 'bg-muted',
-        submenuOpen === false && 'data-selected:bg-transparent',
+        showSubmenu && "[&>svg:last-child]:hidden",
+        submenuOpen && "bg-muted",
+        submenuOpen === false && "data-selected:bg-transparent"
       )}
     >
       <div className="flex w-full items-center gap-1.5">
@@ -395,19 +400,19 @@ export function FilterableColumn<TData, TType extends ColumnDataType, TVal>({
         )}
       </div>
     </CommandItem>
-  )
+  );
 }
 
 interface QuickSearchFiltersProps<TData> {
-  search?: string
-  filters: FiltersState
-  columns: Column<TData>[]
-  actions: DataTableFilterActions
+  search?: string;
+  filters: FiltersState;
+  columns: Column<TData>[];
+  actions: DataTableFilterActions;
 }
 
 export const QuickSearchFilters = memo(
-  __QuickSearchFilters,
-) as typeof __QuickSearchFilters
+  __QuickSearchFilters
+) as typeof __QuickSearchFilters;
 
 function __QuickSearchFilters<TData>({
   search,
@@ -415,33 +420,33 @@ function __QuickSearchFilters<TData>({
   columns,
   actions,
 }: QuickSearchFiltersProps<TData>) {
-  if (!search || search.trim().length < 2) return null
+  if (!search || search.trim().length < 2) return null;
 
   const cols = columns.filter(
     (column): column is Column<TData, OptionBasedColumnDataType> =>
-      isAnyOf<ColumnDataType>(column.type, ['option', 'multiOption']),
-  )
+      isAnyOf<ColumnDataType>(column.type, ["option", "multiOption"])
+  );
 
   return (
     <>
       {cols.map((column) => {
         const filter = filters.find(
           (f): f is FilterModel<OptionBasedColumnDataType> =>
-            f.columnId === column.id && f.type === column.type,
-        )
-        const options = column.getOptions()
-        const optionsCount = column.getFacetedUniqueValues()
+            f.columnId === column.id && f.type === column.type
+        );
+        const options = column.getOptions();
+        const optionsCount = column.getFacetedUniqueValues();
 
         function handleOptionSelect(value: string, check: boolean) {
-          if (check) actions.addFilterValue(column, [value])
-          else actions.removeFilterValue(column, [value])
+          if (check) actions.addFilterValue(column, [value]);
+          else actions.removeFilterValue(column, [value]);
         }
 
         return (
           <React.Fragment key={column.id}>
             {options.map((v) => {
-              const checked = Boolean(filter?.values.includes(v.value))
-              const count = optionsCount?.get(v.value)
+              const checked = Boolean(filter?.values.includes(v.value));
+              const count = optionsCount?.get(v.value);
 
               return (
                 <CommandItem
@@ -449,7 +454,7 @@ function __QuickSearchFilters<TData>({
                   value={v.value}
                   keywords={[v.label, v.value]}
                   onSelect={() => {
-                    handleOptionSelect(v.value, !checked)
+                    handleOptionSelect(v.value, !checked);
                   }}
                   className="group"
                   aria-checked={column.flatValueOptions ? checked : undefined}
@@ -480,24 +485,26 @@ function __QuickSearchFilters<TData>({
                         {v.label}
                         <sup
                           className={cn(
-                            count == null && 'hidden',
-                            'ml-0.5 tabular-nums tracking-tight text-muted-foreground',
-                            count === 0 && 'slashed-zero',
+                            count == null && "hidden",
+                            "ml-0.5 tabular-nums tracking-tight text-muted-foreground",
+                            count === 0 && "slashed-zero"
                           )}
                         >
-                          {typeof count === 'number'
-                            ? (count < 100 ? count : '100+')
-                            : ''}
+                          {typeof count === "number"
+                            ? count < 100
+                              ? count
+                              : "100+"
+                            : ""}
                         </sup>
                       </span>
                     </div>
                   </div>
                 </CommandItem>
-              )
+              );
             })}
           </React.Fragment>
-        )
+        );
       })}
     </>
-  )
+  );
 }

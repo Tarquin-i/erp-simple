@@ -112,7 +112,9 @@ export function OptionEditorDialog({
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className={showDescription ? undefined : "sr-only"}>
+          <DialogDescription
+            className={showDescription ? undefined : "sr-only"}
+          >
             {description}
           </DialogDescription>
         </DialogHeader>

@@ -118,22 +118,21 @@ export function DataTable<TRow>({
                 })}
               </TableRow>
             ))
-          : Array.from(
-              { length: loading.rowCount },
-              (_, rowId) => rowId
-            ).map((rowId) => (
-              <TableRow aria-hidden="true" key={rowId}>
-                {columns.map((column) => (
-                  <TableCell className="h-11" key={column.id}>
-                    <Skeleton
-                      className={
-                        column.skeletonClassName ?? "h-4 w-24 max-w-full"
-                      }
-                    />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
+          : Array.from({ length: loading.rowCount }, (_, rowId) => rowId).map(
+              (rowId) => (
+                <TableRow aria-hidden="true" key={rowId}>
+                  {columns.map((column) => (
+                    <TableCell className="h-11" key={column.id}>
+                      <Skeleton
+                        className={
+                          column.skeletonClassName ?? "h-4 w-24 max-w-full"
+                        }
+                      />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )
+            )}
       </TableBody>
     </Table>
   );
