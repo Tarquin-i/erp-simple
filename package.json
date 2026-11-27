@@ -8,7 +8,7 @@
     "db:reset": "turbo run db:reset --filter=@repo/db",
     "db:studio": "turbo run db:studio --filter=@repo/db",
     "dev": "turbo run dev",
-    "dev:server": "turbo run dev --filter=server",
+    "dev:server": "turbo run dev --filter=@repo/server",
     "lint": "biome lint .",
     "seed": "bun run --cwd apps/server seed",
     "format": "biome format --write .",

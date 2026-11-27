@@ -3,7 +3,7 @@ import {
   DEFAULT_PHONE_COUNTRY,
   getCountryCallingCode,
   normalizeMobilePhone,
-} from "@repo/phone";
+} from "@repo/server";
 import { Plus, Trash2 } from "lucide-react";
 import {
   type ComponentProps,

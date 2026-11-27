@@ -2,7 +2,7 @@ import {
   DEFAULT_PHONE_COUNTRY,
   INVALID_MOBILE_PHONE_MESSAGE,
   normalizeMobilePhone,
-} from "@repo/phone";
+} from "../../shared/phone-number";
 
 import { fail } from "../../../errors";
 import {

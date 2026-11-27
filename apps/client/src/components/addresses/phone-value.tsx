@@ -1,4 +1,7 @@
-import { DEFAULT_PHONE_COUNTRY, parsePhoneNumberFromString } from "@repo/phone";
+import {
+  DEFAULT_PHONE_COUNTRY,
+  parsePhoneNumberFromString,
+} from "@repo/server";
 
 import { Button } from "@/components/ui/button";
 import {

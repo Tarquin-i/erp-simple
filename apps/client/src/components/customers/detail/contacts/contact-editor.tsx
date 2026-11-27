@@ -3,7 +3,7 @@ import {
   DEFAULT_PHONE_COUNTRY,
   getCountryCallingCode,
   normalizeMobilePhone,
-} from "@repo/phone";
+} from "@repo/server";
 import { type FormEvent, type Ref, useId, useRef, useState } from "react";
 
 import {

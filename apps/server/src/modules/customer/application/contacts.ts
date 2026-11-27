@@ -5,7 +5,7 @@ import { customerContactMethodType } from "@repo/db/schema";
 import {
   INVALID_MOBILE_PHONE_MESSAGE,
   normalizeMobilePhone,
-} from "@repo/phone";
+} from "../../shared/phone-number";
 import { HTTPException } from "hono/http-exception";
 
 import { ApplicationError, failVersionConflict } from "../../../errors";

@@ -3,7 +3,7 @@ import {
   DEFAULT_PHONE_COUNTRY,
   INVALID_MOBILE_PHONE_MESSAGE,
   normalizeMobilePhone,
-} from "@repo/phone";
+} from "@repo/server";
 import { CircleAlert, Save } from "lucide-react";
 import { type FormEvent, useId, useMemo, useRef, useState } from "react";
 

@@ -1,5 +1,8 @@
 {
-  "name": "server",
+  "name": "@repo/server",
+  "exports": {
+    ".": "./src/modules/shared/phone-number.ts"
+  },
   "scripts": {
     "auth:init-admin": "bun src/scripts/init-admin.ts",
     "dev": "bun run --hot src/index.ts",
@@ -8,10 +11,10 @@
   },
   "dependencies": {
     "@repo/db": "workspace:*",
-    "@repo/phone": "workspace:*",
     "better-auth": "^1.7.20",
     "country-region-data": "4.1.0",
     "drizzle-orm": "^0.45.4",
+    "libphonenumber-js": "^1.13.9",
     "hono": "^4.13.16",
     "postal-code-checker": "2.3.0",
     "sharp": "0.35.5"

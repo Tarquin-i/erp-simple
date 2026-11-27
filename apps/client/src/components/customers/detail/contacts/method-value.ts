@@ -1,8 +1,8 @@
 import {
   INVALID_MOBILE_PHONE_MESSAGE,
   normalizeMobilePhone,
-} from "@repo/phone";
-import type { CountryCode } from "@repo/phone";
+} from "@repo/server";
+import type { CountryCode } from "@repo/server";
 
 import type {
   CustomerContactMethodInput,
