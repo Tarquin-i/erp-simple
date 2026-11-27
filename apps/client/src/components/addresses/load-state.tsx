@@ -9,7 +9,7 @@ import { AddressApiError } from "@/request/addresses";
 export const addressCollectionClass =
   "mx-auto w-full max-w-4xl space-y-4 px-1 sm:px-3";
 
-export const addressCreatePageClass =
+export const addressFormPageClass =
   "min-w-0 flex-1 bg-background px-5 py-6 sm:px-7 lg:px-8";
 
 export function AddressCollectionPending() {
@@ -62,12 +62,12 @@ function AddressFieldPending({
   );
 }
 
-export function AddressCreatePending() {
+export function AddressFormPending({ editing = false }: { editing?: boolean }) {
   return (
     <main
       aria-busy="true"
       aria-label="正在加载地址"
-      className={cn(addressCreatePageClass, "space-y-5")}
+      className={cn(addressFormPageClass, "space-y-5")}
     >
       <div
         aria-hidden="true"
@@ -75,8 +75,8 @@ export function AddressCreatePending() {
       >
         <Skeleton className="h-8 w-24" />
         <div className="flex items-center gap-2">
-          <Skeleton className="h-10 w-16" />
-          <Skeleton className="h-10 w-20" />
+          <Skeleton className={editing ? "h-8 w-13" : "h-10 w-16"} />
+          <Skeleton className={editing ? "h-8 w-18" : "h-10 w-20"} />
         </div>
       </div>
       <AddressFieldPending />

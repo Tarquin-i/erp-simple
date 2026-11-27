@@ -12,6 +12,7 @@ import type { AddressListQuery } from "@/request/addresses";
 declare module "@tanstack/react-router" {
   interface HistoryState {
     addressListQuery?: AddressListQuery;
+    addressEditSource?: { href: string; index: number };
   }
 }
 
@@ -50,8 +51,8 @@ export function readAddressDetailSearch(raw: Record<string, unknown>): {
   };
 }
 
-/** 解析新建地址的来源与客户，供加载与返回使用。 */
-export function readNewAddressSearch(raw: Record<string, unknown>): {
+/** 解析地址表单的来源与客户，供加载与返回使用。 */
+export function readAddressFormSearch(raw: Record<string, unknown>): {
   customerId?: string;
   sourceAddressId?: string;
 } {

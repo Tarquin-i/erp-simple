@@ -1,3 +1,4 @@
+import { Link, useLocation, useMatch } from "@tanstack/react-router";
 import { Archive, Ellipsis, LoaderCircle, Pencil, Star } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -29,8 +30,6 @@ import {
   updateAddress,
 } from "@/request/addresses";
 
-import { AddressFormDialog } from "./address-form";
-
 type AddressCardMenuProps = {
   address: AddressListItem;
   detail?: AddressDetail;
@@ -41,14 +40,14 @@ type AddressCardMenuProps = {
   onRetainChange?: (id: string, retained: boolean) => void;
 };
 
-export type AddressAction = "edit" | "default" | "archive";
+export type AddressAction = "default" | "archive";
 
 const unconfirmedArchive = "暂时无法确认归档结果，请重试。";
 
 /**
  * 为单条地址提供编辑、设默认和归档操作，分别处理加载与版本冲突。
  * @param props 当前地址摘要、已有的详情，以及保存成功后的刷新回调。
- * @returns 地址操作菜单、编辑弹窗和归档确认弹窗。
+ * @returns 带编辑页入口的地址操作菜单和归档确认弹窗。
  */
 export function AddressCardMenu({
   address,
@@ -56,6 +55,20 @@ export function AddressCardMenu({
   onChanged,
   onRetainChange,
 }: AddressCardMenuProps) {
+  const { href, state } = useLocation();
+  const addressPage = useMatch({
+    from: "/_protected/addresses/$addressId/",
+    shouldThrow: false,
+  });
+  const customerPage = useMatch({
+    from: "/_protected/customers/$customerId/",
+    shouldThrow: false,
+  });
+  const editSearch = {
+    customerId:
+      addressPage?.search.customerId ?? customerPage?.params.customerId,
+    sourceAddressId: addressPage?.params.addressId,
+  };
   const trigger = useRef<HTMLButtonElement>(null);
   const openingDialog = useRef(false);
   const settingDefault = useRef(false);
@@ -65,7 +78,6 @@ export function AddressCardMenu({
   const [busy, setBusy] = useState<AddressAction | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [error, setError] = useState("");
-  const [editing, setEditing] = useState<AddressDetail>();
   const [archiveTarget, setArchiveTarget] = useState<AddressListItem>();
   const [archiveRetry, setArchiveRetry] = useState<AddressListItem>();
   const [latest, setLatest] = useState<AddressDetail>();
@@ -80,7 +92,7 @@ export function AddressCardMenu({
       ? newestDetail
       : undefined;
   const current = currentDetail ?? address;
-  const retained = Boolean(menuOpen || busy || editing || archiveTarget);
+  const retained = Boolean(menuOpen || busy || archiveTarget);
 
   useEffect(() => {
     mounted.current = true;
@@ -109,34 +121,6 @@ export function AddressCardMenu({
       return (await getAddress(id, controller.signal)).address;
     } finally {
       pendingRead.current = null;
-    }
-  }
-
-  async function openEditor() {
-    if (inFlight.current) return;
-    setError("");
-    if (currentDetail) {
-      openingDialog.current = true;
-      setEditing(currentDetail);
-      return;
-    }
-
-    inFlight.current = true;
-    setBusy("edit");
-    try {
-      const record = await readAddress(address.id);
-      if (!mounted.current) return;
-      setLatest(record);
-      setEditing(record);
-    } catch (failure) {
-      if (!mounted.current) return;
-      setError(
-        failure instanceof Error ? failure.message : "暂时无法加载地址详情。"
-      );
-      restoreFocus();
-    } finally {
-      inFlight.current = false;
-      if (mounted.current) setBusy(null);
     }
   }
 
@@ -266,9 +250,21 @@ export function AddressCardMenu({
             event.preventDefault();
           }}
         >
-          <DropdownMenuItem onSelect={() => void openEditor()}>
-            <Pencil aria-hidden="true" />
-            编辑地址
+          <DropdownMenuItem asChild>
+            <Link
+              to="/addresses/$addressId/edit"
+              params={{ addressId: address.id }}
+              search={editSearch}
+              state={{
+                addressEditSource: { href, index: state.__TSR_index },
+                addressListQuery: state.addressListQuery,
+                customerListQuery: state.customerListQuery,
+              }}
+              preload={false}
+            >
+              <Pencil aria-hidden="true" />
+              编辑地址
+            </Link>
           </DropdownMenuItem>
           {!current.isDefault && (
             <DropdownMenuItem
@@ -301,20 +297,6 @@ export function AddressCardMenu({
         <FieldError className="max-w-36 text-right text-xs wrap-anywhere sm:max-w-60">
           {error}
         </FieldError>
-      )}
-
-      {editing && (
-        <AddressFormDialog
-          address={editing}
-          onClose={() => {
-            trigger.current?.focus({ preventScroll: true });
-            setEditing(undefined);
-          }}
-          onSaved={async (record) => {
-            if (mounted.current) setLatest(record);
-            await onChanged(record, "edit");
-          }}
-        />
       )}
 
       <AlertDialog

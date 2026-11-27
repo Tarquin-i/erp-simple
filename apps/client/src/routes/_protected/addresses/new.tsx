@@ -6,18 +6,18 @@ import {
 
 import { AddressCreateForm } from "@/components/addresses/address-form";
 import {
-  AddressCreatePending,
+  AddressFormPending,
   AddressPageError,
 } from "@/components/addresses/load-state";
 import {
   customerAddressTabLink,
-  readNewAddressSearch,
+  readAddressFormSearch,
 } from "@/components/addresses/navigation";
 import { getAddress } from "@/request/addresses";
 import { getCustomer } from "@/request/customers";
 
 export const Route = createFileRoute("/_protected/addresses/new")({
-  validateSearch: readNewAddressSearch,
+  validateSearch: readAddressFormSearch,
   loaderDeps: ({ search: { customerId, sourceAddressId } }) => ({
     customerId,
     sourceAddressId,
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/_protected/addresses/new")({
     return { customer: undefined };
   },
   component: NewAddressPage,
-  pendingComponent: AddressCreatePending,
+  pendingComponent: AddressFormPending,
   errorComponent: ({ error }) => <AddressPageError error={error} detail />,
 });
 

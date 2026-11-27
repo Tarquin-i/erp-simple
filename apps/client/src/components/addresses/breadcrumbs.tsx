@@ -13,9 +13,14 @@ import { Separator } from "@/components/ui/separator";
 /** 为侧栏地址目录和详情页显示面包屑。 */
 export function AddressBreadcrumbs() {
   const { pathname, state } = useLocation();
-  const [, module, addressId] = pathname.split("/");
+  const [, module, addressId, action] = pathname.split("/");
   if (module !== "addresses") return null;
-  const title = addressId === "new" ? "新建地址" : "地址详情";
+  const title =
+    action === "edit"
+      ? "编辑地址"
+      : addressId === "new"
+        ? "新建地址"
+        : "地址详情";
   return (
     <>
       <Separator

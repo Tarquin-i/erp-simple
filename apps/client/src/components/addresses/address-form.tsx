@@ -12,6 +12,7 @@ import {
   PhoneNumberInput,
   readPhoneDraft,
 } from "@/components/shared/phone-number-input";
+import { SearchableSelect } from "@/components/shared/searchable-select";
 import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import {
   AlertDialog,
@@ -25,20 +26,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  keepDialogOpenOnComboboxEscape,
-  SearchableSelect,
-} from "@/components/shared/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
@@ -61,7 +50,7 @@ import {
   formatAddressPostalCode,
   getAddressRegions,
 } from "./geography";
-import { addressCreatePageClass } from "./load-state";
+import { addressFormPageClass } from "./load-state";
 
 const fieldLabels = {
   recipientName: "收货人",
@@ -190,21 +179,14 @@ export function AddressCreateForm({
   return <AddressForm {...props} onClose={onCancel} />;
 }
 
-/**
- * 在地址详情中打开地址表单弹窗。
- * @param props 初始地址、可选的所属客户、关闭与保存成功回调。
- * @returns 带默认地址确认及版本冲突处理的表单弹窗。
- */
-export function AddressFormDialog({ onClose, ...props }: AddressFormProps) {
-  const [open, setOpen] = useState(true);
-
-  return (
-    <AddressForm
-      {...props}
-      dialog={{ open, onClosed: onClose }}
-      onClose={() => setOpen(false)}
-    />
-  );
+export function AddressEditForm({
+  onCancel,
+  ...props
+}: Pick<AddressFormProps, "onSaved"> & {
+  address: AddressDetail;
+  onCancel: () => void;
+}) {
+  return <AddressForm {...props} onClose={onCancel} />;
 }
 
 function AddressForm({
@@ -212,12 +194,8 @@ function AddressForm({
   customer,
   onClose,
   onSaved,
-  dialog,
-}: AddressFormProps & { dialog?: { open: boolean; onClosed: () => void } }) {
+}: AddressFormProps) {
   const id = useId();
-  const dialogContent = useRef<HTMLDivElement>(null);
-  const isDialog = Boolean(dialog);
-  const portalContainer = isDialog ? dialogContent : undefined;
   const [selectedCustomer, setSelectedCustomer] = useState(
     address?.customer ?? customer ?? null
   );
@@ -385,9 +363,8 @@ function AddressForm({
       setSaved(true);
       try {
         await onSaved(result);
-        if (isDialog) onClose();
       } catch {
-        setError("地址已保存，但列表刷新失败。关闭弹窗后可重新加载。");
+        setError("地址已保存，页面加载失败。请返回后刷新查看。");
       }
     } finally {
       submitting.current = false;
@@ -500,7 +477,6 @@ function AddressForm({
         value={selectedCustomer}
         locked={Boolean(address || customer)}
         disabled={disabled}
-        portalContainer={portalContainer}
         controlClassName="h-8"
         onChange={(choice) => {
           setSelectedCustomer(choice);
@@ -517,7 +493,6 @@ function AddressForm({
               value={draft.phone}
               country={phone.number?.country ?? phoneCountry}
               callingCode={phone.callingCode}
-              portalContainer={portalContainer}
               required
               disabled={disabled}
               type="tel"
@@ -590,7 +565,6 @@ function AddressForm({
             emptyMessage="没有匹配的国家或地区"
             prioritizeCodeMatch
             disabled={disabled}
-            container={portalContainer}
             onValueChange={(option) => {
               if (option.code === draft.countryCode) return;
               setDraft((previous) => ({
@@ -618,7 +592,6 @@ function AddressForm({
             emptyMessage="没有匹配的省或州"
             prioritizeCodeMatch
             disabled={disabled}
-            container={portalContainer}
             onValueChange={(option) => confirmProvince(option.name)}
           />
         </Field>
@@ -663,7 +636,7 @@ function AddressForm({
       <Button
         variant="outline"
         type="button"
-        className={isDialog ? undefined : "h-10 px-4"}
+        className={address ? undefined : "h-10 px-4"}
         disabled={pending}
         onClick={onClose}
       >
@@ -671,11 +644,11 @@ function AddressForm({
       </Button>
       <Button
         type="submit"
-        className={isDialog ? undefined : "h-10 px-4"}
+        className={address ? undefined : "h-10 px-4"}
         disabled={disabled}
         aria-busy={pending}
       >
-        {!isDialog && <Save aria-hidden="true" />}
+        <Save aria-hidden="true" />
         {pending ? "正在保存…" : "保存"}
       </Button>
     </>
@@ -683,56 +656,18 @@ function AddressForm({
 
   return (
     <>
-      {dialog ? (
-        <Dialog
-          open={dialog.open}
-          onOpenChange={(open) => {
-            if (!open && !submitting.current && !prompt) onClose();
-          }}
-        >
-          <DialogContent
-            className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)] motion-reduce:animate-none!"
-            ref={dialogContent}
-            overlayClassName="motion-reduce:animate-none!"
-            inert={!dialog.open}
-            showCloseButton={!pending}
-            onCloseAutoFocus={(event) => {
-              event.preventDefault();
-              if (!dialog.open) dialog.onClosed();
-            }}
-            onEscapeKeyDown={(event) =>
-              keepDialogOpenOnComboboxEscape(event, dialogContent.current)
-            }
-          >
-            <DialogHeader>
-              <DialogTitle>{address ? "编辑地址" : "新建地址"}</DialogTitle>
-              <DialogDescription className="sr-only">
-                填写收货地址。
-              </DialogDescription>
-            </DialogHeader>
-            <form className="flex min-h-0 flex-col gap-4" onSubmit={submit}>
-              {errorAlert}
-              <div className="min-h-0 space-y-4 overflow-y-auto p-1">
-                {fields}
-              </div>
-              <DialogFooter>{actions}</DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <main className={addressCreatePageClass}>
-          <form className="space-y-5" onSubmit={submit}>
-            <header className="flex flex-wrap items-center justify-between gap-4">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                新建地址
-              </h1>
-              <div className="flex items-center gap-2">{actions}</div>
-            </header>
-            {errorAlert}
-            {fields}
-          </form>
-        </main>
-      )}
+      <main className={addressFormPageClass}>
+        <form className="space-y-5" onSubmit={submit}>
+          <header className="flex flex-wrap items-center justify-between gap-4">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {address ? "编辑地址" : "新建地址"}
+            </h1>
+            <div className="flex items-center gap-2">{actions}</div>
+          </header>
+          {errorAlert}
+          {fields}
+        </form>
+      </main>
       <AlertDialog
         open={defaultPrompt !== null}
         onOpenChange={(open) => {
