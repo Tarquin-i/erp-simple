@@ -341,10 +341,13 @@ export function FilterableColumn<TData, TType extends ColumnDataType, TVal>({
   const itemRef = useRef<HTMLDivElement>(null);
 
   const prefetch = useCallback(() => {
-    column.prefetchOptions();
-    column.prefetchValues();
-    column.prefetchFacetedUniqueValues();
-    column.prefetchFacetedMinMaxValues();
+    if (column.type === "option" || column.type === "multiOption") {
+      void column.prefetchOptions();
+      void column.prefetchValues();
+      void column.prefetchFacetedUniqueValues();
+    } else if (column.type === "number") {
+      void column.prefetchFacetedMinMaxValues();
+    }
   }, [column]);
 
   useEffect(() => {
