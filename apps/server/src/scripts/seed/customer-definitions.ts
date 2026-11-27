@@ -5,8 +5,6 @@ export const seedCustomerChannels = [
   { code: "kingwin_alibaba", name: "将为阿里巴巴" },
 ];
 
-export const seedCustomerTags = ["重点客户", "打样中", "长期合作", "新客户"];
-
 export const seedCustomerDefinitions = [
   {
     companyName: "演示·星河包装科技有限公司",

@@ -4,6 +4,7 @@ import {
   communicationTag,
   communicationTagAssignment,
   customer,
+  organization,
   user,
 } from "@repo/db/schema";
 import {
@@ -20,8 +21,6 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import type { SelectedFieldsFlat } from "drizzle-orm/pg-core";
-
 import {
   lockDepartment,
   readAccountRecordAccess,
@@ -75,11 +74,15 @@ const customerFields = {
   id: customer.id,
   companyName: customer.companyName,
   status: customer.status,
+  departmentId: customer.departmentId,
 };
 const tagFields = {
   id: communicationTag.id,
   name: communicationTag.name,
   color: communicationTag.color,
+  departmentId: communicationTag.departmentId,
+  departmentName: organization.name,
+  canManage: sql<boolean>`true`,
 };
 const activeCommunication = isNull(communication.archivedAt);
 
@@ -91,21 +94,29 @@ function visibleCustomerJoin(access: AccountRecordAccess) {
   );
 }
 
-async function readTags<
-  Row extends { id: string },
-  Fields extends SelectedFieldsFlat,
->(tx: DatabaseTransaction, records: Row[], fields: Fields) {
+async function readTags<Row extends { id: string }>(
+  tx: DatabaseTransaction,
+  records: Row[]
+) {
   if (!records.length) return [];
   const rows = await tx
     .select({
       communicationId: communicationTagAssignment.communicationId,
-      tag: fields,
+      tag: tagFields,
     })
     .from(communicationTagAssignment)
     .innerJoin(
-      communicationTag,
-      eq(communicationTag.id, communicationTagAssignment.tagId)
+      communication,
+      eq(communication.id, communicationTagAssignment.communicationId)
     )
+    .innerJoin(
+      communicationTag,
+      and(
+        eq(communicationTag.id, communicationTagAssignment.tagId),
+        eq(communicationTag.departmentId, communication.departmentId)
+      )
+    )
+    .leftJoin(organization, eq(organization.id, communicationTag.departmentId))
     .where(
       inArray(
         communicationTagAssignment.communicationId,
@@ -220,7 +231,7 @@ export async function selectCommunicationPage(
     .from(communication)
     .where(filter);
   return {
-    communications: await readTags(tx, rows, tagFields),
+    communications: await readTags(tx, rows),
     total: total.count,
     page,
     pageSize,
@@ -237,6 +248,7 @@ export async function readCommunication(
     .select({
       ...listFields,
       customerId: communication.customerId,
+      departmentId: communication.departmentId,
       customer: { ...customerFields, customerNo: customer.customerNo },
       ownerUserId: communication.ownerUserId,
       summary: communication.summary,
@@ -253,7 +265,7 @@ export async function readCommunication(
         recordScopeWhere(access, communication)
       )
     );
-  const [record] = await readTags(tx, rows, tagFields);
+  const [record] = await readTags(tx, rows);
   if (!record) fail(404, "沟通记录不存在。");
   return { ...record, canViewCustomer: record.customer !== null };
 }

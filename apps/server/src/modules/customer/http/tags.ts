@@ -2,7 +2,6 @@ import { Hono } from "hono";
 
 import { fail } from "../../../errors";
 import type { RecordAccessEnv } from "../../identity/http/record-access-context";
-import { createCustomerError } from "../application/errors";
 import type { createTagUseCases } from "../application/tags";
 import {
   readObject,
@@ -36,29 +35,34 @@ export function createCustomerTagRoutes(
     const search = rawSearch
       ? readString(rawSearch, "标签搜索词", 64)
       : undefined;
+    const requestedDepartment = c.req.query("departmentId");
+    const departmentId =
+      requestedDepartment === undefined
+        ? undefined
+        : readString(requestedDepartment, "部门 ID", 128);
 
-    return c.json(await tags.list({ page, pageSize, search }));
+    return c.json(
+      await tags.list(c.get("recordAccess").userId, {
+        page,
+        pageSize,
+        search,
+        departmentId,
+      })
+    );
   });
 
   routes.get("/tags/:tagId", async (c) => {
     const id = readUuid(c.req.param("tagId"), "标签 ID");
-    return c.json({ tag: await tags.get(id) });
+    return c.json({ tag: await tags.get(c.get("recordAccess").userId, id) });
   });
 
   routes.get("/tags/:tagId/usage", async (c) => {
-    const { scope, userId } = c.get("recordAccess");
-    if (scope !== "company")
-      throw createCustomerError("tagManagementForbidden");
+    const { userId } = c.get("recordAccess");
     const id = readUuid(c.req.param("tagId"), "标签 ID");
     return c.json(await tags.usage(userId, id));
   });
 
   routes.patch("/tags/:tagId", async (c) => {
-    const access = c.get("recordAccess");
-    if (access.scope !== "company") {
-      throw createCustomerError("tagColorForbidden");
-    }
-
     const id = readUuid(c.req.param("tagId"), "标签 ID");
     const body = await readObject(c, [
       "color",
@@ -75,7 +79,7 @@ export function createCustomerTagRoutes(
             name: readString(body.name, "标签名称", 64),
             expectedName: readString(body.expectedName, "原标签名称", 64),
           };
-    const tag = await tags.update(access.userId, id, {
+    const tag = await tags.update(c.get("recordAccess"), id, {
       color,
       expectedColor,
       ...nameFields,
@@ -84,23 +88,38 @@ export function createCustomerTagRoutes(
   });
 
   routes.delete("/tags/:tagId", async (c) => {
-    const { scope, userId } = c.get("recordAccess");
-    if (scope !== "company")
-      throw createCustomerError("tagManagementForbidden");
     const id = readUuid(c.req.param("tagId"), "标签 ID");
     const body = await readObject(c, ["expectedName", "expectedColor"]);
     const expectedName = readString(body.expectedName, "原标签名称", 64);
     const expectedColor = readTagColor(body.expectedColor, "原标签颜色");
-    await tags.remove({ userId, id, expectedName, expectedColor });
+    await tags.remove({
+      access: c.get("recordAccess"),
+      id,
+      expectedName,
+      expectedColor,
+    });
     return c.json({ deleted: true });
   });
 
   routes.post("/tags", async (c) => {
-    const body = await readObject(c, ["name", "color"]);
+    const body = await readObject(c, ["name", "color", "departmentId"]);
     const name = readString(body.name, "标签名称", 64);
     const color =
       body.color === undefined ? undefined : readTagColor(body.color);
-    return c.json({ tag: await tags.create(name, color) }, 201);
+    const departmentId =
+      body.departmentId === undefined
+        ? undefined
+        : readString(body.departmentId, "部门 ID", 128);
+    return c.json(
+      {
+        tag: await tags.create(c.get("recordAccess"), {
+          name,
+          color,
+          departmentId,
+        }),
+      },
+      201
+    );
   });
 
   return routes;

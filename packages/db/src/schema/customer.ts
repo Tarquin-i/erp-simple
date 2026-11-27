@@ -137,13 +137,23 @@ export const customerTag = pgTable(
       .generatedAlwaysAs(sql`lower(btrim((name)::text))`)
       .notNull(),
     color: varchar("color", { length: 7 }).default("#111111").notNull(),
+    // 只有无法确定归属的旧标签保留 NULL。
+    departmentId: text("department_id").references(() => organization.id, {
+      onDelete: "restrict",
+    }),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    // 标签名称去掉首尾空格并转小写后，全局唯一。
-    uniqueIndex("customer_tag_normalized_name_unique").on(table.normalizedName),
+    uniqueIndex("customer_tag_department_normalized_name_unique").on(
+      table.departmentId,
+      table.normalizedName
+    ),
+    index("customer_tag_created_by_user_id_idx").on(table.createdByUserId),
     check("customer_tag_name_nonempty", sql`${table.normalizedName} <> ''`),
     check(
       "customer_tag_color_check",

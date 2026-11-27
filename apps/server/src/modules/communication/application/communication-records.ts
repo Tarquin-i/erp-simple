@@ -29,6 +29,7 @@ import type {
   CreateCommunicationInput,
   UpdateCommunicationInput,
 } from "../persistence/communication-records";
+import { selectAssignableCommunicationTagIds } from "../persistence/tags";
 import type { AttachmentCleanup } from "./attachment-cleanup";
 import {
   CommunicationArchiveInProgress,
@@ -53,6 +54,22 @@ function assertCommunicationWriteTarget(
     (access.scope === "own" && target.ownerUserId !== access.userId)
   ) {
     fail(403, "无权将业务数据写入该范围。");
+  }
+}
+
+async function requireAssignableTags(
+  tx: DatabaseTransaction,
+  departmentId: string,
+  tagIds?: string[]
+) {
+  if (!tagIds?.length) return;
+  const tags = await selectAssignableCommunicationTagIds(
+    tx,
+    departmentId,
+    tagIds
+  );
+  if (tags.length !== tagIds.length) {
+    fail(400, "所选沟通标签不存在或不属于该沟通记录所在部门。");
   }
 }
 
@@ -213,6 +230,7 @@ export function createCommunicationRecordUseCases(
           ownerUserId,
         });
         await requireAssignableOwner(tx, departmentId, ownerUserId);
+        await requireAssignableTags(tx, departmentId, input.tagIds);
         const id = await insertCommunication(
           tx,
           { ...input, customerId: linkedCustomer.id },
@@ -250,6 +268,7 @@ export function createCommunicationRecordUseCases(
           );
         }
 
+        await requireAssignableTags(tx, record.departmentId, input.tagIds);
         await updateCommunicationRecord(tx, id, input);
         return readCommunication(tx, freshAccess, id);
       });

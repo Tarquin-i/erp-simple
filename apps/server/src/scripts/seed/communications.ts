@@ -1,48 +1,12 @@
 import type { DatabaseTransaction } from "@repo/db";
-import {
-  communication,
-  communicationTag,
-  communicationTagAssignment,
-} from "@repo/db/schema";
-import { inArray, or } from "drizzle-orm";
+import { communication } from "@repo/db/schema";
 
 import {
   seedCommunicationStatuses,
-  seedCommunicationTags,
   seedCommunicationTemplates,
 } from "./communication-definitions";
 import type { SeedCustomerDefinition } from "./customer-definitions";
-import { readSeedTagId, resolveSeedTags, seedId } from "./seed-ids";
-
-export async function seedCommunicationTagIds(tx: DatabaseTransaction) {
-  const communicationTagValues = seedCommunicationTags.map((name, index) => ({
-    id: seedId("communicationTag", index + 1),
-    name,
-  }));
-  await tx
-    .insert(communicationTag)
-    .values(communicationTagValues)
-    .onConflictDoNothing();
-  return resolveSeedTags(
-    seedCommunicationTags,
-    "communicationTag",
-    await tx
-      .select({
-        id: communicationTag.id,
-        normalizedName: communicationTag.normalizedName,
-      })
-      .from(communicationTag)
-      .where(
-        or(
-          inArray(
-            communicationTag.id,
-            communicationTagValues.map(({ id }) => id)
-          ),
-          inArray(communicationTag.normalizedName, seedCommunicationTags)
-        )
-      )
-  );
-}
+import { seedId } from "./seed-ids";
 
 export async function seedCustomerCommunications(
   tx: DatabaseTransaction,
@@ -55,7 +19,6 @@ export async function seedCustomerCommunications(
     colleagueUserId,
     createdAt,
     now,
-    communicationTags,
   }: {
     definition: SeedCustomerDefinition;
     offset: number;
@@ -65,7 +28,6 @@ export async function seedCustomerCommunications(
     colleagueUserId: string;
     createdAt: Date;
     now: number;
-    communicationTags: ReadonlyMap<string, string>;
   }
 ) {
   let createdCount = 0;
@@ -89,18 +51,7 @@ export async function seedCustomerCommunications(
       })
       .onConflictDoNothing({ target: communication.id })
       .returning({ id: communication.id });
-    if (createdCommunication) {
-      createdCount++;
-      await tx.insert(communicationTagAssignment).values(
-        [
-          seedCommunicationTags[step],
-          seedCommunicationTags[2 + (offset % 2)],
-        ].map((name) => ({
-          communicationId,
-          tagId: readSeedTagId(communicationTags, name),
-        }))
-      );
-    }
+    if (createdCommunication) createdCount++;
   }
 
   return createdCount;

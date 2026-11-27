@@ -6,6 +6,7 @@ import {
   customerChannelAssignment,
   customerTag,
   customerTagAssignment,
+  organization,
   product,
   user,
 } from "@repo/db/schema";
@@ -117,10 +118,21 @@ async function readAssignments(
         id: customerTag.id,
         name: customerTag.name,
         color: customerTag.color,
+        departmentId: customerTag.departmentId,
+        departmentName: organization.name,
+        canManage: sql<boolean>`true`,
       },
     })
     .from(customerTagAssignment)
-    .innerJoin(customerTag, eq(customerTag.id, customerTagAssignment.tagId))
+    .innerJoin(customer, eq(customer.id, customerTagAssignment.customerId))
+    .innerJoin(
+      customerTag,
+      and(
+        eq(customerTag.id, customerTagAssignment.tagId),
+        eq(customerTag.departmentId, customer.departmentId)
+      )
+    )
+    .leftJoin(organization, eq(organization.id, customerTag.departmentId))
     .where(inArray(customerTagAssignment.customerId, ids))
     .orderBy(asc(customerTag.normalizedName), asc(customerTag.id));
   const channelsByCustomer = groupByCustomer(channels);

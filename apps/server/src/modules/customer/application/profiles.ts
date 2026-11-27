@@ -27,6 +27,7 @@ import type {
   CustomerFilters,
   CustomerWriteInput,
 } from "../persistence/profiles";
+import { selectAssignableCustomerTagIds } from "../persistence/tags";
 import { createCustomerError } from "./errors";
 
 export type {
@@ -48,6 +49,18 @@ async function readCustomer(
   const record = await findCustomerProfile(tx, access, id, includeArchived);
   if (!record) throw createCustomerError("profileNotFound");
   return record;
+}
+
+async function requireAssignableTags(
+  tx: DatabaseTransaction,
+  departmentId: string,
+  tagIds?: string[]
+) {
+  if (!tagIds?.length) return;
+  const tags = await selectAssignableCustomerTagIds(tx, departmentId, tagIds);
+  if (tags.length !== tagIds.length) {
+    throw new ApplicationError(400, "所选标签不存在或不属于该客户所在部门。");
+  }
 }
 
 function translateWriteError(error: unknown): never {
@@ -178,6 +191,7 @@ export function createProfileUseCases(db: Database) {
             }
             const ownerUserId = input.ownerUserId ?? freshAccess.userId;
             await requireAssignableOwner(tx, departmentId, ownerUserId);
+            await requireAssignableTags(tx, departmentId, input.tagIds);
 
             const id = await insertCustomerProfile(
               tx,
@@ -254,6 +268,7 @@ export function createProfileUseCases(db: Database) {
               throw createCustomerError("profileNameExists");
             }
 
+            await requireAssignableTags(tx, record.departmentId, input.tagIds);
             await updateCustomerProfile(tx, freshAccess, id, input);
             return readCustomer(tx, freshAccess, id);
           });

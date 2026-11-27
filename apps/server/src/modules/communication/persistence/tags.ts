@@ -1,13 +1,20 @@
-import type { Database, DatabaseTransaction } from "@repo/db";
-import { communicationTag, communicationTagAssignment } from "@repo/db/schema";
-import { asc, count, eq, sql } from "drizzle-orm";
+import type { DatabaseTransaction } from "@repo/db";
+import {
+  communicationTag,
+  communicationTagAssignment,
+  organization,
+} from "@repo/db/schema";
+import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
 
 const tagFields = {
   id: communicationTag.id,
   name: communicationTag.name,
   color: communicationTag.color,
   createdAt: communicationTag.createdAt,
+  departmentId: communicationTag.departmentId,
 };
+
+const catalogFields = { ...tagFields, departmentName: organization.name };
 
 export async function selectTagPage(
   tx: DatabaseTransaction,
@@ -15,14 +22,21 @@ export async function selectTagPage(
     search,
     page,
     pageSize,
-  }: { search?: string; page: number; pageSize: number }
+    departmentId,
+  }: { search?: string; page: number; pageSize: number; departmentId?: string }
 ) {
-  const filter = search
-    ? sql`position(lower(${search}) in ${communicationTag.normalizedName}) > 0`
-    : undefined;
+  const filter = and(
+    departmentId === undefined
+      ? undefined
+      : eq(communicationTag.departmentId, departmentId),
+    search
+      ? sql`position(lower(${search}) in ${communicationTag.normalizedName}) > 0`
+      : undefined
+  );
   const tags = await tx
-    .select(tagFields)
+    .select(catalogFields)
     .from(communicationTag)
+    .leftJoin(organization, eq(organization.id, communicationTag.departmentId))
     .where(filter)
     .orderBy(asc(communicationTag.normalizedName), asc(communicationTag.id))
     .limit(pageSize)
@@ -36,29 +50,45 @@ export async function selectTagPage(
 
 export async function findTag(tx: DatabaseTransaction, id: string) {
   const [tag] = await tx
-    .select(tagFields)
+    .select(catalogFields)
     .from(communicationTag)
+    .leftJoin(organization, eq(organization.id, communicationTag.departmentId))
     .where(eq(communicationTag.id, id));
   return tag;
 }
 
 export async function insertTag(
-  db: Database,
-  name: string,
-  color: string | undefined
+  tx: DatabaseTransaction,
+  input: {
+    name: string;
+    color?: string;
+    departmentId: string;
+    createdByUserId: string;
+  }
 ) {
-  const [tag] = await db
+  const [tag] = await tx
     .insert(communicationTag)
-    .values({ name, color })
+    .values(input)
     .returning(tagFields);
   return tag;
 }
 
-export async function lockTag(tx: DatabaseTransaction, id: string) {
+export async function lockTag(
+  tx: DatabaseTransaction,
+  id: string,
+  departmentId?: string
+) {
   const [tag] = await tx
     .select(tagFields)
     .from(communicationTag)
-    .where(eq(communicationTag.id, id))
+    .where(
+      and(
+        eq(communicationTag.id, id),
+        departmentId === undefined
+          ? undefined
+          : eq(communicationTag.departmentId, departmentId)
+      )
+    )
     .for("update");
   return tag;
 }
@@ -86,4 +116,22 @@ export async function countTagReferences(tx: DatabaseTransaction, id: string) {
 
 export function deleteTag(tx: DatabaseTransaction, id: string) {
   return tx.delete(communicationTag).where(eq(communicationTag.id, id));
+}
+
+export function selectAssignableCommunicationTagIds(
+  tx: DatabaseTransaction,
+  departmentId: string,
+  ids: string[]
+) {
+  return tx
+    .select({ id: communicationTag.id })
+    .from(communicationTag)
+    .where(
+      and(
+        eq(communicationTag.departmentId, departmentId),
+        inArray(communicationTag.id, ids)
+      )
+    )
+    .orderBy(asc(communicationTag.id))
+    .for("key share");
 }

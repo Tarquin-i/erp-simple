@@ -5,6 +5,7 @@ import {
   formatDatabaseError,
   readLocalDatabaseConfig,
 } from "../local-database";
+import { ensureDepartmentTags } from "./department-tags";
 
 const memberKey = "member_organization_user_unique";
 const customerOwnerKey = "customer_department_owner_member_fk";
@@ -222,10 +223,12 @@ async function syncDatabase() {
     }
     console.log(`同步本地数据库 ${label}`);
     await client.begin(ensureCustomerGuards);
+    await client.begin(ensureDepartmentTags);
     await runDrizzlePush();
     if (!(await client.begin(ensureCustomerGuards))) {
       throw new Error("数据库缺少客户或部门成员表，无法校验客户归属约束。");
     }
+    await client.begin(ensureDepartmentTags);
   } finally {
     await client.end();
   }

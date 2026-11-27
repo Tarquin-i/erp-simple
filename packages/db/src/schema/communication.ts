@@ -16,7 +16,7 @@ import {
 
 import { user } from "./auth";
 import { customer } from "./customer";
-import { member } from "./organization";
+import { member, organization } from "./organization";
 
 export const communicationStatus = pgEnum("communication_status", [
   "pending",
@@ -105,7 +105,7 @@ export const communication = pgTable(
   ]
 );
 
-/** 沟通标签使用自己的字典，名称忽略首尾空格和大小写。 */
+/** 沟通标签按部门共享，名称忽略首尾空格和大小写。 */
 export const communicationTag = pgTable(
   "communication_tag",
   {
@@ -115,14 +115,23 @@ export const communicationTag = pgTable(
       .generatedAlwaysAs(sql`lower(btrim((name)::text))`)
       .notNull(),
     color: varchar("color", { length: 7 }).default("#111111").notNull(),
+    // 只有无法确定归属的旧标签保留 NULL。
+    departmentId: text("department_id").references(() => organization.id, {
+      onDelete: "restrict",
+    }),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    uniqueIndex("communication_tag_normalized_name_unique").on(
+    uniqueIndex("communication_tag_department_normalized_name_unique").on(
+      table.departmentId,
       table.normalizedName
     ),
+    index("communication_tag_created_by_user_id_idx").on(table.createdByUserId),
     check(
       "communication_tag_name_nonempty",
       sql`${table.normalizedName} ~ '[^[:space:]]'`

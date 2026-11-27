@@ -40,18 +40,14 @@ const customerErrors = {
     code: "tag_name_exists",
     message: "标签名称已存在。",
   },
-  tagColorForbidden: {
-    status: 403,
-    message: "仅公司管理员可以修改共享标签颜色。",
-  },
   tagColorConflict: {
     status: 409,
     code: "tag_color_conflict",
     message: "标签颜色已被更新，请查看当前颜色后再保存。",
   },
-  tagManagementForbidden: {
+  tagDepartmentForbidden: {
     status: 403,
-    message: "仅公司管理员可以编辑或删除共享标签。",
+    message: "只能访问当前所属部门的标签。",
   },
   tagConflict: {
     status: 409,

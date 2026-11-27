@@ -26,6 +26,7 @@ import { lockCompanyAdminInitialization } from "../modules/identity";
 import { seedAccounts } from "./seed/account-definitions";
 import { seedDevelopmentAccounts } from "./seed/accounts";
 import { seedCustomers } from "./seed/customers";
+import { seedDepartmentTags } from "./seed/department-tags";
 import { seedPayouts } from "./seed/payouts";
 
 async function seedLocalData() {
@@ -94,6 +95,7 @@ async function seedLocalData() {
       return {
         createdAccounts,
         ...business,
+        ...(await seedDepartmentTags(tx, departmentIds)),
         createdPayouts: await seedPayouts(tx),
       };
     });
@@ -118,6 +120,8 @@ try {
   const {
     createdAccounts,
     createdChannels,
+    createdCustomerTags,
+    createdCommunicationTags,
     createdCustomers,
     createdCommunications,
     createdAddresses,
@@ -125,7 +129,7 @@ try {
     createdPayouts,
   } = await seedLocalData();
   console.log(
-    `本地种子已就绪。新增账号 ${createdAccounts} 个，保留已有账号 ${seedAccounts.length - createdAccounts} 个，新增客户渠道 ${createdChannels} 项，客户 ${createdCustomers} 个，沟通 ${createdCommunications} 条，地址 ${createdAddresses} 条，产品 ${createdProducts} 条，奖表 ${createdPayouts} 份。`
+    `本地种子已就绪。新增账号 ${createdAccounts} 个，保留已有账号 ${seedAccounts.length - createdAccounts} 个，新增客户渠道 ${createdChannels} 项，客户标签 ${createdCustomerTags} 项，沟通标签 ${createdCommunicationTags} 项，客户 ${createdCustomers} 个，沟通 ${createdCommunications} 条，地址 ${createdAddresses} 条，产品 ${createdProducts} 条，奖表 ${createdPayouts} 份。`
   );
 } catch (error) {
   console.error(formatDatabaseError(error));

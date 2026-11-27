@@ -8,7 +8,6 @@ import {
   readUuid,
 } from "../../../http/request-input";
 import type { RecordAccessEnv } from "../../identity/http/record-access-context";
-import { requireTagManagementAccess } from "../application/tags";
 import type { CommunicationModule } from "../module";
 
 function readTagColor(value: unknown, label = "标签颜色") {
@@ -29,14 +28,24 @@ export function createCommunicationTagRoutes(
       search: rawSearch,
       page: rawPage,
       pageSize: rawPageSize,
+      departmentId: requestedDepartment,
     } = c.req.query();
     const page = readPositiveInteger(rawPage, "页码", 1, 1_000_000);
     const pageSize = readPositiveInteger(rawPageSize, "每页条数", 20, 100);
     const search = rawSearch?.trim()
       ? readString(rawSearch, "标签搜索词", 64)
       : undefined;
+    const departmentId =
+      requestedDepartment === undefined
+        ? undefined
+        : readString(requestedDepartment, "部门 ID", 128);
     return c.json(
-      await tags.list(c.get("recordAccess"), { search, page, pageSize })
+      await tags.list(c.get("recordAccess"), {
+        search,
+        page,
+        pageSize,
+        departmentId,
+      })
     );
   });
 
@@ -47,14 +56,12 @@ export function createCommunicationTagRoutes(
 
   routes.get("/tags/:tagId/usage", async (c) => {
     const access = c.get("recordAccess");
-    requireTagManagementAccess(access);
     const id = readUuid(c.req.param("tagId"), "标签 ID");
     return c.json(await tags.usage(access, id));
   });
 
   routes.patch("/tags/:tagId", async (c) => {
     const access = c.get("recordAccess");
-    requireTagManagementAccess(access, true);
     const id = readUuid(c.req.param("tagId"), "标签 ID");
     const body = await readObject(c, [
       "color",
@@ -82,7 +89,6 @@ export function createCommunicationTagRoutes(
 
   routes.delete("/tags/:tagId", async (c) => {
     const access = c.get("recordAccess");
-    requireTagManagementAccess(access);
     const id = readUuid(c.req.param("tagId"), "标签 ID");
     const body = await readObject(c, ["expectedName", "expectedColor"]);
     const expectedName = readString(body.expectedName, "原标签名称", 64);
@@ -92,11 +98,24 @@ export function createCommunicationTagRoutes(
   });
 
   routes.post("/tags", async (c) => {
-    const body = await readObject(c, ["name", "color"]);
+    const body = await readObject(c, ["name", "color", "departmentId"]);
     const name = readString(body.name, "标签名称", 64);
     const color =
       body.color === undefined ? undefined : readTagColor(body.color);
-    return c.json({ tag: await tags.create(name, color) }, 201);
+    const departmentId =
+      body.departmentId === undefined
+        ? undefined
+        : readString(body.departmentId, "部门 ID", 128);
+    return c.json(
+      {
+        tag: await tags.create(c.get("recordAccess"), {
+          name,
+          color,
+          departmentId,
+        }),
+      },
+      201
+    );
   });
 
   return routes;

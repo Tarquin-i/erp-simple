@@ -5,27 +5,21 @@ import {
   customerChannelAssignment,
   customerContact,
   customerContactMethod,
-  customerTag,
-  customerTagAssignment,
   member,
   user,
 } from "@repo/db/schema";
-import { eq, inArray, or } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import type { DepartmentKey } from "./account-definitions";
 import { seedCustomerAddresses } from "./addresses";
-import {
-  seedCommunicationTagIds,
-  seedCustomerCommunications,
-} from "./communications";
+import { seedCustomerCommunications } from "./communications";
 import {
   createSeedContactMethods,
   seedCustomerChannels,
   seedCustomerDefinitions,
-  seedCustomerTags,
 } from "./customer-definitions";
 import { seedCustomerProducts } from "./products";
-import { readSeedTagId, resolveSeedTags, seedId } from "./seed-ids";
+import { seedId } from "./seed-ids";
 
 export async function seedCustomers(
   tx: DatabaseTransaction,
@@ -51,32 +45,6 @@ export async function seedCustomers(
   const ownerByLogin = new Map(
     owners.map((row) => [row.email.split("@")[0], row])
   );
-  const customerTagValues = seedCustomerTags.map((name, index) => ({
-    id: seedId("customerTag", index + 1),
-    name,
-  }));
-  await tx.insert(customerTag).values(customerTagValues).onConflictDoNothing();
-  const customerTags = resolveSeedTags(
-    seedCustomerTags,
-    "customerTag",
-    await tx
-      .select({
-        id: customerTag.id,
-        normalizedName: customerTag.normalizedName,
-      })
-      .from(customerTag)
-      .where(
-        or(
-          inArray(
-            customerTag.id,
-            customerTagValues.map(({ id }) => id)
-          ),
-          inArray(customerTag.normalizedName, seedCustomerTags)
-        )
-      )
-  );
-  const communicationTags = await seedCommunicationTagIds(tx);
-
   const now = Date.now();
   let createdCustomers = 0;
   let createdCommunications = 0;
@@ -150,15 +118,6 @@ export async function seedCustomers(
             : ["kingwin_international_station", "kingwin_alibaba"]
           ).map((channelCode) => ({ customerId, channelCode }))
         );
-      await tx.insert(customerTagAssignment).values(
-        [
-          seedCustomerTags[offset % seedCustomerTags.length],
-          seedCustomerTags[(offset + 1) % seedCustomerTags.length],
-        ].map((name) => ({
-          customerId,
-          tagId: readSeedTagId(customerTags, name),
-        }))
-      );
       const contactId = seedId("contact", index);
       await tx
         .insert(customerContact)
@@ -182,7 +141,6 @@ export async function seedCustomers(
       colleagueUserId: colleague.id,
       createdAt,
       now,
-      communicationTags,
     });
   }
   return {

@@ -3,9 +3,11 @@ import type { Database } from "@repo/db";
 
 import { ApplicationError } from "../../../errors";
 import {
+  lockDepartment,
   readAccountRecordAccess,
   withRecordReadSnapshot,
 } from "../../organization";
+import type { AccountRecordAccess } from "../../organization";
 import {
   countCustomerTagReferences,
   deleteCustomerTag,
@@ -22,9 +24,43 @@ type TagEdit = { color: string; expectedColor: string } & (
   | { name?: undefined; expectedName?: undefined }
 );
 
+type TagRow = Awaited<ReturnType<typeof lockCustomerTag>> & {
+  departmentName?: string | null;
+};
+
+function presentTag(
+  { id, name, color, createdAt, departmentId, departmentName }: TagRow,
+  access: AccountRecordAccess
+) {
+  if (access.scope !== "company" && access.departmentId !== departmentId) {
+    throw createCustomerError("tagNotFound");
+  }
+  return {
+    id,
+    name,
+    color,
+    createdAt,
+    departmentId,
+    departmentName,
+    canManage: true,
+  };
+}
+
+function resolveDepartment(access: AccountRecordAccess, requested?: string) {
+  if (access.scope === "company") return requested;
+  if (requested !== undefined && requested !== access.departmentId) {
+    throw createCustomerError("tagDepartmentForbidden");
+  }
+  return access.departmentId;
+}
+
 function translateTagNameError(error: unknown): never {
   if (
-    isConstraintError(error, "23505", "customer_tag_normalized_name_unique")
+    isConstraintError(
+      error,
+      "23505",
+      "customer_tag_department_normalized_name_unique"
+    )
   ) {
     throw createCustomerError("tagNameExists");
   }
@@ -33,45 +69,82 @@ function translateTagNameError(error: unknown): never {
 
 export function createTagUseCases(db: Database) {
   return {
-    list: (input: { page: number; pageSize: number; search?: string }) =>
-      listCustomerTags(db, input),
-    async get(id: string) {
-      const tag = await findCustomerTag(db, id);
-      if (!tag) throw createCustomerError("tagNotFound");
-      return tag;
+    list(userId: string, input: Parameters<typeof listCustomerTags>[1]) {
+      return withRecordReadSnapshot(
+        userId,
+        async (tx, access) => {
+          const page = await listCustomerTags(tx, {
+            ...input,
+            departmentId: resolveDepartment(access, input.departmentId),
+          });
+          return {
+            ...page,
+            tags: page.tags.map((tag) => presentTag(tag, access)),
+          };
+        },
+        db
+      );
+    },
+    get(userId: string, id: string) {
+      return withRecordReadSnapshot(
+        userId,
+        async (tx, access) => {
+          const tag = await findCustomerTag(tx, id);
+          if (!tag) throw createCustomerError("tagNotFound");
+          return presentTag(tag, access);
+        },
+        db
+      );
     },
     usage(userId: string, id: string) {
       return withRecordReadSnapshot(
         userId,
         async (tx, access) => {
-          if (access.scope !== "company") {
-            throw createCustomerError("tagManagementForbidden");
-          }
-          if (!(await findCustomerTag(tx, id))) {
-            throw createCustomerError("tagNotFound");
-          }
+          const tag = await findCustomerTag(tx, id);
+          if (!tag) throw createCustomerError("tagNotFound");
+          presentTag(tag, access);
           return { references: await countCustomerTagReferences(tx, id) };
         },
         db
       );
     },
-    create(name: string, color: string | undefined) {
-      return insertCustomerTag(db, name, color).catch(translateTagNameError);
+    create(
+      access: AccountRecordAccess,
+      input: { name: string; color?: string; departmentId?: string }
+    ) {
+      const departmentId = resolveDepartment(access, input.departmentId);
+      if (departmentId === undefined) {
+        throw new ApplicationError(400, "请选择标签所属部门。");
+      }
+      return db
+        .transaction(async (tx) => {
+          await lockDepartment(tx, departmentId, "share");
+          const freshAccess = await readAccountRecordAccess(tx, access.userId);
+          resolveDepartment(freshAccess, departmentId);
+          const tag = await insertCustomerTag(tx, {
+            name: input.name,
+            color: input.color,
+            departmentId,
+            createdByUserId: freshAccess.userId,
+          });
+          return presentTag(tag, freshAccess);
+        })
+        .catch(translateTagNameError);
     },
-    update(userId: string, id: string, input: TagEdit) {
+    update(access: AccountRecordAccess, id: string, input: TagEdit) {
       const { color, expectedColor, name, expectedName } = input;
       const colorOnly = name === undefined;
       return db
         .transaction(async (tx) => {
-          const access = await readAccountRecordAccess(tx, userId);
-          if (access.scope !== "company") {
-            throw createCustomerError(
-              colorOnly ? "tagColorForbidden" : "tagManagementForbidden"
-            );
-          }
-
-          const current = await lockCustomerTag(tx, id);
+          const current = await lockCustomerTag(
+            tx,
+            id,
+            resolveDepartment(access)
+          );
           if (!current) throw createCustomerError("tagNotFound");
+
+          const freshAccess = await readAccountRecordAccess(tx, access.userId);
+          const existingTag = presentTag(current, freshAccess);
 
           const currentColor = current.color.toLowerCase();
           const currentName = current.name.trim();
@@ -80,7 +153,7 @@ export function createTagUseCases(db: Database) {
             currentColor === color.toLowerCase() &&
             (colorOnly || currentName === name)
           ) {
-            return current;
+            return existingTag;
           }
           if (
             currentColor !== expectedColor.toLowerCase() ||
@@ -88,34 +161,40 @@ export function createTagUseCases(db: Database) {
           ) {
             throw createCustomerError(
               colorOnly ? "tagColorConflict" : "tagConflict",
-              current
+              existingTag
             );
           }
 
-          return updateCustomerTag(tx, id, { name, color });
+          return presentTag(
+            await updateCustomerTag(tx, id, { name, color }),
+            freshAccess
+          );
         })
         .catch(translateTagNameError);
     },
     remove(input: {
-      userId: string;
+      access: AccountRecordAccess;
       id: string;
       expectedName: string;
       expectedColor: string;
     }) {
-      const { userId, id, expectedName, expectedColor } = input;
+      const { access, id, expectedName, expectedColor } = input;
       return db.transaction(async (tx) => {
-        const access = await readAccountRecordAccess(tx, userId);
-        if (access.scope !== "company") {
-          throw createCustomerError("tagManagementForbidden");
-        }
-
-        const current = await lockCustomerTag(tx, id);
+        const current = await lockCustomerTag(
+          tx,
+          id,
+          resolveDepartment(access)
+        );
         if (!current) throw createCustomerError("tagNotFound");
+
+        const freshAccess = await readAccountRecordAccess(tx, access.userId);
+        const existingTag = presentTag(current, freshAccess);
+
         if (
           current.name.trim() !== expectedName ||
           current.color.toLowerCase() !== expectedColor.toLowerCase()
         ) {
-          throw createCustomerError("tagConflict", current);
+          throw createCustomerError("tagConflict", existingTag);
         }
 
         // 锁住标签后再查询关联，外键会等待此事务结束才允许新增引用。

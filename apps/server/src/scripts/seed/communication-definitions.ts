@@ -1,12 +1,5 @@
 import type { SeedCustomerDefinition } from "./customer-definitions";
 
-export const seedCommunicationTags = [
-  "需求确认",
-  "报价沟通",
-  "样品跟进",
-  "交期确认",
-];
-
 export const seedCommunicationStatuses = [
   "pending",
   "urgent",
