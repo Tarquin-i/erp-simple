@@ -58,8 +58,8 @@ export function CommunicationFormPending() {
       <div aria-hidden="true" className={formHeaderLayout}>
         <Skeleton className="h-8 w-35" />
         <div className="flex items-center gap-2">
-          <Skeleton className="h-10 w-[62px]" />
-          <Skeleton className="h-10 w-[86px]" />
+          <Skeleton className="h-10 w-15.5" />
+          <Skeleton className="h-10 w-21.5" />
         </div>
       </div>
       <div aria-hidden="true" className={formFieldsLayout}>
