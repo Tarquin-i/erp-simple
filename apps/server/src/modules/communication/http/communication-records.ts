@@ -19,6 +19,7 @@ const createFields = [
   "summary",
   "ownerUserId",
   "tagIds",
+  "status",
 ];
 const editableFields = ["title", "summary", "ownerUserId", "status", "tagIds"];
 
@@ -51,7 +52,7 @@ function readTagIds(value: unknown) {
 /**
  * 校验新建和编辑共用的字段，保留省略字段的语义。
  * @param body 已按操作校验字段白名单的请求体。
- * @returns 校验后的沟通内容、业务员和标签字段。
+ * @returns 校验后的沟通内容、业务员、标签和状态字段。
  * @throws 字段类型、长度或格式无效时抛出 HTTP 400。
  */
 function readCommunicationWrite(body: Record<string, unknown>) {
@@ -69,6 +70,7 @@ function readCommunicationWrite(body: Record<string, unknown>) {
         ? undefined
         : readString(body.ownerUserId, "业务员 ID", 128),
     tagIds: readTagIds(body.tagIds),
+    status: body.status === undefined ? undefined : readStatus(body.status),
   };
 }
 
@@ -187,10 +189,7 @@ export function createCommunicationRecordRoutes({
     const communication = await updateCommunication(
       c.get("recordAccess"),
       id,
-      {
-        ...readCommunicationWrite(body),
-        status: body.status === undefined ? undefined : readStatus(body.status),
-      },
+      readCommunicationWrite(body),
       readExpectedVersion(body.expectedVersion)
     );
     return c.json({ communication });

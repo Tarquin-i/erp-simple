@@ -113,7 +113,7 @@ async function writeCommunication<T>(
 
 /**
  * 计算已校验的新建请求指纹，忽略标签顺序及空标签列表的写法差异。
- * @param input 已校验客户、主题、内容、业务员和标签。
+ * @param input 已校验客户、主题、内容、业务员、标签和状态。
  * @returns 十六进制 SHA-256 摘要，用于核对重试时的原始内容。
  */
 function fingerprintCreation(input: CreateCommunicationInput) {
@@ -125,6 +125,8 @@ function fingerprintCreation(input: CreateCommunicationInput) {
         summary: input.summary,
         ownerUserId: input.ownerUserId ?? null,
         tagIds: input.tagIds?.toSorted() ?? [],
+        // 默认状态沿用旧指纹，允许发布前的提交继续重试。
+        status: input.status === "pending" ? undefined : input.status,
       })
     )
     .digest("hex");

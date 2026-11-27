@@ -52,13 +52,12 @@ export interface CreateCommunicationInput {
   summary: string;
   ownerUserId?: string;
   tagIds?: string[];
+  status?: CommunicationStatus;
 }
 
 export type UpdateCommunicationInput = Partial<
   Omit<CreateCommunicationInput, "customerId">
-> & {
-  status?: CommunicationStatus;
-};
+>;
 
 const listFields = {
   id: communication.id,
@@ -402,6 +401,7 @@ export async function insertCommunication(
       ownerUserId,
       title: input.title,
       summary: input.summary,
+      status: input.status,
     })
     .returning({ id: communication.id });
   await insertTags(tx, record.id, input.tagIds ?? []);
