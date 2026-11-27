@@ -152,7 +152,7 @@ export function ActiveFiltersMobileContainer({
     <div className="relative w-full overflow-x-hidden">
       {/* Left blur effect */}
       {showLeftBlur && (
-        <div className="absolute left-0 top-0 bottom-0 w-16 z-10 pointer-events-none bg-gradient-to-r from-background to-transparent animate-in fade-in-0" />
+        <div className="absolute left-0 top-0 bottom-0 w-16 z-10 pointer-events-none bg-linear-to-r from-background to-transparent animate-in fade-in-0" />
       )}
 
       {/* Scrollable container */}
@@ -166,7 +166,7 @@ export function ActiveFiltersMobileContainer({
 
       {/* Right blur effect */}
       {showRightBlur && (
-        <div className="absolute right-0 top-0 bottom-0 w-16 z-10 pointer-events-none bg-gradient-to-l from-background to-transparent animate-in fade-in-0 " />
+        <div className="absolute right-0 top-0 bottom-0 w-16 z-10 pointer-events-none bg-linear-to-l from-background to-transparent animate-in fade-in-0 " />
       )}
     </div>
   );

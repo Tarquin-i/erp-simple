@@ -92,8 +92,8 @@ export function ListFilterToolbar<TData>({
                 <div
                   className={cn(
                     "flex min-w-0 flex-1 flex-wrap gap-2 *:h-8 *:max-w-full",
-                    "[&_[data-filter-part=value]]:min-w-0 [&_[data-filter-part=value]]:max-w-49 [&_[data-filter-part=value]]:shrink [&_[data-filter-part=value]]:justify-start [&_[data-filter-part=value]]:overflow-hidden",
-                    "[&_[data-filter-part=value]>*]:min-w-0 [&_[data-filter-part=value-label]]:truncate"
+                    "**:data-[filter-part=value]:min-w-0 **:data-[filter-part=value]:max-w-49 **:data-[filter-part=value]:shrink **:data-[filter-part=value]:justify-start **:data-[filter-part=value]:overflow-hidden",
+                    "[&_[data-filter-part=value]>*]:min-w-0 **:data-[filter-part=value-label]:truncate"
                   )}
                 >
                   <ActiveFilters {...filterModel} actions={appliedActions} />

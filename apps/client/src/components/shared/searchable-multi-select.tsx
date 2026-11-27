@@ -342,7 +342,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
                 htmlFor={optionId}
                 className={cn(
                   formDropdownStyles.option,
-                  "w-full min-w-0 cursor-pointer gap-2 rounded-md pr-2 font-normal has-[[data-state=checked]]:bg-primary/5 hover:bg-accent focus-within:bg-accent"
+                  "w-full min-w-0 cursor-pointer gap-2 rounded-md pr-2 font-normal has-data-[state=checked]:bg-primary/5 hover:bg-accent focus-within:bg-accent"
                 )}
               >
                 <Checkbox
