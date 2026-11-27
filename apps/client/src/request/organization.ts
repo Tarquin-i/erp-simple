@@ -44,8 +44,8 @@ async function readResponse<T>(response: Response): Promise<T> {
 }
 
 /**
- * 查询当前登录账号的工作台身份、部门和最近一次入部申请。
- * @returns 当前账号的工作台信息。接口返回 HTTP 401 时返回 `null`。
+ * 查询当前登录账号的角色、部门和最近一次入部申请。
+ * @returns 当前账号的组织信息。接口返回 HTTP 401 时返回 `null`。
  * @throws 网络请求失败、收到其他 HTTP 错误或响应解析失败时抛出异常，供路由显示加载失败。
  */
 export async function getViewer(): Promise<Viewer | null> {

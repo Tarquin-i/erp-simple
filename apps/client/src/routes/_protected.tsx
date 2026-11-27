@@ -23,7 +23,7 @@ import { getViewer } from "@/request/organization";
 
 export const Route = createFileRoute("/_protected")({
   beforeLoad: async () => {
-    // 401 进入登录页，已登录但未取得工作台访问资格的账号进入入部页。
+    // 401 进入登录页，已登录但未获业务访问权限的账号进入入部页。
     // 其他请求错误交给错误页面重试，通过检查后把 viewer 提供给子路由。
     const viewer = await getViewer();
     if (!viewer) {
@@ -66,7 +66,7 @@ function SessionPending() {
   return (
     <main className="grid min-h-svh place-items-center px-6">
       <p className="text-sm text-muted-foreground" role="status">
-        正在检查工作台权限…
+        正在检查账号权限…
       </p>
     </main>
   );
@@ -78,7 +78,7 @@ function SessionError() {
   return (
     <main className="grid min-h-svh place-items-center px-6">
       <div className="space-y-4 text-center">
-        <h1 className="text-xl font-semibold">暂时无法检查工作台权限</h1>
+        <h1 className="text-xl font-semibold">暂时无法检查账号权限</h1>
         <Button onClick={() => void router.invalidate()}>重试</Button>
       </div>
     </main>

@@ -3,7 +3,6 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   ContactRound,
-  LayoutDashboard,
   type LucideIcon,
   MapPin,
   MessagesSquare,
@@ -18,7 +17,6 @@ type RouteItem = {
   label: string;
   path: FileRouteTypes["to"];
   icon: LucideIcon;
-  exact?: boolean;
   role?: Viewer["role"];
 };
 
@@ -28,7 +26,6 @@ type RouteGroup = {
 };
 
 export const ACCOUNT_ROUTES: RouteItem[] = [
-  { label: "工作台", path: "/", icon: LayoutDashboard, exact: true },
   {
     label: "部门管理",
     path: "/department-management",

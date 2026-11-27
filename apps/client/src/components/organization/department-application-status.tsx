@@ -24,7 +24,7 @@ export function DepartmentApplicationStatus({
           <dd className="mt-1 font-medium wrap-anywhere">{departmentName}</dd>
         </dl>
         <p className="text-sm text-muted-foreground">
-          {checked ? "申请仍在等待审批。" : "审批通过后即可进入工作台。"}
+          {checked ? "申请仍在等待审批。" : "审批通过后即可进入客户列表。"}
         </p>
       </div>
       <Button

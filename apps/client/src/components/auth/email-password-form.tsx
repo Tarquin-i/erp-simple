@@ -22,7 +22,7 @@ export function EmailPasswordForm({ mode }: { mode: "login" | "register" }) {
   const title = isRegister ? "注册" : "登录";
 
   /**
-   * 提交邮箱密码。登录成功进入工作台路由，注册成功进入入部页。
+   * 提交邮箱密码。登录进入客户列表，注册进入入部页。
    * @param event 登录或注册表单的提交事件。
    * @returns 提交和跳转处理结束后完成。接口错误或请求失败会显示在表单内。
    */
@@ -55,7 +55,7 @@ export function EmailPasswordForm({ mode }: { mode: "login" | "register" }) {
       }
 
       await navigate({
-        to: isRegister ? "/department-access" : "/",
+        to: isRegister ? "/department-access" : "/customers",
         replace: true,
       });
     } catch {

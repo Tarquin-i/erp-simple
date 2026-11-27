@@ -42,6 +42,9 @@ export function AppSidebar({
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const displayName = account.name.trim() || account.email;
+  const accountRoutes = ACCOUNT_ROUTES.filter(
+    (item) => !item.role || item.role === role
+  );
 
   async function handleSignOut() {
     setIsSigningOut(true);
@@ -78,21 +81,21 @@ export function AppSidebar({
                 <SidebarMenu className="gap-0.5">
                   {group.items
                     .filter((item) => !item.role || item.role === role)
-                    .map(({ label, path, icon: Icon, exact }) => (
+                    .map(({ label, path, icon: Icon }) => (
                       <SidebarMenuItem key={path}>
                         <SidebarMenuButton
                           asChild
                           isActive={Boolean(
                             matchRoute({
                               to: path,
-                              fuzzy: !exact,
+                              fuzzy: true,
                               includeSearch: false,
                             })
                           )}
                         >
                           <Link
                             to={path}
-                            activeOptions={{ exact, includeSearch: false }}
+                            activeOptions={{ includeSearch: false }}
                             onClick={(event) => {
                               if (
                                 isMobile &&
@@ -169,29 +172,31 @@ export function AppSidebar({
                   {account.email}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  {ACCOUNT_ROUTES.filter(
-                    (item) => !item.role || item.role === role
-                  ).map(({ label, path, icon: Icon, exact }) => (
-                    <DropdownMenuItem
-                      asChild
-                      className="min-h-9 cursor-pointer px-2 aria-[current=page]:bg-accent"
-                      key={path}
-                      onSelect={() => {
-                        if (isMobile) setOpenMobile(false);
-                      }}
-                    >
-                      <Link
-                        to={path}
-                        activeOptions={{ exact, includeSearch: false }}
-                      >
-                        <Icon aria-hidden="true" />
-                        {label}
-                      </Link>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
+                {accountRoutes.length > 0 && (
+                  <>
+                    <DropdownMenuGroup>
+                      {accountRoutes.map(({ label, path, icon: Icon }) => (
+                        <DropdownMenuItem
+                          asChild
+                          className="min-h-9 cursor-pointer px-2 aria-[current=page]:bg-accent"
+                          key={path}
+                          onSelect={() => {
+                            if (isMobile) setOpenMobile(false);
+                          }}
+                        >
+                          <Link
+                            to={path}
+                            activeOptions={{ includeSearch: false }}
+                          >
+                            <Icon aria-hidden="true" />
+                            {label}
+                          </Link>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem
                   className="min-h-9 cursor-pointer px-2"
                   onSelect={() => void handleSignOut()}

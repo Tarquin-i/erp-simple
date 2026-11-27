@@ -26,7 +26,7 @@ async function requireUnassignedAccount(
 ) {
   const account = await selectApplicantMembership(tx, userId);
   if (account?.memberId || account?.adminId) {
-    fail(409, "该账号已有工作台权限。");
+    fail(409, "该账号已加入部门或拥有公司管理权限。");
   }
 }
 

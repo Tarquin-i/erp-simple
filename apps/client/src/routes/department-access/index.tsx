@@ -10,7 +10,8 @@ export const Route = createFileRoute("/department-access/")({
   beforeLoad: async () => {
     const viewer = await getViewer();
     if (!viewer) throw redirect({ to: "/login", replace: true });
-    if (canEnterWorkspace(viewer)) throw redirect({ to: "/", replace: true });
+    if (canEnterWorkspace(viewer))
+      throw redirect({ to: "/customers", replace: true });
     return { viewer };
   },
   // 待审时只展示申请状态，等能再次选择部门时才请求部门列表。

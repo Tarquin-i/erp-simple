@@ -7,7 +7,7 @@ import { listDepartmentRosters } from "@/request/organization";
 export const Route = createFileRoute("/_protected/department-management/")({
   beforeLoad: ({ context }) => {
     if (context.viewer.role !== "company-admin")
-      throw redirect({ to: "/", replace: true });
+      throw redirect({ to: "/customers", replace: true });
   },
   loader: listDepartmentRosters,
   component: DepartmentManagementRoute,

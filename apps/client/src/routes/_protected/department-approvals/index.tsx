@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_protected/department-approvals/")({
   beforeLoad: ({ context }) => {
     const { viewer } = context;
     if (viewer.role !== "supervisor" || !viewer.department)
-      throw redirect({ to: "/", replace: true });
+      throw redirect({ to: "/customers", replace: true });
     return { department: viewer.department };
   },
   loader: listPendingApplications,
