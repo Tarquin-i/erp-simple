@@ -43,7 +43,7 @@ export function DepartmentApplicationForm({
             {departments.map(({ id, name }) => (
               <FieldLabel
                 key={id}
-                className="min-h-11 w-full cursor-pointer gap-3 rounded-lg border border-input px-3 py-2 leading-5 transition-colors hover:bg-muted/50 has-[:checked]:border-ring has-[:checked]:bg-muted has-[:disabled]:cursor-default focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
+                className="min-h-11 w-full cursor-pointer gap-3 rounded-lg border border-input px-3 py-2 leading-5 transition-colors hover:bg-muted/50 has-checked:border-ring has-checked:bg-muted has-disabled:cursor-default focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
               >
                 <input
                   type="radio"
