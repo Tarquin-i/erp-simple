@@ -118,7 +118,7 @@ function TabsList({
       className={cn(
         tabsListVariants({ variant }),
         animated &&
-          "relative isolate data-[animated-indicator]:[&>[data-slot=tabs-trigger]]:z-10 data-[animated-indicator]:[&>[data-slot=tabs-trigger][data-state=active]]:bg-transparent data-[animated-indicator]:[&>[data-slot=tabs-trigger][data-state=active]]:shadow-none dark:data-[animated-indicator]:[&>[data-slot=tabs-trigger][data-state=active]]:border-transparent",
+          "relative isolate data-animated-indicator:*:data-[slot=tabs-trigger]:z-10 data-animated-indicator:[&>[data-slot=tabs-trigger][data-state=active]]:bg-transparent data-animated-indicator:[&>[data-slot=tabs-trigger][data-state=active]]:shadow-none dark:data-animated-indicator:[&>[data-slot=tabs-trigger][data-state=active]]:border-transparent",
         className
       )}
       {...props}
@@ -130,7 +130,7 @@ function TabsList({
             ref={indicatorRef}
             aria-hidden="true"
             data-slot="tabs-indicator"
-            className="pointer-events-none invisible absolute top-0 left-0 rounded-md border border-transparent bg-background shadow-sm group-data-[animated-indicator]/tabs-list:visible motion-safe:group-data-[animated-indicator]/tabs-list:transition-[transform,width,height] motion-safe:duration-150 motion-safe:ease-out dark:border-input dark:bg-input/30"
+            className="pointer-events-none invisible absolute top-0 left-0 rounded-md border border-transparent bg-background shadow-sm group-data-animated-indicator/tabs-list:visible motion-safe:group-data-animated-indicator/tabs-list:transition-[transform,width,height] motion-safe:duration-150 motion-safe:ease-out dark:border-input dark:bg-input/30"
           />
         </>
       ) : (
