@@ -14,11 +14,11 @@ import { CustomerCommunicationTab } from "@/components/communication/list";
 import { DetailField } from "@/components/shared/detail-field";
 import { ExpandableText } from "@/components/shared/expandable-text";
 import { TagBadge } from "@/components/shared/tag-badge";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Customer } from "@/request/customers";
 
+import { CustomerChannelIcon } from "../channel-icon";
 import { readListQueryFromState } from "../list-query";
 import { CustomerContacts } from "./contacts/contacts-tab";
 import { isCustomerDetailTab, relatedTabs } from "./tabs";
@@ -126,7 +126,11 @@ export function CustomerDetail({
           <div className="flex flex-wrap gap-1.5">
             {customer.channels.length ? (
               customer.channels.map((channel) => (
-                <Badge key={channel.code}>{channel.name}</Badge>
+                <TagBadge
+                  key={channel.code}
+                  name={channel.name}
+                  icon={<CustomerChannelIcon />}
+                />
               ))
             ) : (
               <span className="text-muted-foreground">—</span>

@@ -38,6 +38,7 @@ import type {
   CustomerWriteInput,
 } from "@/request/customers";
 
+import { CustomerChannelIcon } from "../channel-icon";
 import { readListQueryFromState } from "../list-query";
 import { conflictDifferences, isCustomerSnapshot } from "./edit-conflict";
 import { customerDraft, getChangedFields } from "./form-payload";
@@ -344,6 +345,7 @@ export function CustomerForm({
           <FixedMultiSelectField
             id="customer-form-channels"
             label="渠道"
+            optionIcon={<CustomerChannelIcon />}
             emptyMessage="暂无渠道"
             value={draft.channels}
             items={channels.map(({ code, name }) => ({ id: code, name }))}

@@ -18,6 +18,7 @@ import { shouldOpenTableRow } from "@/lib/should-open-table-row";
 import { listCustomers } from "@/request/customers";
 import type { Customer, CustomerListQuery } from "@/request/customers";
 
+import { CustomerChannelIcon } from "../channel-icon";
 import { useCustomerListFilters } from "./filters";
 
 type CustomerPage = Awaited<ReturnType<typeof listCustomers>>;
@@ -130,7 +131,10 @@ export function CustomerList({
       cellClassName: "max-w-0",
       skeletonClassName: "h-4 w-16",
       renderCell: (customer) => (
-        <ListBadgeSummary items={customer.channels} showColors={false} />
+        <ListBadgeSummary
+          items={customer.channels}
+          icon={<CustomerChannelIcon />}
+        />
       ),
     },
     {
