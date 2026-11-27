@@ -1,11 +1,13 @@
+import type { ReactNode } from "react";
+
 import { TagBadge } from "./tag-badge";
 
 export function ListBadgeSummary({
   items,
-  showColors = true,
+  icon,
 }: {
   items: readonly { name: string; color?: string | null }[];
-  showColors?: boolean;
+  icon?: ReactNode;
 }) {
   const first = items[0];
   if (!first) return <span className="text-muted-foreground">—</span>;
@@ -17,7 +19,8 @@ export function ListBadgeSummary({
     >
       <TagBadge
         name={first.name}
-        color={showColors ? first.color : undefined}
+        color={first.color}
+        icon={icon}
         className="shrink"
       />
       {items.length > 1 && (

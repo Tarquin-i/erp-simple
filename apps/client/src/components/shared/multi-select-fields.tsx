@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import {
   AlertDialog,
@@ -39,7 +39,11 @@ export function FixedMultiSelectField({
   items,
   emptyMessage,
   ...props
-}: PickerProps & { items: PickerOption[]; emptyMessage: string }) {
+}: PickerProps & {
+  items: PickerOption[];
+  emptyMessage: string;
+  optionIcon?: ReactNode;
+}) {
   return (
     <Field className="min-w-0">
       <FieldLabel htmlFor={props.id} preventControlActivation>

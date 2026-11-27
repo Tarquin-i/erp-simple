@@ -77,6 +77,7 @@ type SearchableMultiSelectProps<Option extends MultiSelectOption> = {
   };
   isOptionDisabled?: (option: Option) => boolean;
   getOptionColor?: (option: Option) => string | undefined;
+  optionIcon?: ReactNode;
   onManageOption?: (option: Option, action: OptionAction) => void;
   isOptionManageable?: (option: Option) => boolean;
   onManageOptionUnavailable?: () => void;
@@ -101,6 +102,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
   search,
   isOptionDisabled,
   getOptionColor,
+  optionIcon,
   onManageOption,
   isOptionManageable,
   onManageOptionUnavailable,
@@ -305,14 +307,15 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
       <div className="pointer-events-none absolute inset-y-0 right-9 left-2.5 flex min-w-0 items-center gap-1">
         {visibleChips.map((option) => {
           const color = getOptionColor?.(option);
-          const showColor = hasVisibleTagColor(color);
+          const outline = Boolean(optionIcon) || hasVisibleTagColor(color);
+          const leading = optionIcon ?? <TagColorDot color={color} />;
           return (
             <Badge
               key={option.id}
-              variant={showColor ? "outline" : "default"}
+              variant={outline ? "outline" : "default"}
               className={cn(
                 "min-w-0 shrink pr-0",
-                showColor ? "gap-1" : "gap-0.5",
+                outline ? "gap-1" : "gap-0.5",
                 handlesOptionMenu && "pointer-events-auto"
               )}
               onContextMenu={
@@ -329,12 +332,12 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
                   onKeyDown={(event) => openMenuFromKeyboard(option, event)}
                   {...touchMenuHandlers(option)}
                 >
-                  <TagColorDot color={color} />
+                  {leading}
                   <span className="truncate">{option.name}</span>
                 </button>
               ) : (
                 <>
-                  <TagColorDot color={color} />
+                  {leading}
                   <span className="truncate">{option.name}</span>
                 </>
               )}
@@ -344,7 +347,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
                 size="icon-xs"
                 className={cn(
                   "pointer-events-auto size-4.5 rounded-full border-0 text-inherit opacity-80 hover:text-inherit hover:opacity-100",
-                  showColor
+                  outline
                     ? "hover:bg-muted focus-visible:ring-ring"
                     : "hover:bg-primary-foreground/15 focus-visible:ring-primary-foreground/70"
                 )}
@@ -408,7 +411,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
             }
             {...touchMenuHandlers(option)}
           >
-            <TagColorDot color={getOptionColor?.(option)} />
+            {optionIcon ?? <TagColorDot color={getOptionColor?.(option)} />}
             <span className="min-w-0 truncate">{option.name}</span>
           </ComboboxItem>
         )}
@@ -627,7 +630,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
                     else removeOption(option.id);
                   }}
                 />
-                <TagColorDot color={getOptionColor?.(option)} />
+                {optionIcon ?? <TagColorDot color={getOptionColor?.(option)} />}
                 <span className="min-w-0 truncate">{option.name}</span>
               </FieldLabel>
             );
