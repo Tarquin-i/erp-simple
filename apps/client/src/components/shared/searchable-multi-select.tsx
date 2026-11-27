@@ -273,7 +273,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
           <SelectSearchInput placeholder={search.placeholder} maxLength={64} />
           <ComboboxEmpty className="shrink-0">{emptyMessage}</ComboboxEmpty>
           {onEditOptionColor ? (
-            <div className="grid min-h-0 max-h-60 grid-cols-[minmax(0,1fr)_auto] overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+            <div className="grid min-h-0 max-h-60 grid-cols-[minmax(0,1fr)_auto] overflow-y-auto overscroll-contain scrollbar-thin">
               {optionsList}
               {/* 改色按钮与候选同列滚动，但在 listbox 外，可独立聚焦。 */}
               <div className="flex flex-col py-1 pr-1 empty:p-0">
@@ -329,7 +329,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
           formDropdownStyles.popup
         )}
       >
-        <div className="max-h-72 min-h-0 overflow-y-auto overscroll-contain p-1 [scrollbar-width:thin]">
+        <div className="max-h-72 min-h-0 overflow-y-auto overscroll-contain p-1 scrollbar-thin">
           {items.length === 0 && (
             <p className="px-2 py-1.5 text-muted-foreground">{emptyMessage}</p>
           )}

@@ -72,7 +72,7 @@ export function ListFilterToolbar<TData>({
       </ListToolbar>
       <div
         className={cn(
-          "grid pb-2 transition-[grid-template-rows,opacity] duration-[160ms] ease-out motion-reduce:transition-none",
+          "grid pb-2 transition-[grid-template-rows,opacity] duration-160 ease-out motion-reduce:transition-none",
           hasFilters
             ? "grid-rows-[1fr] opacity-100"
             : "grid-rows-[0fr] opacity-0"

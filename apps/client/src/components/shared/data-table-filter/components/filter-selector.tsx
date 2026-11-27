@@ -240,7 +240,7 @@ function FilterSelectorImpl<TData>({
         {trigger ?? (
           <Button
             variant="outline"
-            className={cn("h-7", hasFilters && "w-fit !px-2")}
+            className={cn("h-7", hasFilters && "w-fit px-2!")}
           >
             <FilterIcon className="size-4" />
             {!hasFilters && <span>{t("filter", locale)}</span>}
