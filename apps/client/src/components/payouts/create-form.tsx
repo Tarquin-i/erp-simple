@@ -150,7 +150,7 @@ export function CreatePayoutForm({
         {error && (
           <p
             role="alert"
-            className="break-words rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+            className="wrap-break-word rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive"
           >
             {error}
           </p>

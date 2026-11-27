@@ -42,7 +42,7 @@ type ProductLoad = { customerId: string; page: number } & (
 
 function CustomerProductTable({ children }: { children: ReactNode }) {
   return (
-    <Table className="min-w-[28rem] table-fixed border-b">
+    <Table className="min-w-md table-fixed border-b">
       <TableCaption className="sr-only">客户产品列表</TableCaption>
       <TableHeader>
         <TableRow className="hover:bg-transparent">

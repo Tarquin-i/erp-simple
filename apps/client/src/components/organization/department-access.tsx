@@ -91,7 +91,7 @@ export function DepartmentAccess({
           <>
             {rejected && (
               <p
-                className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive [overflow-wrap:anywhere]"
+                className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive wrap-anywhere"
                 role="status"
               >
                 加入 {application.department.name} 的申请未通过，请重新提交。

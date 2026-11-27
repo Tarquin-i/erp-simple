@@ -70,14 +70,14 @@ export function CommunicationFormPending() {
           ["owner", "w-10.5"],
         ].map(([field, labelWidth]) => (
           <Field key={field} className="min-w-0">
-            <div className="h-[1lh] text-sm leading-snug">
+            <div className="h-lh text-sm leading-snug">
               <Skeleton className={`h-3 ${labelWidth}`} />
             </div>
             <Skeleton className="h-8" />
           </Field>
         ))}
         <Field className="min-w-0 md:col-span-2">
-          <div className="h-[1lh] text-sm leading-snug">
+          <div className="h-lh text-sm leading-snug">
             <Skeleton className="h-3 w-21" />
           </div>
           <Skeleton className="h-36" />

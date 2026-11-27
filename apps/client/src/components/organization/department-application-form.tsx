@@ -54,7 +54,7 @@ export function DepartmentApplicationForm({
                   className="size-4 shrink-0 accent-primary"
                   required
                 />
-                <span className="min-w-0 [overflow-wrap:anywhere]">{name}</span>
+                <span className="min-w-0 wrap-anywhere">{name}</span>
               </FieldLabel>
             ))}
           </FieldGroup>

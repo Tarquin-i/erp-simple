@@ -21,9 +21,7 @@ export function DepartmentApplicationStatus({
       >
         <dl>
           <dt className="text-xs text-muted-foreground">申请部门</dt>
-          <dd className="mt-1 font-medium [overflow-wrap:anywhere]">
-            {departmentName}
-          </dd>
+          <dd className="mt-1 font-medium wrap-anywhere">{departmentName}</dd>
         </dl>
         <p className="text-sm text-muted-foreground">
           {checked ? "申请仍在等待审批。" : "审批通过后即可进入工作台。"}

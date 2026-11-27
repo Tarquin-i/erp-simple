@@ -42,9 +42,7 @@ function PendingApplicationItem({
   return (
     <li className="flex min-w-0 flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 space-y-1">
-        <p className="font-medium [overflow-wrap:anywhere]">
-          {application.name}
-        </p>
+        <p className="font-medium wrap-anywhere">{application.name}</p>
         <p className="break-all text-muted-foreground">{application.email}</p>
         <p className="text-xs text-muted-foreground">
           申请于{" "}
@@ -129,7 +127,7 @@ export function DepartmentApprovals({
       </h1>
       <Card aria-busy={busy}>
         <CardHeader>
-          <CardTitle className="min-w-0 [overflow-wrap:anywhere]">
+          <CardTitle className="min-w-0 wrap-anywhere">
             <h2>{department.name}</h2>
           </CardTitle>
           <CardDescription role="status">

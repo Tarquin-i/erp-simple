@@ -268,7 +268,7 @@ export function CustomerForm({
     <main className="flex-1 bg-background px-5 py-6 sm:px-7 lg:px-8">
       <form onSubmit={submit} className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <h1 className="min-w-0 text-2xl font-semibold tracking-tight break-words">
+          <h1 className="min-w-0 text-2xl font-semibold tracking-tight wrap-break-word">
             {isEdit ? "编辑客户" : "新建客户"}
           </h1>
           <div className="flex items-center gap-2">
@@ -467,8 +467,8 @@ export function CustomerFormPending() {
       >
         <Skeleton className="h-8 w-24" />
         <div className="flex items-center gap-2">
-          <Skeleton className="h-10 w-[3.875rem]" />
-          <Skeleton className="h-10 w-[5.375rem]" />
+          <Skeleton className="h-10 w-15.5" />
+          <Skeleton className="h-10 w-21.5" />
         </div>
       </div>
       <div aria-hidden="true" className="grid gap-x-5 gap-y-4 md:grid-cols-2">

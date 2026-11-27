@@ -12,7 +12,7 @@ function ToastMessages() {
     <Toast.Portal>
       <Toast.Viewport
         aria-label="通知"
-        className="pointer-events-none fixed right-4 bottom-4 left-4 z-[100001] flex max-h-[calc(100dvh-2rem)] flex-col-reverse gap-2 overflow-x-hidden overflow-y-auto p-1 sm:left-auto sm:w-80"
+        className="pointer-events-none fixed right-4 bottom-4 left-4 z-100001 flex max-h-[calc(100dvh-2rem)] flex-col-reverse gap-2 overflow-x-hidden overflow-y-auto p-1 sm:left-auto sm:w-80"
       >
         {toasts.map((toast) => (
           <Toast.Root
