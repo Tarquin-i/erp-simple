@@ -1,3 +1,5 @@
+import { readListPageSize } from "@/lib/list-page-size";
+
 declare module "@tanstack/react-router" {
   interface HistoryState {
     communicationEditFromDetail?: string;
@@ -32,6 +34,7 @@ export function readCommunicationPage(value: unknown) {
 export type CommunicationOrigin = {
   customerId?: string;
   communicationPage?: number;
+  communicationPageSize?: number;
 };
 
 /** 读取客户页签来源，供新建、详情和编辑之间保留返回位置。 */
@@ -43,6 +46,7 @@ export function readCommunicationOrigin(
     ? {
         customerId,
         communicationPage: readCommunicationPage(search.communicationPage),
+        communicationPageSize: readListPageSize(search.communicationPageSize),
       }
     : {};
 }

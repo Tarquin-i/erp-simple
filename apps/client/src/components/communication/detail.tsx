@@ -153,6 +153,7 @@ export function CommunicationDetail({
           search: {
             tab: "communication",
             communicationPage: origin.communicationPage,
+            communicationPageSize: origin.communicationPageSize,
           },
           state: { customerListQuery: readListQueryFromState(state) },
           replace: true,
@@ -244,6 +245,7 @@ export function CommunicationDetail({
                 search={{
                   tab: "communication",
                   communicationPage: origin.communicationPage,
+                  communicationPageSize: origin.communicationPageSize,
                 }}
                 state={{ customerListQuery: state.customerListQuery }}
               >

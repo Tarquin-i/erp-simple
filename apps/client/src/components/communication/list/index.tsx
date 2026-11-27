@@ -100,19 +100,27 @@ export function CustomerCommunicationTab({
   customerId: string;
   createActionSlot: HTMLDivElement | null;
 }) {
-  const { communicationPage } = customerDetailRoute.useSearch();
+  const { communicationPage, communicationPageSize } =
+    customerDetailRoute.useSearch();
   const navigate = customerDetailRoute.useNavigate();
   const query = useMemo(
-    () => ({ page: communicationPage }),
-    [communicationPage]
+    () => ({ page: communicationPage, pageSize: communicationPageSize }),
+    [communicationPage, communicationPageSize]
   );
   const updateQuery = useCallback(
     (update: QueryUpdater, replace?: boolean) =>
       void navigate({
-        search: (previous) => ({
-          ...previous,
-          communicationPage: update({ page: previous.communicationPage }).page,
-        }),
+        search: (previous) => {
+          const next = update({
+            page: previous.communicationPage,
+            pageSize: previous.communicationPageSize,
+          });
+          return {
+            ...previous,
+            communicationPage: next.page,
+            communicationPageSize: next.pageSize,
+          };
+        },
         state: (previous) => previous,
         replace,
         resetScroll: false,
@@ -165,7 +173,11 @@ export function CommunicationList({
     ? { customerListQuery: readListQueryFromState(previousState) }
     : { communicationListQuery: query };
   const origin = customerId
-    ? { customerId, communicationPage: query.page }
+    ? {
+        customerId,
+        communicationPage: query.page,
+        communicationPageSize: query.pageSize,
+      }
     : {};
   const customerView = Boolean(customerId);
   const columns = customerView ? customerColumns : defaultColumns;
@@ -472,15 +484,12 @@ export function CommunicationList({
               page: page > 1 ? page : undefined,
             }))
           }
-          onPageSizeChange={
-            customerView
-              ? undefined
-              : (size) =>
-                  onQueryChange((previous) => ({
-                    ...previous,
-                    page: undefined,
-                    pageSize: readListPageSize(size),
-                  }))
+          onPageSizeChange={(size) =>
+            onQueryChange((previous) => ({
+              ...previous,
+              page: undefined,
+              pageSize: readListPageSize(size),
+            }))
           }
         />
       )}

@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { readListPageSize } from "@/lib/list-page-size";
 import { CustomerApiError, getCustomer } from "@/request/customers";
 
 export const Route = createFileRoute("/_protected/customers/$customerId/")({
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/_protected/customers/$customerId/")({
   ): {
     tab?: CustomerDetailTab;
     communicationPage?: number;
+    communicationPageSize?: number;
     productPage?: number;
     productPageSize?: number;
   } => {
@@ -44,6 +46,10 @@ export const Route = createFileRoute("/_protected/customers/$customerId/")({
       communicationPage:
         tab === "communication"
           ? readCommunicationPage(search.communicationPage)
+          : undefined,
+      communicationPageSize:
+        tab === "communication"
+          ? readListPageSize(search.communicationPageSize)
           : undefined,
       productPage:
         tab === "products" ? readProductPage(search.productPage) : undefined,
