@@ -389,7 +389,7 @@ export function CommunicationForm({
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 px-4"
+                className={archiveInProgress ? "h-10 px-4" : undefined}
                 disabled={pending}
                 onClick={onCancel}
               >
@@ -397,7 +397,7 @@ export function CommunicationForm({
               </Button>
               <Button
                 type="submit"
-                className="h-10 gap-2 px-4"
+                className={archiveInProgress ? "h-10 gap-2 px-4" : "gap-2"}
                 aria-busy={pending}
                 disabled={cannotSave}
               >

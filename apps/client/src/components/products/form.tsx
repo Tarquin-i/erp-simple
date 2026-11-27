@@ -367,18 +367,12 @@ export function ProductForm({
             <Button
               type="button"
               variant="outline"
-              className="h-10 px-4"
               disabled={pending}
               onClick={onCancel}
             >
               取消
             </Button>
-            <Button
-              type="submit"
-              className="h-10 px-4"
-              disabled={locked}
-              aria-busy={pending}
-            >
+            <Button type="submit" disabled={locked} aria-busy={pending}>
               <Save aria-hidden="true" />
               {pending ? "正在保存…" : saveLabel}
             </Button>

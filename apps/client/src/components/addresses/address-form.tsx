@@ -691,7 +691,7 @@ function AddressForm({
           }}
         >
           <DialogContent
-            className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)] motion-reduce:animate-none! sm:max-w-2xl"
+            className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)] motion-reduce:animate-none!"
             ref={dialogContent}
             overlayClassName="motion-reduce:animate-none!"
             inert={!dialog.open}
