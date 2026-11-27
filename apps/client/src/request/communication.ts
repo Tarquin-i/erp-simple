@@ -11,6 +11,14 @@ export const communicationStatusLabels: Record<CommunicationStatus, string> = {
   completed: "已完结",
 };
 
+export function isCommunicationStatus(
+  value: unknown
+): value is CommunicationStatus {
+  return (
+    typeof value === "string" && Object.hasOwn(communicationStatusLabels, value)
+  );
+}
+
 export type CommunicationTag = {
   id: string;
   name: string;
@@ -148,8 +156,7 @@ export function isCommunicationSnapshot(
     Number.isInteger(record.version) &&
     record.version > 0 &&
     typeof record.canViewCustomer === "boolean" &&
-    typeof record.status === "string" &&
-    Object.hasOwn(communicationStatusLabels, record.status) &&
+    isCommunicationStatus(record.status) &&
     typeof record.title === "string" &&
     typeof record.summary === "string" &&
     typeof record.ownerUserId === "string" &&
@@ -178,10 +185,7 @@ export function getCommunication(id: string, signal?: AbortSignal) {
   );
 }
 
-export type CreateCommunicationInput = Omit<
-  CommunicationWriteInput,
-  "status"
-> & {
+export type CreateCommunicationInput = CommunicationWriteInput & {
   customerId: string;
   title: string;
   summary: string;

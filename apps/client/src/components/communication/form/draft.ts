@@ -1,7 +1,9 @@
 import type { PickerOption } from "@/components/shared/multi-select-fields";
 import { sameOptions } from "@/components/customers/form/form-payload";
+import { communicationStatusLabels } from "@/request/communication";
 import type {
   Communication,
+  CommunicationStatus,
   CommunicationWriteInput,
 } from "@/request/communication";
 import type { CustomerOwner } from "@/request/customers";
@@ -9,13 +11,12 @@ import type { CustomerOwner } from "@/request/customers";
 export type CommunicationDraft = {
   title: string;
   summary: string;
+  status: CommunicationStatus;
   owner?: CustomerOwner;
   tags: PickerOption[];
 };
 
-type EditableFields = Omit<CommunicationWriteInput, "status">;
-
-/** 从沟通记录生成表单数据。新建时使用默认业务员和空白内容。 */
+/** 从沟通记录生成表单数据。新建时默认待跟进。 */
 export function toDraft(
   record?: Communication,
   owner?: CustomerOwner
@@ -23,6 +24,7 @@ export function toDraft(
   return {
     title: record?.title ?? "",
     summary: record?.summary ?? "",
+    status: record?.status ?? "pending",
     owner: record ? { id: record.ownerUserId, name: record.ownerName } : owner,
     tags: record?.tags ?? [],
   };
@@ -32,12 +34,13 @@ export function toDraft(
 export function getChanges(
   before: CommunicationDraft,
   after: CommunicationDraft
-): EditableFields {
+): CommunicationWriteInput {
   const title = after.title.trim();
   const summary = after.summary.trim();
   return {
     ...(title !== before.title.trim() ? { title } : {}),
     ...(summary !== before.summary.trim() ? { summary } : {}),
+    ...(after.status !== before.status ? { status: after.status } : {}),
     ...(after.owner && after.owner.id !== before.owner?.id
       ? { ownerUserId: after.owner.id }
       : {}),
@@ -51,11 +54,12 @@ export function getChanges(
 export function rebaseDraft(
   latest: CommunicationDraft,
   draft: CommunicationDraft,
-  changes: EditableFields
+  changes: CommunicationWriteInput
 ) {
   return {
     title: changes.title === undefined ? latest.title : draft.title,
     summary: changes.summary === undefined ? latest.summary : draft.summary,
+    status: changes.status === undefined ? latest.status : draft.status,
     owner: changes.ownerUserId === undefined ? latest.owner : draft.owner,
     tags: changes.tagIds === undefined ? latest.tags : draft.tags,
   };
@@ -86,6 +90,15 @@ export function getDifferences(
             label: "业务员",
             current: latest.owner?.name ?? "",
             proposed: draft.owner?.name ?? "",
+          },
+        ]
+      : []),
+    ...(changes.status !== undefined
+      ? [
+          {
+            label: "状态",
+            current: communicationStatusLabels[latest.status],
+            proposed: communicationStatusLabels[changes.status],
           },
         ]
       : []),

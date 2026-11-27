@@ -2,6 +2,7 @@ import { createUuid } from "@/lib/uuid";
 import {
   CommunicationApiError,
   createCommunication,
+  isCommunicationStatus,
 } from "@/request/communication";
 import type {
   Communication,
@@ -42,7 +43,7 @@ function isUuid(value: unknown): value is string {
 function parseCreationSubmission(key: string, raw: string): CreationSubmission {
   const value: unknown = JSON.parse(raw);
   if (!value || typeof value !== "object") throw new Error(readError);
-  const { id, customerId, title, summary, ownerUserId, tags, tagIds } =
+  const { id, customerId, title, summary, status, ownerUserId, tags, tagIds } =
     value as Record<string, unknown>;
 
   // 旧版按入口保存完整标签选项，恢复时保留原请求中的标签 ID 及顺序。
@@ -56,6 +57,7 @@ function parseCreationSubmission(key: string, raw: string): CreationSubmission {
     !isUuid(customerId) ||
     typeof title !== "string" ||
     typeof summary !== "string" ||
+    (status !== undefined && !isCommunicationStatus(status)) ||
     (ownerUserId !== undefined && typeof ownerUserId !== "string") ||
     !Array.isArray(ids) ||
     !ids.every(isUuid)
@@ -66,7 +68,7 @@ function parseCreationSubmission(key: string, raw: string): CreationSubmission {
   return {
     key,
     id,
-    input: { customerId, title, summary, ownerUserId, tagIds: ids },
+    input: { customerId, title, summary, status, ownerUserId, tagIds: ids },
   };
 }
 
@@ -99,7 +101,7 @@ function readCreationSubmission(accountId: string): CreationSubmission | null {
 /**
  * 发送前暂存原请求，并通知已挂载的沟通列表。
  * @param accountId 当前登录账号。
- * @param input 提交时确定的客户、业务员、正文及标签。
+ * @param input 提交时确定的客户、业务员、状态、正文及标签。
  * @returns 含新提交 ID 的原始请求。
  * @throws 本地存储不可用时抛出错误，由调用方停止发送。
  */

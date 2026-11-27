@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { communicationStatusLabels } from "@/request/communication";
 import type { Communication } from "@/request/communication";
 
 import {
@@ -165,6 +166,16 @@ export function CommunicationCreationRecovery({
         <Input
           id="creation-recovery-title"
           value={submission.input.title}
+          readOnly
+        />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="creation-recovery-status">状态</FieldLabel>
+        <Input
+          id="creation-recovery-status"
+          value={
+            communicationStatusLabels[submission.input.status ?? "pending"]
+          }
           readOnly
         />
       </Field>

@@ -7,7 +7,6 @@ import { DetailField } from "@/components/shared/detail-field";
 import { TagBadge } from "@/components/shared/tag-badge";
 import { ExpandableText } from "@/components/shared/expandable-text";
 import { toastManager } from "@/components/shared/toast";
-import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,13 +21,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   archiveCommunication,
@@ -36,12 +28,8 @@ import {
   communicationStatusLabels,
   getCommunication,
   isCommunicationSnapshot,
-  updateCommunication,
 } from "@/request/communication";
-import type {
-  Communication,
-  CommunicationStatus,
-} from "@/request/communication";
+import type { Communication } from "@/request/communication";
 
 import { AttachmentQueue } from "./attachments/queue";
 import { CommunicationAttachmentsTab } from "./attachments/tab";
@@ -66,7 +54,6 @@ export function CommunicationDetail({
   const [activeTab, setActiveTab] = useState("attachments");
   const [attachmentActionsSlot, setAttachmentActionsSlot] =
     useState<HTMLDivElement | null>(null);
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
   const [attachmentArchiving, setAttachmentArchiving] = useState(false);
@@ -74,17 +61,12 @@ export function CommunicationDetail({
   const [archivePending, setArchivePending] = useState(false);
   const [archiveIssue, setArchiveIssue] = useState("");
   const [archiveRetryVersion, setArchiveRetryVersion] = useState<number>();
-  const [conflict, setConflict] = useState<{
-    current: Communication;
-    status: CommunicationStatus;
-  } | null>(null);
   const saving = useRef(false);
   const returnCustomerId = customerReturnId(record);
   const archiving = attachmentArchiving || Boolean(record.archiveStartedAt);
   const writeLocked = archivePending || archiving || Boolean(record.archivedAt);
   const onAttachmentIssue = useCallback(
     (issue: AttachmentCommunicationIssue) => {
-      setConflict(null);
       if (issue.state === "unavailable") {
         setArchiveOpen(false);
         setUnavailable(true);
@@ -223,65 +205,6 @@ export function CommunicationDetail({
     }
   }
 
-  /** 保存状态时核对版本，冲突时只允许按弹窗展示的版本重试。 */
-  async function saveStatus(
-    status: CommunicationStatus,
-    expectedVersion = record.version
-  ) {
-    if (saving.current || writeLocked) return;
-    saving.current = true;
-    setPending(true);
-    setError("");
-    let leftDetail = false;
-    const unsubscribe = router.history.subscribe(() => {
-      leftDetail = true;
-    });
-    try {
-      const { communication: updated } = await updateCommunication(record.id, {
-        status,
-        expectedVersion,
-      });
-      if (leftDetail) return;
-      setRecord(updated);
-      setConflict(null);
-    } catch (failure) {
-      if (leftDetail) return;
-      if (
-        failure instanceof CommunicationApiError &&
-        failure.code === "version_conflict" &&
-        isCommunicationSnapshot(failure.current, record.id)
-      ) {
-        setRecord(failure.current);
-        setConflict(
-          failure.current.archiveStartedAt || failure.current.status === status
-            ? null
-            : { current: failure.current, status }
-        );
-        return;
-      }
-      setConflict(null);
-      if (
-        failure instanceof CommunicationApiError &&
-        failure.code === "archive_in_progress"
-      ) {
-        onAttachmentIssue({ state: "archiving" });
-      }
-      if (
-        failure instanceof CommunicationApiError &&
-        [401, 403, 404].includes(failure.status)
-      ) {
-        setUnavailable(true);
-      }
-      setError(
-        failure instanceof Error ? failure.message : "更新状态失败，请重试。"
-      );
-    } finally {
-      unsubscribe();
-      saving.current = false;
-      if (!leftDetail) setPending(false);
-    }
-  }
-
   if (unavailable) {
     return (
       <main className="flex-1 space-y-4 bg-background px-4 py-6 sm:px-6">
@@ -360,9 +283,7 @@ export function CommunicationDetail({
               <Button
                 type="button"
                 variant="destructive"
-                disabled={
-                  pending || archivePending || Boolean(record.archivedAt)
-                }
+                disabled={archivePending || Boolean(record.archivedAt)}
               >
                 <Archive data-icon="inline-start" />
                 {archiving || archiveRetryVersion !== undefined
@@ -437,31 +358,11 @@ export function CommunicationDetail({
         </DetailField>
         <DetailField label="业务员">{record.ownerName}</DetailField>
         <DetailField label="状态">
-          <Select
-            value={record.status}
-            disabled={pending || writeLocked || conflict !== null}
-            onValueChange={(next) => {
-              if (next !== record.status)
-                void saveStatus(next as CommunicationStatus);
-            }}
+          <Badge
+            variant={record.status === "urgent" ? "destructive" : "secondary"}
           >
-            <SelectTrigger
-              aria-label="状态"
-              aria-busy={pending}
-              className="w-40"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(communicationStatusLabels).map(
-                ([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                )
-              )}
-            </SelectContent>
-          </Select>
+            {communicationStatusLabels[record.status]}
+          </Badge>
         </DetailField>
         <DetailField label="初次沟通内容" className="sm:col-span-2">
           <ExpandableText text={record.summary} />
@@ -507,27 +408,6 @@ export function CommunicationDetail({
           </p>
         </TabsContent>
       </Tabs>
-      <VersionConflictDialog
-        differences={
-          conflict
-            ? [
-                {
-                  label: "状态",
-                  current: communicationStatusLabels[conflict.current.status],
-                  proposed: communicationStatusLabels[conflict.status],
-                },
-              ]
-            : null
-        }
-        pending={pending}
-        onCancel={() => {
-          setConflict(null);
-        }}
-        onOverwrite={() => {
-          if (conflict)
-            void saveStatus(conflict.status, conflict.current.version);
-        }}
-      />
     </main>
   );
 }

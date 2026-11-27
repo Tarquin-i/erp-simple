@@ -22,13 +22,22 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CommunicationApiError,
+  communicationStatusLabels,
   createCommunicationTag,
   getCommunication,
   isCommunicationSnapshot,
+  isCommunicationStatus,
   listCommunicationTags,
   updateCommunication,
   deleteCommunicationTag,
@@ -70,6 +79,7 @@ export function CommunicationFormPending() {
           ["customer", "w-7"],
           ["tags", "w-7"],
           ["owner", "w-10.5"],
+          ["status", "w-7"],
         ].map(([field, labelWidth]) => (
           <Field key={field} className="min-w-0">
             <div className="h-lh text-sm leading-snug">
@@ -238,6 +248,7 @@ export function CommunicationForm({
           customerId,
           title: proposed.title.trim(),
           summary: proposed.summary.trim(),
+          status: proposed.status,
           ownerUserId: canAssign ? proposed.owner?.id : undefined,
           tagIds: proposed.tags.map(({ id }) => id),
         });
@@ -484,6 +495,30 @@ export function CommunicationForm({
               setDraft((previous) => ({ ...previous, owner }))
             }
           />
+          <Field className="min-w-0">
+            <FieldLabel htmlFor="communication-form-status">状态</FieldLabel>
+            <Select
+              value={draft.status}
+              disabled={fieldsLocked}
+              onValueChange={(status) => {
+                if (isCommunicationStatus(status))
+                  setDraft((previous) => ({ ...previous, status }));
+              }}
+            >
+              <SelectTrigger id="communication-form-status" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="start">
+                {Object.entries(communicationStatusLabels).map(
+                  ([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
+          </Field>
           <Field className="min-w-0 sm:col-span-2">
             <FieldLabel htmlFor="communication-form-summary">
               初次沟通内容
