@@ -49,6 +49,15 @@ const customerErrors = {
     code: "tag_color_conflict",
     message: "标签颜色已被更新，请查看当前颜色后再保存。",
   },
+  tagManagementForbidden: {
+    status: 403,
+    message: "仅公司管理员可以编辑或删除共享标签。",
+  },
+  tagConflict: {
+    status: 409,
+    code: "tag_conflict",
+    message: "标签已被更新，请查看最新资料后再试。",
+  },
 } as const;
 
 export function createCustomerError(

@@ -8,7 +8,7 @@ import {
   readUuid,
 } from "../../../http/request-input";
 import type { RecordAccessEnv } from "../../identity/http/record-access-context";
-import { requireTagColorAccess } from "../application/tags";
+import { requireTagManagementAccess } from "../application/tags";
 import type { CommunicationModule } from "../module";
 
 function readTagColor(value: unknown, label = "标签颜色") {
@@ -45,16 +45,50 @@ export function createCommunicationTagRoutes(
     return c.json({ tag: await tags.get(c.get("recordAccess"), id) });
   });
 
+  routes.get("/tags/:tagId/usage", async (c) => {
+    const access = c.get("recordAccess");
+    requireTagManagementAccess(access);
+    const id = readUuid(c.req.param("tagId"), "标签 ID");
+    return c.json(await tags.usage(access, id));
+  });
+
   routes.patch("/tags/:tagId", async (c) => {
     const access = c.get("recordAccess");
-    requireTagColorAccess(access);
+    requireTagManagementAccess(access, true);
     const id = readUuid(c.req.param("tagId"), "标签 ID");
-    const body = await readObject(c, ["color", "expectedColor"]);
+    const body = await readObject(c, [
+      "color",
+      "expectedColor",
+      "name",
+      "expectedName",
+    ]);
     const color = readTagColor(body.color);
     const expectedColor = readTagColor(body.expectedColor, "原标签颜色");
+    const nameFields =
+      body.name === undefined && body.expectedName === undefined
+        ? {}
+        : {
+            name: readString(body.name, "标签名称", 64),
+            expectedName: readString(body.expectedName, "原标签名称", 64),
+          };
     return c.json({
-      tag: await tags.updateColor(access, id, color, expectedColor),
+      tag: await tags.update(access, id, {
+        color,
+        expectedColor,
+        ...nameFields,
+      }),
     });
+  });
+
+  routes.delete("/tags/:tagId", async (c) => {
+    const access = c.get("recordAccess");
+    requireTagManagementAccess(access);
+    const id = readUuid(c.req.param("tagId"), "标签 ID");
+    const body = await readObject(c, ["expectedName", "expectedColor"]);
+    const expectedName = readString(body.expectedName, "原标签名称", 64);
+    const expectedColor = readTagColor(body.expectedColor, "原标签颜色");
+    await tags.remove(access, id, { expectedName, expectedColor });
+    return c.json({ deleted: true });
   });
 
   routes.post("/tags", async (c) => {

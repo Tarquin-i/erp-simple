@@ -1,6 +1,6 @@
-import type { Database } from "@repo/db";
-import { customerTag } from "@repo/db/schema";
-import { and, asc, count, eq, ne, sql } from "drizzle-orm";
+import type { Database, DatabaseTransaction } from "@repo/db";
+import { customerTag, customerTagAssignment } from "@repo/db/schema";
+import { asc, count, eq, sql } from "drizzle-orm";
 
 const tagFields = {
   id: customerTag.id,
@@ -42,7 +42,10 @@ export function listCustomerTags(
   );
 }
 
-export async function findCustomerTag(db: Database, id: string) {
+export async function findCustomerTag(
+  db: Database | DatabaseTransaction,
+  id: string
+) {
   const [tag] = await db
     .select(tagFields)
     .from(customerTag)
@@ -62,32 +65,39 @@ export async function insertCustomerTag(
   return tag;
 }
 
-export async function updateCustomerTagColor(
-  db: Database,
-  id: string,
-  color: string,
-  expectedColor: string
-) {
-  const tagById = eq(customerTag.id, id);
-  const storedColor = sql<string>`lower(${customerTag.color})`;
-  const [tag] = await db
-    .update(customerTag)
-    .set({ color })
-    .where(
-      and(
-        tagById,
-        eq(storedColor, expectedColor.toLowerCase()),
-        ne(storedColor, color.toLowerCase())
-      )
-    )
-    .returning(tagFields);
-  if (tag) return { kind: "saved", tag } as const;
+export async function lockCustomerTag(tx: DatabaseTransaction, id: string) {
+  const [tag] = await tx
+    .select(tagFields)
+    .from(customerTag)
+    .where(eq(customerTag.id, id))
+    .for("update");
+  return tag;
+}
 
-  const [current] = await db.select(tagFields).from(customerTag).where(tagById);
-  if (!current) return { kind: "not-found" } as const;
-  // 上次保存成功但响应丢失时，相同目标颜色可以直接重试。
-  if (current.color.toLowerCase() === color.toLowerCase()) {
-    return { kind: "saved", tag: current } as const;
-  }
-  return { kind: "conflict", current } as const;
+export async function updateCustomerTag(
+  tx: DatabaseTransaction,
+  id: string,
+  input: { name?: string; color: string }
+) {
+  const [tag] = await tx
+    .update(customerTag)
+    .set(input)
+    .where(eq(customerTag.id, id))
+    .returning(tagFields);
+  return tag;
+}
+
+export async function countCustomerTagReferences(
+  tx: DatabaseTransaction,
+  id: string
+) {
+  const [total] = await tx
+    .select({ count: count() })
+    .from(customerTagAssignment)
+    .where(eq(customerTagAssignment.tagId, id));
+  return total.count;
+}
+
+export function deleteCustomerTag(tx: DatabaseTransaction, id: string) {
+  return tx.delete(customerTag).where(eq(customerTag.id, id));
 }

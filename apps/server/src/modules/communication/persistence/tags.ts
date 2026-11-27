@@ -1,6 +1,6 @@
 import type { Database, DatabaseTransaction } from "@repo/db";
-import { communicationTag } from "@repo/db/schema";
-import { and, asc, count, eq, ne, sql } from "drizzle-orm";
+import { communicationTag, communicationTagAssignment } from "@repo/db/schema";
+import { asc, count, eq, sql } from "drizzle-orm";
 
 const tagFields = {
   id: communicationTag.id,
@@ -54,35 +54,36 @@ export async function insertTag(
   return tag;
 }
 
-export async function updateTagColor(
-  db: Database,
-  id: string,
-  color: string,
-  expectedColor: string
-) {
-  const tagById = eq(communicationTag.id, id);
-  const storedColor = sql<string>`lower(${communicationTag.color})`;
-  const [tag] = await db
-    .update(communicationTag)
-    .set({ color })
-    .where(
-      and(
-        tagById,
-        eq(storedColor, expectedColor.toLowerCase()),
-        ne(storedColor, color.toLowerCase())
-      )
-    )
-    .returning(tagFields);
-  if (tag) return { kind: "saved", tag } as const;
-
-  const [current] = await db
+export async function lockTag(tx: DatabaseTransaction, id: string) {
+  const [tag] = await tx
     .select(tagFields)
     .from(communicationTag)
-    .where(tagById);
-  if (!current) return { kind: "not-found" } as const;
-  // 上次保存成功但响应丢失时，相同目标颜色可以直接重试。
-  if (current.color.toLowerCase() === color.toLowerCase()) {
-    return { kind: "saved", tag: current } as const;
-  }
-  return { kind: "conflict", current } as const;
+    .where(eq(communicationTag.id, id))
+    .for("update");
+  return tag;
+}
+
+export async function updateTag(
+  tx: DatabaseTransaction,
+  id: string,
+  input: { name?: string; color: string }
+) {
+  const [tag] = await tx
+    .update(communicationTag)
+    .set(input)
+    .where(eq(communicationTag.id, id))
+    .returning(tagFields);
+  return tag;
+}
+
+export async function countTagReferences(tx: DatabaseTransaction, id: string) {
+  const [total] = await tx
+    .select({ count: count() })
+    .from(communicationTagAssignment)
+    .where(eq(communicationTagAssignment.tagId, id));
+  return total.count;
+}
+
+export function deleteTag(tx: DatabaseTransaction, id: string) {
+  return tx.delete(communicationTag).where(eq(communicationTag.id, id));
 }

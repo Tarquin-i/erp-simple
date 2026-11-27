@@ -45,6 +45,14 @@ export function createCustomerTagRoutes(
     return c.json({ tag: await tags.get(id) });
   });
 
+  routes.get("/tags/:tagId/usage", async (c) => {
+    const { scope, userId } = c.get("recordAccess");
+    if (scope !== "company")
+      throw createCustomerError("tagManagementForbidden");
+    const id = readUuid(c.req.param("tagId"), "标签 ID");
+    return c.json(await tags.usage(userId, id));
+  });
+
   routes.patch("/tags/:tagId", async (c) => {
     const access = c.get("recordAccess");
     if (access.scope !== "company") {
@@ -52,16 +60,39 @@ export function createCustomerTagRoutes(
     }
 
     const id = readUuid(c.req.param("tagId"), "标签 ID");
-    const body = await readObject(c, ["color", "expectedColor"]);
+    const body = await readObject(c, [
+      "color",
+      "expectedColor",
+      "name",
+      "expectedName",
+    ]);
     const color = readTagColor(body.color);
     const expectedColor = readTagColor(body.expectedColor, "原标签颜色");
-    const tag = await tags.updateColor({
-      userId: access.userId,
-      id,
+    const nameFields =
+      body.name === undefined && body.expectedName === undefined
+        ? {}
+        : {
+            name: readString(body.name, "标签名称", 64),
+            expectedName: readString(body.expectedName, "原标签名称", 64),
+          };
+    const tag = await tags.update(access.userId, id, {
       color,
       expectedColor,
+      ...nameFields,
     });
     return c.json({ tag });
+  });
+
+  routes.delete("/tags/:tagId", async (c) => {
+    const { scope, userId } = c.get("recordAccess");
+    if (scope !== "company")
+      throw createCustomerError("tagManagementForbidden");
+    const id = readUuid(c.req.param("tagId"), "标签 ID");
+    const body = await readObject(c, ["expectedName", "expectedColor"]);
+    const expectedName = readString(body.expectedName, "原标签名称", 64);
+    const expectedColor = readTagColor(body.expectedColor, "原标签颜色");
+    await tags.remove({ userId, id, expectedName, expectedColor });
+    return c.json({ deleted: true });
   });
 
   routes.post("/tags", async (c) => {

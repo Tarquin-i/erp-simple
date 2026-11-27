@@ -6,18 +6,48 @@ import {
   withRecordReadSnapshot,
 } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
-import { fail } from "../../../errors";
+import { ApplicationError, fail } from "../../../errors";
 import {
+  countTagReferences,
+  deleteTag,
   findTag,
   insertTag,
+  lockTag,
   selectTagPage,
-  updateTagColor,
+  updateTag,
 } from "../persistence/tags";
 import { createTagConflict } from "./errors";
 
-export function requireTagColorAccess(access: AccountRecordAccess) {
-  if (access.scope !== "company")
-    fail(403, "仅公司管理员可以修改共享标签颜色。");
+type TagEdit = { color: string; expectedColor: string } & (
+  | { name: string; expectedName: string }
+  | { name?: undefined; expectedName?: undefined }
+);
+
+export function requireTagManagementAccess(
+  access: AccountRecordAccess,
+  colorOnly = false
+) {
+  if (access.scope !== "company") {
+    fail(
+      403,
+      colorOnly
+        ? "仅公司管理员可以修改共享标签颜色。"
+        : "仅公司管理员可以编辑或删除共享标签。"
+    );
+  }
+}
+
+function translateTagNameError(error: unknown): never {
+  if (
+    isConstraintError(
+      error,
+      "23505",
+      "communication_tag_normalized_name_unique"
+    )
+  ) {
+    throw createTagConflict("tag_name_exists");
+  }
+  throw error;
 }
 
 export function createCommunicationTagUseCases(db: Database) {
@@ -41,35 +71,90 @@ export function createCommunicationTagUseCases(db: Database) {
       if (!tag) fail(404, "标签不存在。");
       return tag;
     },
-    async create(name: string, color: string | undefined) {
-      try {
-        return await insertTag(db, name, color);
-      } catch (error) {
-        if (
-          isConstraintError(
-            error,
-            "23505",
-            "communication_tag_normalized_name_unique"
-          )
-        ) {
-          throw createTagConflict("tag_name_exists");
-        }
-        throw error;
-      }
+    usage(access: AccountRecordAccess, id: string) {
+      return withRecordReadSnapshot(
+        access.userId,
+        async (tx, currentAccess) => {
+          requireTagManagementAccess(currentAccess);
+          if (!(await findTag(tx, id))) fail(404, "标签不存在。");
+          return { references: await countTagReferences(tx, id) };
+        },
+        db
+      );
     },
-    async updateColor(
+    create(name: string, color: string | undefined) {
+      return insertTag(db, name, color).catch(translateTagNameError);
+    },
+    update(access: AccountRecordAccess, id: string, input: TagEdit) {
+      const { color, expectedColor, name, expectedName } = input;
+      const colorOnly = name === undefined;
+      return db
+        .transaction(async (tx) => {
+          const currentAccess = await readAccountRecordAccess(
+            tx,
+            access.userId
+          );
+          requireTagManagementAccess(currentAccess, colorOnly);
+
+          const current = await lockTag(tx, id);
+          if (!current) fail(404, "标签不存在。");
+
+          const currentColor = current.color.toLowerCase();
+          const currentName = current.name.trim();
+          // 上次保存成功但响应丢失时，原样重试直接返回已保存的标签。
+          if (
+            currentColor === color.toLowerCase() &&
+            (colorOnly || currentName === name)
+          ) {
+            return current;
+          }
+          if (
+            currentColor !== expectedColor.toLowerCase() ||
+            (!colorOnly && currentName !== expectedName)
+          ) {
+            throw createTagConflict(
+              colorOnly ? "tag_color_conflict" : "tag_conflict",
+              current
+            );
+          }
+
+          return updateTag(tx, id, { name, color });
+        })
+        .catch(translateTagNameError);
+    },
+    remove(
       access: AccountRecordAccess,
       id: string,
-      color: string,
-      expectedColor: string
+      {
+        expectedName,
+        expectedColor,
+      }: { expectedName: string; expectedColor: string }
     ) {
-      requireTagColorAccess(await readAccountRecordAccess(db, access.userId));
-      const result = await updateTagColor(db, id, color, expectedColor);
-      if (result.kind === "not-found") fail(404, "标签不存在。");
-      if (result.kind === "conflict") {
-        throw createTagConflict("tag_color_conflict", result.current);
-      }
-      return result.tag;
+      return db.transaction(async (tx) => {
+        requireTagManagementAccess(
+          await readAccountRecordAccess(tx, access.userId)
+        );
+
+        const current = await lockTag(tx, id);
+        if (!current) fail(404, "标签不存在。");
+        if (
+          current.name.trim() !== expectedName ||
+          current.color.toLowerCase() !== expectedColor.toLowerCase()
+        ) {
+          throw createTagConflict("tag_conflict", current);
+        }
+
+        // 锁住标签后再查询关联，外键会等待此事务结束才允许新增引用。
+        const references = await countTagReferences(tx, id);
+        if (references > 0) {
+          throw new ApplicationError(
+            409,
+            `此标签已被 ${references} 条记录引用，请先解除关联再删除。`,
+            { code: "tag_in_use", current: { references } }
+          );
+        }
+        await deleteTag(tx, id);
+      });
     },
   };
 }

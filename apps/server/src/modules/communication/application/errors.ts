@@ -7,6 +7,7 @@ import { LocalAttachmentSizeError } from "../storage/local-files";
 const tagConflicts = {
   tag_name_exists: "标签名称已存在。",
   tag_color_conflict: "标签颜色已被更新，请查看当前颜色后再保存。",
+  tag_conflict: "标签已被更新，请查看最新资料后再试。",
 } as const;
 
 /** 保留改色与重名接口既有的 JSON 响应。 */
