@@ -140,7 +140,11 @@ function queryString(
   return params.size ? `?${params}` : "";
 }
 
-function write<T>(path: string, method: "POST" | "PATCH", body: object) {
+function write<T>(
+  path: string,
+  method: "POST" | "PATCH" | "DELETE",
+  body: object
+) {
   return request<T>(path, {
     method,
     headers: { "Content-Type": "application/json" },
@@ -258,13 +262,36 @@ export function createCustomerTag(input: { name: string; color?: string }) {
   return write<{ tag: CustomerTag }>("/tags", "POST", input);
 }
 
-export function updateCustomerTagColor(
+export function updateCustomerTag(
   id: string,
-  input: { color: string; expectedColor: string }
+  input: {
+    name: string;
+    color: string;
+    expectedName: string;
+    expectedColor: string;
+  }
 ) {
   return write<{ tag: CustomerTag }>(
     `/tags/${encodeURIComponent(id)}`,
     "PATCH",
+    input
+  );
+}
+
+export function getCustomerTagUsage(id: string, signal?: AbortSignal) {
+  return request<{ references: number }>(
+    `/tags/${encodeURIComponent(id)}/usage`,
+    { signal }
+  );
+}
+
+export function deleteCustomerTag(
+  id: string,
+  input: { expectedName: string; expectedColor: string }
+) {
+  return write<{ deleted: true }>(
+    `/tags/${encodeURIComponent(id)}`,
+    "DELETE",
     input
   );
 }

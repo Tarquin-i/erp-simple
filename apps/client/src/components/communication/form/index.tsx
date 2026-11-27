@@ -31,7 +31,9 @@ import {
   isCommunicationSnapshot,
   listCommunicationTags,
   updateCommunication,
-  updateCommunicationTagColor,
+  deleteCommunicationTag,
+  getCommunicationTagUsage,
+  updateCommunicationTag,
 } from "@/request/communication";
 import type { Communication } from "@/request/communication";
 import { attachmentAccept } from "@/request/communication-attachments";
@@ -453,9 +455,13 @@ export function CommunicationForm({
             onCreatingChange={setTagPending}
             loadTags={listCommunicationTags}
             createTag={createCommunicationTag}
-            updateTagColor={
+            manageTags={
               viewer.role === "company-admin"
-                ? updateCommunicationTagColor
+                ? {
+                    update: updateCommunicationTag,
+                    usage: getCommunicationTagUsage,
+                    remove: deleteCommunicationTag,
+                  }
                 : undefined
             }
             tagLimitLabel="每条沟通"

@@ -1,7 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
 
 import { OptionEditorDialog } from "./option-editor-dialog";
 import { SearchableMultiSelect } from "./searchable-multi-select";
@@ -51,14 +66,17 @@ type TagPage = {
 
 type TagEditor =
   | { mode: "create"; name: string }
-  | { mode: "edit"; tag: PickerOption };
+  | { mode: "edit"; tag: PickerOption; name: string }
+  | { mode: "delete"; tag: PickerOption };
+
+type TagSnapshot = { expectedName: string; expectedColor: string };
 
 /** 为公共复选框接入标签目录、分页和标签操作。 */
 export function TagMultiSelectField({
   onCreatingChange,
   loadTags,
   createTag,
-  updateTagColor,
+  manageTags,
   tagLimitLabel,
   ...props
 }: PickerProps & {
@@ -71,10 +89,14 @@ export function TagMultiSelectField({
     name: string;
     color?: string;
   }) => Promise<{ tag: PickerOption }>;
-  updateTagColor?: (
-    id: string,
-    input: { color: string; expectedColor: string }
-  ) => Promise<{ tag: PickerOption }>;
+  manageTags?: {
+    update: (
+      id: string,
+      input: TagSnapshot & { name: string; color: string }
+    ) => Promise<{ tag: PickerOption }>;
+    usage: (id: string, signal: AbortSignal) => Promise<{ references: number }>;
+    remove: (id: string, input: TagSnapshot) => Promise<{ deleted: true }>;
+  };
   tagLimitLabel?: string;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
@@ -89,7 +111,8 @@ export function TagMultiSelectField({
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [editorError, setEditorError] = useState("");
-  const [colorConflict, setColorConflict] = useState(false);
+  const [tagConflict, setTagConflict] = useState(false);
+  const [references, setReferences] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const tagLimitId = `${props.id}-limit`;
   const atTagLimit = props.value.length >= maxTags;
@@ -104,14 +127,34 @@ export function TagMultiSelectField({
     !atTagLimit &&
     (!keyword || (currentResult && !loading && !exactMatch && !searchError));
   const editedTag = editor?.mode === "edit" ? editor.tag : null;
-  const newTagName = editor?.mode === "create" ? editor.name.trim() : "";
-  const expectedColor = editedTag?.color ?? defaultTagColor;
+  const deletingTag = editor?.mode === "delete" ? editor.tag : null;
+  const tagName = editor && editor.mode !== "delete" ? editor.name.trim() : "";
+  const expectedColor = (editedTag ?? deletingTag)?.color ?? defaultTagColor;
   const nextColor = tagColor ?? defaultTagColor;
   const canSubmitEditor = editedTag
-    ? Boolean(updateTagColor) &&
-      !colorConflict &&
-      nextColor !== expectedColor.toLowerCase()
-    : Boolean(createTag && !atTagLimit && newTagName);
+    ? Boolean(manageTags && tagName && !tagConflict) &&
+      (tagName !== editedTag.name || nextColor !== expectedColor.toLowerCase())
+    : Boolean(createTag && !atTagLimit && tagName);
+  const loadUsage = manageTags?.usage;
+
+  useEffect(() => {
+    if (!deletingTag || !loadUsage) return;
+    const controller = new AbortController();
+    loadUsage(deletingTag.id, controller.signal)
+      .then(({ references }) => {
+        if (!controller.signal.aborted) setReferences(references);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setEditorError(
+            error instanceof Error
+              ? error.message
+              : "无法确认标签是否被引用，请重试。"
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [deletingTag, loadUsage]);
 
   // 仅在下拉打开时查询。搜索首屏防抖，条件变化时取消上一笔请求。
   // biome-ignore lint/correctness/useExhaustiveDependencies(reload): 重新加载当前搜索条件和页码的标签候选。
@@ -169,81 +212,117 @@ export function TagMultiSelectField({
     setSearch(value);
   }
 
-  function editTagColor(tag: PickerOption) {
+  function manageTag(tag: PickerOption, action: "edit" | "delete") {
     setEditorError("");
-    setColorConflict(false);
+    setTagConflict(false);
+    setReferences(null);
     setTagColor(hasVisibleTagColor(tag.color) ? tag.color.toLowerCase() : null);
+    returnToOptions.current = open;
     setOpen(false);
-    returnToOptions.current = true;
-    setEditor({ mode: "edit", tag });
-  }
-
-  function refreshTag(tag: PickerOption) {
-    const refresh = (items: PickerOption[]) =>
-      items.map((option) => (option.id === tag.id ? tag : option));
-    if (props.value.some(({ id }) => id === tag.id)) {
-      props.onChange(refresh(props.value));
-    }
-    setResults(
-      (current) => current && { ...current, items: refresh(current.items) }
+    setEditor(
+      action === "edit"
+        ? { mode: "edit", tag, name: tag.name }
+        : { mode: "delete", tag }
     );
   }
 
-  async function submitTag() {
-    if (!canSubmitEditor || saving || props.disabled) return;
+  function refreshTag(id: string, tag?: PickerOption) {
+    if (props.value.some((option) => option.id === id)) {
+      props.onChange(
+        tag
+          ? props.value.map((option) => (option.id === id ? tag : option))
+          : props.value.filter((option) => option.id !== id)
+      );
+    }
+    setResults(null);
+    setPage(1);
+    setReload((attempt) => attempt + 1);
+  }
+
+  async function submitEditor() {
+    if (saving || props.disabled || !editor) return;
+    if (
+      editor.mode === "delete"
+        ? !manageTags || references !== 0 || tagConflict
+        : !canSubmitEditor
+    )
+      return;
 
     setEditorError("");
     setSaving(true);
     onCreatingChange?.(true);
     try {
-      if (editedTag && updateTagColor) {
-        const { tag } = await updateTagColor(editedTag.id, {
-          color: nextColor,
-          expectedColor,
-        });
-        refreshTag(tag);
-      } else if (createTag && newTagName) {
+      if (editor.mode === "create" && createTag) {
         const { tag } = await createTag({
-          name: newTagName,
+          name: tagName,
           color: tagColor ?? undefined,
         });
         if (!props.value.some(({ id }) => id === tag.id)) {
           props.onChange([...props.value, tag]);
         }
+        returnToOptions.current = true;
         setPage(1);
         setReload((attempt) => attempt + 1);
+      } else if (editor.mode !== "create" && manageTags) {
+        const id = editor.tag.id;
+        const snapshot = { expectedName: editor.tag.name, expectedColor };
+        if (editor.mode === "delete") {
+          await manageTags.remove(id, snapshot);
+          refreshTag(id);
+        } else {
+          const { tag } = await manageTags.update(id, {
+            ...snapshot,
+            name: tagName,
+            color: nextColor,
+          });
+          refreshTag(id, tag);
+        }
       }
-      returnToOptions.current = true;
       setEditor(null);
     } catch (error) {
       if (
-        editedTag &&
+        editor.mode !== "create" &&
         error instanceof Error &&
         "code" in error &&
-        error.code === "tag_color_conflict"
+        error.code === "tag_conflict"
       ) {
         const current = "current" in error ? error.current : null;
+        const id = editor.tag.id;
         if (
           current &&
           typeof current === "object" &&
           "id" in current &&
-          current.id === editedTag.id &&
+          current.id === id &&
+          "name" in current &&
+          typeof current.name === "string" &&
           "color" in current &&
           typeof current.color === "string" &&
           (current.color === defaultTagColor ||
             hasVisibleTagColor(current.color))
         ) {
-          refreshTag({ ...editedTag, color: current.color });
+          refreshTag(id, { id, name: current.name, color: current.color });
         }
-        setColorConflict(true);
-        setEditorError("颜色已被其他人修改。请关闭弹窗并重新打开后再保存。");
+        setTagConflict(true);
+        setEditorError("标签已被其他人修改。请关闭弹窗并重新打开后再操作。");
       } else {
+        if (
+          deletingTag &&
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "tag_in_use"
+        ) {
+          const current = "current" in error ? error.current : null;
+          setReferences(
+            current &&
+              typeof current === "object" &&
+              "references" in current &&
+              typeof current.references === "number"
+              ? current.references
+              : null
+          );
+        }
         setEditorError(
-          error instanceof Error
-            ? error.message
-            : editedTag
-              ? "标签改色失败，请重试。"
-              : "标签新建失败，请重试。"
+          error instanceof Error ? error.message : "标签操作失败，请重试。"
         );
       }
     } finally {
@@ -255,6 +334,16 @@ export function TagMultiSelectField({
   const hasMore =
     currentResult && currentResult.page * tagPageSize < currentResult.total;
 
+  function restoreFocus(event: Event) {
+    event.preventDefault();
+    if (returnToOptions.current) {
+      returnToOptions.current = false;
+      setOpen(true);
+    } else {
+      trigger.current?.focus({ preventScroll: true });
+    }
+  }
+
   return (
     <Field className="min-w-0">
       <FieldLabel htmlFor={props.id} preventControlActivation>
@@ -264,7 +353,7 @@ export function TagMultiSelectField({
         {...props}
         items={matchingTags}
         getOptionColor={(option) => option.color}
-        onEditOptionColor={updateTagColor ? editTagColor : undefined}
+        onManageOption={manageTags ? manageTag : undefined}
         emptyMessage={
           searchError ||
           (loading || !currentResult ? "正在加载标签…" : "没有匹配的标签")
@@ -327,11 +416,11 @@ export function TagMultiSelectField({
         </FieldDescription>
       )}
       <OptionEditorDialog
-        open={editor !== null}
-        title={editedTag ? "修改标签颜色" : "新建标签"}
+        open={editor !== null && editor.mode !== "delete"}
+        title={editedTag ? "编辑标签" : "新建标签"}
         description={
           editedTag
-            ? "这是共享标签，改色会同步到所有引用它的记录。"
+            ? "保存后，所有引用此标签的记录都会显示更新后的标签。"
             : "创建后会自动选中这个标签。"
         }
         showDescription={Boolean(editedTag)}
@@ -339,13 +428,11 @@ export function TagMultiSelectField({
         inputLabel="标签名称"
         placeholder="输入标签名称"
         maxLength={64}
-        value={
-          editor?.mode === "create" ? editor.name : (editedTag?.name ?? "")
-        }
+        value={editor && editor.mode !== "delete" ? editor.name : ""}
         busy={saving}
         disabled={props.disabled}
         submitDisabled={!canSubmitEditor}
-        submitLabel={editedTag ? "保存颜色" : "创建"}
+        submitLabel={editedTag ? "保存" : "创建"}
         busyLabel={editedTag ? "正在保存…" : "正在创建…"}
         error={editorError}
         color={{
@@ -355,28 +442,63 @@ export function TagMultiSelectField({
             ? expectedColor.toLowerCase()
             : null,
         }}
-        onValueChange={
-          editedTag
-            ? undefined
-            : (name) => {
-                setEditor({ mode: "create", name });
-                setEditorError("");
-              }
-        }
-        onConfirm={submitTag}
+        onValueChange={(name) => {
+          setEditor((current) =>
+            current && current.mode !== "delete"
+              ? { ...current, name }
+              : current
+          );
+          if (!tagConflict) setEditorError("");
+        }}
+        onConfirm={submitEditor}
         onOpenChange={(next) => {
           if (!next) setEditor(null);
         }}
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          if (returnToOptions.current) {
-            returnToOptions.current = false;
-            setOpen(true);
-          } else {
-            trigger.current?.focus({ preventScroll: true });
-          }
-        }}
+        onCloseAutoFocus={restoreFocus}
       />
+      <AlertDialog
+        open={deletingTag !== null}
+        onOpenChange={(next) => {
+          if (!next && !saving) setEditor(null);
+        }}
+      >
+        <AlertDialogContent
+          className="w-[calc(100%-2rem)]"
+          onCloseAutoFocus={restoreFocus}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除标签</AlertDialogTitle>
+            <AlertDialogDescription
+              className="min-w-0 wrap-anywhere"
+              aria-live="polite"
+            >
+              {references === null
+                ? editorError
+                  ? `无法删除「${deletingTag?.name}」。`
+                  : "正在检查标签引用…"
+                : references > 0
+                  ? `「${deletingTag?.name}」已被 ${references} 条记录引用。请先解除关联再删除。`
+                  : `确认删除「${deletingTag?.name}」？此标签将从候选列表移除。`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {editorError && <FieldError>{editorError}</FieldError>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={
+                saving || props.disabled || tagConflict || references !== 0
+              }
+              onClick={(event) => {
+                event.preventDefault();
+                submitEditor();
+              }}
+            >
+              {saving ? "正在删除…" : "删除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Field>
   );
 }

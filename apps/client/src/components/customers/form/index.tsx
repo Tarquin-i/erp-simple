@@ -26,7 +26,9 @@ import {
   CustomerApiError,
   listCustomerTags,
   updateCustomer,
-  updateCustomerTagColor,
+  deleteCustomerTag,
+  getCustomerTagUsage,
+  updateCustomerTag,
 } from "@/request/customers";
 import type { Department } from "@/request/organization";
 import type {
@@ -358,9 +360,13 @@ export function CustomerForm({
             onCreatingChange={setTagPending}
             loadTags={listCustomerTags}
             createTag={createCustomerTag}
-            updateTagColor={
+            manageTags={
               viewer.role === "company-admin"
-                ? updateCustomerTagColor
+                ? {
+                    update: updateCustomerTag,
+                    usage: getCustomerTagUsage,
+                    remove: deleteCustomerTag,
+                  }
                 : undefined
             }
             tagLimitLabel="每个客户"
