@@ -2,6 +2,7 @@ import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AddressApiError } from "@/request/addresses";
@@ -29,7 +30,13 @@ export function AddressPagePending() {
       aria-busy="true"
       aria-label="正在加载地址"
     >
-      <Skeleton className="h-8 w-40" />
+      <div
+        aria-hidden="true"
+        className="mx-auto flex w-full max-w-4xl flex-wrap items-start justify-between gap-2 px-1 sm:px-3"
+      >
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="ml-auto h-8 w-25 rounded-lg" />
+      </div>
       <Skeleton className="h-36 w-full" />
     </main>
   );
@@ -107,25 +114,29 @@ export function AddressPageError({
   const inaccessible =
     error instanceof AddressApiError && [403, 404].includes(error.status);
   return (
-    <main className="min-w-0 flex-1 space-y-4 bg-background p-5 sm:p-6">
-      <h1 className="text-xl font-semibold">
-        {detail && inaccessible ? "无法查看此地址" : "暂时无法加载地址"}
-      </h1>
-      <FieldError>
-        {error instanceof Error ? error.message : "请稍后重试。"}
-      </FieldError>
-      <div className="flex gap-2">
-        {detail && (
-          <Button asChild variant="outline">
-            <Link to="/addresses" search={state.addressListQuery ?? {}}>
-              返回地址列表
-            </Link>
-          </Button>
-        )}
-        {!inaccessible && (
-          <Button onClick={() => void router.invalidate()}>重试</Button>
-        )}
-      </div>
+    <main className="min-w-0 flex-1 bg-background px-4 py-6 sm:px-6">
+      <Empty className="min-h-56 border">
+        <EmptyHeader>
+          <EmptyTitle role="heading" aria-level={1}>
+            {detail && inaccessible ? "无法查看此地址" : "暂时无法加载地址"}
+          </EmptyTitle>
+          <FieldError>
+            {error instanceof Error ? error.message : "请稍后重试。"}
+          </FieldError>
+        </EmptyHeader>
+        <div className="flex flex-wrap justify-center gap-2">
+          {detail && (
+            <Button asChild variant="outline">
+              <Link to="/addresses" search={state.addressListQuery ?? {}}>
+                返回地址列表
+              </Link>
+            </Button>
+          )}
+          {!inaccessible && (
+            <Button onClick={() => void router.invalidate()}>重试</Button>
+          )}
+        </div>
+      </Empty>
     </main>
   );
 }

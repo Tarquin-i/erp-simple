@@ -19,10 +19,19 @@ export function PayoutPagePending() {
       aria-busy="true"
       className="min-w-0 flex-1 space-y-6 bg-background px-4 py-6 sm:px-6"
     >
-      <div aria-hidden="true" className="space-y-3">
-        <Skeleton className="h-8 w-24" />
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-5 w-36" />
+      <div
+        aria-hidden="true"
+        className="flex flex-wrap items-start justify-between gap-3"
+      >
+        <div className="space-y-3">
+          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-5 w-36" />
+        </div>
+        <div className="ml-auto flex gap-2">
+          <Skeleton className="h-8 w-17.5 rounded-lg" />
+          <Skeleton className="h-8 w-17.5 rounded-lg" />
+        </div>
       </div>
       <div aria-hidden="true" className="grid gap-4 sm:grid-cols-3">
         {["product", "tickets", "price"].map((key) => (

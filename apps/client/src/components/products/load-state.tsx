@@ -28,8 +28,8 @@ export function ProductPagePending() {
           <Skeleton className="h-5 w-20" />
         </div>
         <div className="ml-auto flex gap-2">
-          <Skeleton className="h-10 w-20" />
-          <Skeleton className="h-10 w-20" />
+          <Skeleton className="h-8 w-17.5 rounded-lg" />
+          <Skeleton className="h-8 w-17.5 rounded-lg" />
         </div>
       </div>
       <div aria-hidden="true" className="@container mt-6 space-y-3">
@@ -99,7 +99,7 @@ export function ProductPageError({
     (error instanceof ProductApiError || error instanceof CustomerApiError) &&
     [403, 404].includes(error.status);
   return (
-    <main className="min-w-0 flex-1 bg-background p-5 sm:p-6">
+    <main className="min-w-0 flex-1 bg-background px-4 py-6 sm:px-6">
       <Empty className="min-h-56 border">
         <EmptyHeader>
           <EmptyTitle>

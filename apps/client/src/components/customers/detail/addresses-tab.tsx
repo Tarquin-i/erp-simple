@@ -36,7 +36,11 @@ export default function CustomerAddressesTab({
           </Button>,
           createActionSlot
         )}
-      <AddressCollection key={customer.id} customerId={customer.id} />
+      <AddressCollection
+        key={customer.id}
+        customerId={customer.id}
+        customerTab
+      />
     </>
   );
 }

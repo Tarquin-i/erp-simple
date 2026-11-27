@@ -1,14 +1,10 @@
 import { type HistoryState, Link } from "@tanstack/react-router";
+import { Package } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
+import { ListEmptyState } from "@/components/shared/list-empty-state";
+import { ListLoadError } from "@/components/shared/list-load-error";
 import { ListPagination } from "@/components/shared/list-pagination";
-import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -114,33 +110,19 @@ export function CustomerProductsTab({
 
   if (current?.error) {
     return (
-      <Empty className="min-h-52 border">
-        <EmptyHeader>
-          <EmptyTitle>暂时无法加载产品</EmptyTitle>
-          <EmptyDescription role="alert">{current.error}</EmptyDescription>
-        </EmptyHeader>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setLoad(undefined);
-            setRetry((attempt) => attempt + 1);
-          }}
-        >
-          重试
-        </Button>
-      </Empty>
+      <ListLoadError
+        title="暂时无法加载产品"
+        message={current.error}
+        onRetry={() => {
+          setLoad(undefined);
+          setRetry((attempt) => attempt + 1);
+        }}
+      />
     );
   }
 
   if (result?.products.length === 0) {
-    return (
-      <Empty className="min-h-52 border">
-        <EmptyHeader>
-          <EmptyTitle>暂无产品</EmptyTitle>
-        </EmptyHeader>
-      </Empty>
-    );
+    return <ListEmptyState icon={<Package />} title="暂无产品" />;
   }
 
   const table = (

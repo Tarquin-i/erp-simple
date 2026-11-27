@@ -1,3 +1,4 @@
+import { MapPin } from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -7,14 +8,16 @@ import {
   useState,
 } from "react";
 
-import { Button } from "@/components/ui/button";
-import { FieldError } from "@/components/ui/field";
+import { ListEmptyState } from "@/components/shared/list-empty-state";
+import { ListLoadError } from "@/components/shared/list-load-error";
 import { toastManager } from "@/components/shared/toast";
 import {
   VirtualList,
   type VirtualListHandle,
   type VirtualScrollAnchor,
 } from "@/components/shared/virtual-list";
+import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/ui/field";
 import {
   AddressApiError,
   type AddressDetail,
@@ -30,6 +33,7 @@ type AddressPage = Awaited<ReturnType<typeof listCustomerAddresses>>;
 type RefreshDetail = (signal: AbortSignal) => Promise<boolean | undefined>;
 type AddressCollectionProps = {
   customerId: string;
+  customerTab?: boolean;
   header?: ReactNode;
   currentAddress?: AddressDetail;
   refreshDetailAfterDefault?: RefreshDetail;
@@ -89,6 +93,7 @@ async function readLoadedAddresses(
  */
 export function AddressCollection({
   customerId,
+  customerTab,
   header,
   currentAddress,
   refreshDetailAfterDefault,
@@ -292,6 +297,19 @@ export function AddressCollection({
         onChanged={refreshAfterChange}
       />
     );
+  }
+
+  if (customerTab && !collection && pageError) {
+    return (
+      <ListLoadError
+        title="暂时无法加载地址"
+        message={pageError}
+        onRetry={retryAddresses}
+      />
+    );
+  }
+  if (customerTab && collection && items.length === 0 && !request) {
+    return <ListEmptyState icon={<MapPin />} title="暂无地址" />;
   }
 
   return (

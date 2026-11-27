@@ -3,6 +3,8 @@ import { ContactRound, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { ListEmptyState } from "@/components/shared/list-empty-state";
+import { ListLoadError } from "@/components/shared/list-load-error";
 import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import { VirtualList } from "@/components/shared/virtual-list";
 import {
@@ -15,12 +17,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -340,12 +336,11 @@ export function CustomerContacts({
 
   if (loadError) {
     return (
-      <div className="flex flex-wrap items-center gap-3 py-4">
-        <FieldError>{loadError}</FieldError>
-        <Button variant="outline" onClick={reloadContacts}>
-          重试
-        </Button>
-      </div>
+      <ListLoadError
+        title="暂时无法加载联系方式"
+        message={loadError}
+        onRetry={reloadContacts}
+      />
     );
   }
   if (!contacts) {
@@ -383,14 +378,7 @@ export function CustomerContacts({
       </p>
 
       {contacts.length === 0 ? (
-        <Empty className="border border-dashed">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <ContactRound />
-            </EmptyMedia>
-            <EmptyTitle>暂无联系方式</EmptyTitle>
-          </EmptyHeader>
-        </Empty>
+        <ListEmptyState icon={<ContactRound />} title="暂无联系方式" />
       ) : (
         <VirtualList
           label="客户联系方式"

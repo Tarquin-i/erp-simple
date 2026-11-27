@@ -183,13 +183,15 @@ export function EditPayoutForm({
             </Button>
           </div>
         </header>
-        <FieldError>{issue}</FieldError>
+        <FieldError className="wrap-break-word rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
+          {issue}
+        </FieldError>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor={`${id}-product`}>产品</FieldLabel>
             <Input
               id={`${id}-product`}
-              className="bg-muted/25 text-muted-foreground"
+              className="bg-muted/25 text-muted-foreground text-sm"
               value={base.product.name}
               readOnly
             />
@@ -209,7 +211,7 @@ export function EditPayoutForm({
             <FieldLabel htmlFor={`${id}-count`}>总张数</FieldLabel>
             <Input
               id={`${id}-count`}
-              className="bg-muted/25 text-muted-foreground"
+              className="bg-muted/25 text-muted-foreground text-sm"
               value={formatPayoutQuantity(base.ticketCount)}
               readOnly
             />

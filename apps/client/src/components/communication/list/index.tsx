@@ -373,7 +373,7 @@ export function CommunicationList({
       ) : result.communications.length === 0 ? (
         <ListEmptyState
           icon={<MessagesSquare />}
-          variant="prominent"
+          variant={customerView ? "default" : "prominent"}
           title={customerId ? "暂无沟通记录" : "没有找到符合条件的沟通记录"}
           description={
             customerId

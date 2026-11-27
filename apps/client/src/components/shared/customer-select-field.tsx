@@ -52,7 +52,7 @@ export function CustomerSelectField({
         <Input
           id="communication-form-customer"
           className={cn(
-            "h-10 bg-muted/25 text-muted-foreground shadow-xs",
+            "bg-muted/25 text-muted-foreground text-sm",
             controlClassName
           )}
           value={value ? customerLabel(value) : "客户信息受限"}
