@@ -167,7 +167,6 @@ export function EditPayoutForm({
             <Button
               type="button"
               variant="outline"
-              className="h-10 px-4"
               disabled={disabled}
               onClick={onReturn}
             >
@@ -176,7 +175,6 @@ export function EditPayoutForm({
             <Button
               ref={saveButton}
               type="submit"
-              className="h-10 px-4"
               disabled={disabled}
               aria-busy={pending}
             >

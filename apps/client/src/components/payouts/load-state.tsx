@@ -36,6 +36,39 @@ export function PayoutPagePending() {
   );
 }
 
+export function PayoutFormPending() {
+  return (
+    <main
+      aria-label="正在加载 Payout 表单"
+      aria-busy="true"
+      className="min-w-0 flex-1 space-y-5 bg-background px-5 py-6 sm:px-7 lg:px-8"
+    >
+      <div
+        aria-hidden="true"
+        className="flex flex-wrap items-center justify-between gap-4"
+      >
+        <Skeleton className="h-8 w-32" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-8 w-12.5 rounded-lg" />
+          <Skeleton className="h-8 w-18 rounded-lg" />
+        </div>
+      </div>
+      <div aria-hidden="true" className="grid gap-4 sm:grid-cols-2">
+        {["product", "name", "count", "price"].map((field) => (
+          <div key={field} className="grid gap-2">
+            <Skeleton className="h-[1.375em] w-14 text-sm" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ))}
+        <div className="grid gap-2 sm:col-span-2">
+          <Skeleton className="h-[1.375em] w-8 text-sm" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      </div>
+    </main>
+  );
+}
+
 export function PayoutPageError({
   error,
   reset,

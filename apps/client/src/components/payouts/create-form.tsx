@@ -130,18 +130,12 @@ export function CreatePayoutForm({
             <Button
               type="button"
               variant="outline"
-              className="h-10 px-4"
               disabled={busy}
               onClick={onCancel}
             >
               取消
             </Button>
-            <Button
-              type="submit"
-              className="h-10 px-4"
-              disabled={busy}
-              aria-busy={busy}
-            >
+            <Button type="submit" disabled={busy} aria-busy={busy}>
               <Save aria-hidden="true" />
               {busy ? "正在保存…" : retry ? "重试保存" : "保存"}
             </Button>

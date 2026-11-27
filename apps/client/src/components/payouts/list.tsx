@@ -227,6 +227,7 @@ export function PayoutList({
       ) : result.payouts.length === 0 ? (
         <ListEmptyState
           icon={<CircleDollarSign aria-hidden="true" />}
+          variant="prominent"
           title={
             search || filterModel.filters.length
               ? "没有找到符合条件的 Payout"

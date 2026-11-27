@@ -2,8 +2,8 @@ import { createFileRoute, useLocation } from "@tanstack/react-router";
 
 import { EditPayoutForm } from "@/components/payouts/edit-form";
 import {
+  PayoutFormPending,
   PayoutPageError,
-  PayoutPagePending,
 } from "@/components/payouts/load-state";
 import {
   readPayoutListOrigin,
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_protected/payouts/$payoutId/edit")({
     handler: ({ params, abortController }) =>
       getPayout(params.payoutId, abortController.signal),
   },
-  pendingComponent: PayoutPagePending,
+  pendingComponent: PayoutFormPending,
   errorComponent: PayoutPageError,
   component: EditPayoutPage,
 });
