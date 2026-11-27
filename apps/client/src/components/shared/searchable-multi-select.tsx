@@ -77,7 +77,8 @@ type SearchableMultiSelectProps<Option extends MultiSelectOption> = {
   };
   isOptionDisabled?: (option: Option) => boolean;
   getOptionColor?: (option: Option) => string | undefined;
-  optionIcon?: ReactNode;
+  renderOptionIcon?: (option: Option) => ReactNode;
+  chipSize?: "sm" | "md";
   onManageOption?: (option: Option, action: OptionAction) => void;
   isOptionManageable?: (option: Option) => boolean;
   onManageOptionUnavailable?: () => void;
@@ -102,7 +103,8 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
   search,
   isOptionDisabled,
   getOptionColor,
-  optionIcon,
+  renderOptionIcon,
+  chipSize = "sm",
   onManageOption,
   isOptionManageable,
   onManageOptionUnavailable,
@@ -124,6 +126,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
   const menuPoint = optionMenu?.point;
   const visibleChips = value.slice(0, 2);
   const remainingCount = value.length - visibleChips.length;
+  const mediumChips = chipSize === "md";
   const selectionDescriptionId = value.length ? `${id}-selection` : undefined;
 
   useEffect(() => () => window.clearTimeout(optionPress.current?.timer), []);
@@ -304,9 +307,15 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
         已选 {value.length} 项。
         {visibleChips.map(({ name }) => name).join("、")}
       </span>
-      <div className="pointer-events-none absolute inset-y-0 right-9 left-2.5 flex min-w-0 items-center gap-1">
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-y-0 right-9 left-2.5 flex min-w-0 items-center",
+          mediumChips ? "gap-1.5" : "gap-1"
+        )}
+      >
         {visibleChips.map((option) => {
           const color = getOptionColor?.(option);
+          const optionIcon = renderOptionIcon?.(option);
           const outline = Boolean(optionIcon) || hasVisibleTagColor(color);
           const leading = optionIcon ?? <TagColorDot color={color} />;
           return (
@@ -314,8 +323,9 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
               key={option.id}
               variant={outline ? "outline" : "default"}
               className={cn(
-                "min-w-0 shrink pr-0",
+                "min-w-0 shrink",
                 outline ? "gap-1" : "gap-0.5",
+                mediumChips ? "h-6 gap-1.5 pr-1" : "pr-0",
                 handlesOptionMenu && "pointer-events-auto"
               )}
               onContextMenu={
@@ -327,7 +337,10 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
               {handlesOptionMenu ? (
                 <button
                   type="button"
-                  className="flex min-w-0 items-center gap-1 select-none [-webkit-touch-callout:none] focus-visible:underline"
+                  className={cn(
+                    "flex min-w-0 items-center select-none [-webkit-touch-callout:none] focus-visible:underline",
+                    mediumChips ? "gap-1.5" : "gap-1"
+                  )}
                   onClick={() => getTrigger()?.click()}
                   onKeyDown={(event) => openMenuFromKeyboard(option, event)}
                   {...touchMenuHandlers(option)}
@@ -346,7 +359,8 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
                 variant="ghost"
                 size="icon-xs"
                 className={cn(
-                  "pointer-events-auto size-4.5 rounded-full border-0 text-inherit opacity-80 hover:text-inherit hover:opacity-100",
+                  "pointer-events-auto rounded-full border-0 text-inherit opacity-80 hover:text-inherit hover:opacity-100",
+                  mediumChips ? "size-5" : "size-4.5",
                   outline
                     ? "hover:bg-muted focus-visible:ring-ring"
                     : "hover:bg-primary-foreground/15 focus-visible:ring-primary-foreground/70"
@@ -411,7 +425,9 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
             }
             {...touchMenuHandlers(option)}
           >
-            {optionIcon ?? <TagColorDot color={getOptionColor?.(option)} />}
+            {renderOptionIcon?.(option) ?? (
+              <TagColorDot color={getOptionColor?.(option)} />
+            )}
             <span className="min-w-0 truncate">{option.name}</span>
           </ComboboxItem>
         )}
@@ -630,7 +646,9 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
                     else removeOption(option.id);
                   }}
                 />
-                {optionIcon ?? <TagColorDot color={getOptionColor?.(option)} />}
+                {renderOptionIcon?.(option) ?? (
+                  <TagColorDot color={getOptionColor?.(option)} />
+                )}
                 <span className="min-w-0 truncate">{option.name}</span>
               </FieldLabel>
             );

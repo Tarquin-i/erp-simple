@@ -345,7 +345,8 @@ export function CustomerForm({
           <FixedMultiSelectField
             id="customer-form-channels"
             label="渠道"
-            optionIcon={<CustomerChannelIcon />}
+            renderOptionIcon={({ id }) => <CustomerChannelIcon code={id} />}
+            chipSize="md"
             emptyMessage="暂无渠道"
             value={draft.channels}
             items={channels.map(({ code, name }) => ({ id: code, name }))}
@@ -358,6 +359,7 @@ export function CustomerForm({
             key={tagDepartmentId}
             id="customer-form-tags"
             label="标签"
+            chipSize="md"
             departmentId={tagDepartmentId}
             placeholder={tagDepartmentId ? undefined : "请先选择部门"}
             value={draft.tags}

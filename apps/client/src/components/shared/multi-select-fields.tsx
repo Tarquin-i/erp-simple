@@ -33,6 +33,7 @@ type PickerProps<Option extends PickerOption = PickerOption> = {
   onChange: (value: Option[]) => void;
   disabled: boolean;
   placeholder?: string;
+  chipSize?: "sm" | "md";
 };
 
 export function FixedMultiSelectField({
@@ -42,7 +43,7 @@ export function FixedMultiSelectField({
 }: PickerProps & {
   items: PickerOption[];
   emptyMessage: string;
-  optionIcon?: ReactNode;
+  renderOptionIcon?: (option: PickerOption) => ReactNode;
 }) {
   return (
     <Field className="min-w-0">
