@@ -174,6 +174,10 @@ export function CommunicationForm({
   const attachmentBusy = pending || archiveInProgress || attachments.busy;
   const customerChoice = baseline ? baseline.customer : customer;
   const customerId = baseline?.customerId ?? customer?.id;
+  const tagDepartmentId =
+    baseline?.departmentId ??
+    customerChoice?.departmentId ??
+    viewer.department?.id;
   const canChangeOwner =
     canAssign &&
     !assignmentDenied &&
@@ -443,27 +447,32 @@ export function CommunicationForm({
               if (selection?.id === customer?.id) return;
               setCustomer(selection);
               setError("");
-              setDraft((previous) => ({ ...previous, owner: defaultOwner }));
+              const nextDepartmentId =
+                selection?.departmentId ?? viewer.department?.id;
+              setDraft((previous) => ({
+                ...previous,
+                owner: defaultOwner,
+                tags: nextDepartmentId === tagDepartmentId ? previous.tags : [],
+              }));
             }}
           />
           <TagMultiSelectField
+            key={tagDepartmentId}
             id="communication-form-tags"
             label="标签"
+            departmentId={tagDepartmentId}
+            placeholder={tagDepartmentId ? undefined : "请先选择客户"}
             value={draft.tags}
             onChange={(tags) => setDraft((previous) => ({ ...previous, tags }))}
             disabled={fieldsLocked}
             onCreatingChange={setTagPending}
             loadTags={listCommunicationTags}
             createTag={createCommunicationTag}
-            manageTags={
-              viewer.role === "company-admin"
-                ? {
-                    update: updateCommunicationTag,
-                    usage: getCommunicationTagUsage,
-                    remove: deleteCommunicationTag,
-                  }
-                : undefined
-            }
+            manageTags={{
+              update: updateCommunicationTag,
+              usage: getCommunicationTagUsage,
+              remove: deleteCommunicationTag,
+            }}
             tagLimitLabel="每条沟通"
           />
           <CommunicationOwnerField

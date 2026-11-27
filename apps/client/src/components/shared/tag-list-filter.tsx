@@ -8,8 +8,19 @@ export type TagFilterOption = {
   id: string;
   name: string;
   color?: string | null;
+  departmentId?: string | null;
+  departmentName?: string | null;
 };
 type TagPage = { tags: TagFilterOption[]; total: number };
+
+export function tagFilterLabel(tag: TagFilterOption, showDepartment: boolean) {
+  const department =
+    tag.departmentName ??
+    (tag.departmentId === null ? "未分配部门" : undefined);
+  return showDepartment && department
+    ? `${tag.name}（${department}）`
+    : tag.name;
+}
 
 const labels = {
   searchPlaceholder: "搜索标签",
@@ -24,12 +35,14 @@ const labels = {
 
 export function TagListFilter({
   loadTags,
+  showDepartment,
   ...props
 }: {
   loadTags: (
     query: PaginatedFilterOptionsQuery,
     signal: AbortSignal
   ) => Promise<TagPage>;
+  showDepartment: boolean;
   selectionLimit: number;
   selected: string[];
   labelLookupFailed: boolean;
@@ -49,14 +62,17 @@ export function TagListFilter({
       {...props}
       loadOptions={loadOptions}
       labels={labels}
-      renderOption={(tag) => (
-        <>
-          <TagColorDot color={tag.color} />
-          <span className="truncate" title={tag.name}>
-            {tag.name}
-          </span>
-        </>
-      )}
+      renderOption={(tag) => {
+        const label = tagFilterLabel(tag, showDepartment);
+        return (
+          <>
+            <TagColorDot color={tag.color} />
+            <span className="truncate" title={label}>
+              {label}
+            </span>
+          </>
+        );
+      }}
     />
   );
 }

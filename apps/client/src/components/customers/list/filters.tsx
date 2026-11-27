@@ -1,3 +1,4 @@
+import { useRouteContext } from "@tanstack/react-router";
 import { Route, Tag, UserRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SetStateAction } from "react";
@@ -12,7 +13,10 @@ import {
   hasVisibleTagColor,
   TagColorDot,
 } from "@/components/shared/tag-color-dot";
-import { TagListFilter } from "@/components/shared/tag-list-filter";
+import {
+  TagListFilter,
+  tagFilterLabel,
+} from "@/components/shared/tag-list-filter";
 import type { TagFilterOption } from "@/components/shared/tag-list-filter";
 import { Button } from "@/components/ui/button";
 import {
@@ -198,6 +202,8 @@ export function useCustomerListFilters(
   onQueryChange: (update: QueryUpdater) => void,
   pageTags: ReadonlyMap<string, CustomerTag>
 ) {
+  const { viewer } = useRouteContext({ from: "/_protected" });
+  const showTagDepartment = viewer.role === "company-admin";
   const [channels, retryChannels] = useFilterDictionary(loadChannelOptions);
   const [owners, retryOwners] = useFilterDictionary(loadOwnerOptions);
   const [tagLabels, setTagLabels] = useState<ReadonlyMap<string, TagLabel>>(
@@ -218,7 +224,10 @@ export function useCustomerListFilters(
       missingIds.map(async (id): Promise<[string, TagLabel]> => {
         try {
           const { tag } = await getCustomerTag(id, controller.signal);
-          return [id, { label: tag.name, color: tag.color }];
+          return [
+            id,
+            { label: tagFilterLabel(tag, showTagDepartment), color: tag.color },
+          ];
         } catch (error) {
           const unavailable =
             error instanceof CustomerApiError && error.status === 404;
@@ -236,7 +245,7 @@ export function useCustomerListFilters(
       setTagLabels((previous) => new Map([...previous, ...labels]));
     });
     return () => controller.abort();
-  }, [pageTags, tagIds, tagLabels]);
+  }, [pageTags, showTagDepartment, tagIds, tagLabels]);
 
   const retryTagLabels = useCallback(() => {
     setTagLabels(
@@ -251,12 +260,13 @@ export function useCustomerListFilters(
   );
   const toggleTag = useCallback(
     (tag: TagFilterOption) => {
+      const label = tagFilterLabel(tag, showTagDepartment);
       setTagLabels((previous) => {
         const current = previous.get(tag.id);
-        return current?.label === tag.name && current.color === tag.color
+        return current?.label === label && current.color === tag.color
           ? previous
           : new Map(previous).set(tag.id, {
-              label: tag.name,
+              label,
               color: tag.color,
             });
       });
@@ -277,7 +287,7 @@ export function useCustomerListFilters(
         };
       });
     },
-    [onQueryChange]
+    [onQueryChange, showTagDepartment]
   );
 
   const columnsConfig = useMemo(() => {
@@ -303,7 +313,9 @@ export function useCustomerListFilters(
           const color = tag ? tag.color : cached?.color;
           return {
             value: id,
-            label: tag?.name ?? cached?.label ?? "正在读取标签…",
+            label: tag
+              ? tagFilterLabel(tag, showTagDepartment)
+              : (cached?.label ?? "正在读取标签…"),
             icon: hasVisibleTagColor(color) ? (
               <TagColorDot color={color} />
             ) : undefined,
@@ -312,6 +324,7 @@ export function useCustomerListFilters(
         renderFilterValue: (filter) => (
           <TagListFilter
             loadTags={listCustomerTags}
+            showDepartment={showTagDepartment}
             selectionLimit={customerFilterLimit}
             selected={filter?.values ?? []}
             labelLookupFailed={tagIds.some(
@@ -344,6 +357,7 @@ export function useCustomerListFilters(
     retryChannels,
     retryOwners,
     retryTagLabels,
+    showTagDepartment,
     tagIds,
     tagLabels,
     toggleTag,

@@ -21,15 +21,18 @@ import {
 import { OptionEditorDialog } from "./option-editor-dialog";
 import { SearchableMultiSelect } from "./searchable-multi-select";
 import { hasVisibleTagColor } from "./tag-color-dot";
+import { toastManager } from "./toast";
 
 export type PickerOption = { id: string; name: string; color?: string };
+type TagPickerOption = PickerOption & { canManage?: boolean };
 
-type PickerProps = {
+type PickerProps<Option extends PickerOption = PickerOption> = {
   id: string;
   label: string;
-  value: PickerOption[];
-  onChange: (value: PickerOption[]) => void;
+  value: Option[];
+  onChange: (value: Option[]) => void;
   disabled: boolean;
+  placeholder?: string;
 };
 
 export function FixedMultiSelectField({
@@ -46,7 +49,6 @@ export function FixedMultiSelectField({
         {...props}
         items={items}
         emptyMessage={emptyMessage}
-        allowClear
       />
     </Field>
   );
@@ -59,41 +61,49 @@ const maxTags = 100;
 
 type TagPage = {
   keyword: string;
-  items: PickerOption[];
+  items: TagPickerOption[];
   page: number;
   total: number;
 };
 
 type TagEditor =
   | { mode: "create"; name: string }
-  | { mode: "edit"; tag: PickerOption; name: string }
-  | { mode: "delete"; tag: PickerOption };
+  | { mode: "edit"; tag: TagPickerOption; name: string }
+  | { mode: "delete"; tag: TagPickerOption };
 
 type TagSnapshot = { expectedName: string; expectedColor: string };
 
 /** 为公共复选框接入标签目录、分页和标签操作。 */
 export function TagMultiSelectField({
+  departmentId,
   onCreatingChange,
   loadTags,
   createTag,
   manageTags,
   tagLimitLabel,
   ...props
-}: PickerProps & {
+}: PickerProps<TagPickerOption> & {
+  departmentId: string | undefined;
   onCreatingChange?: (creating: boolean) => void;
   loadTags: (
-    query: { search: string; page: number; pageSize: number },
+    query: {
+      search: string;
+      page: number;
+      pageSize: number;
+      departmentId: string;
+    },
     signal: AbortSignal
-  ) => Promise<{ tags: PickerOption[]; page: number; total: number }>;
+  ) => Promise<{ tags: TagPickerOption[]; page: number; total: number }>;
   createTag?: (input: {
     name: string;
     color?: string;
-  }) => Promise<{ tag: PickerOption }>;
-  manageTags?: {
+    departmentId: string;
+  }) => Promise<{ tag: TagPickerOption }>;
+  manageTags: {
     update: (
       id: string,
       input: TagSnapshot & { name: string; color: string }
-    ) => Promise<{ tag: PickerOption }>;
+    ) => Promise<{ tag: TagPickerOption }>;
     usage: (id: string, signal: AbortSignal) => Promise<{ references: number }>;
     remove: (id: string, input: TagSnapshot) => Promise<{ deleted: true }>;
   };
@@ -132,13 +142,13 @@ export function TagMultiSelectField({
   const expectedColor = (editedTag ?? deletingTag)?.color ?? defaultTagColor;
   const nextColor = tagColor ?? defaultTagColor;
   const canSubmitEditor = editedTag
-    ? Boolean(manageTags && tagName && !tagConflict) &&
+    ? Boolean(editedTag.canManage && tagName && !tagConflict) &&
       (tagName !== editedTag.name || nextColor !== expectedColor.toLowerCase())
     : Boolean(createTag && !atTagLimit && tagName);
-  const loadUsage = manageTags?.usage;
+  const loadUsage = manageTags.usage;
 
   useEffect(() => {
-    if (!deletingTag || !loadUsage) return;
+    if (!deletingTag) return;
     const controller = new AbortController();
     loadUsage(deletingTag.id, controller.signal)
       .then(({ references }) => {
@@ -159,7 +169,7 @@ export function TagMultiSelectField({
   // 仅在下拉打开时查询。搜索首屏防抖，条件变化时取消上一笔请求。
   // biome-ignore lint/correctness/useExhaustiveDependencies(reload): 重新加载当前搜索条件和页码的标签候选。
   useEffect(() => {
-    if (!open) return;
+    if (!open || !departmentId) return;
 
     const controller = new AbortController();
     setLoading(true);
@@ -167,7 +177,7 @@ export function TagMultiSelectField({
     const timer = window.setTimeout(
       () => {
         loadTags(
-          { search: keyword, page, pageSize: tagPageSize },
+          { search: keyword, page, pageSize: tagPageSize, departmentId },
           controller.signal
         )
           .then((response) => {
@@ -205,14 +215,14 @@ export function TagMultiSelectField({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [keyword, loadTags, open, page, reload]);
+  }, [departmentId, keyword, loadTags, open, page, reload]);
 
   function changeSearch(value: string) {
     if (value.trim() !== keyword) setPage(1);
     setSearch(value);
   }
 
-  function manageTag(tag: PickerOption, action: "edit" | "delete") {
+  function manageTag(tag: TagPickerOption, action: "edit" | "delete") {
     setEditorError("");
     setTagConflict(false);
     setReferences(null);
@@ -226,7 +236,7 @@ export function TagMultiSelectField({
     );
   }
 
-  function refreshTag(id: string, tag?: PickerOption) {
+  function refreshTag(id: string, tag?: TagPickerOption) {
     if (props.value.some((option) => option.id === id)) {
       props.onChange(
         tag
@@ -240,10 +250,10 @@ export function TagMultiSelectField({
   }
 
   async function submitEditor() {
-    if (saving || props.disabled || !editor) return;
+    if (saving || props.disabled || !editor || !departmentId) return;
     if (
       editor.mode === "delete"
-        ? !manageTags || references !== 0 || tagConflict
+        ? !editor.tag.canManage || references !== 0 || tagConflict
         : !canSubmitEditor
     )
       return;
@@ -256,6 +266,7 @@ export function TagMultiSelectField({
         const { tag } = await createTag({
           name: tagName,
           color: tagColor ?? undefined,
+          departmentId,
         });
         if (!props.value.some(({ id }) => id === tag.id)) {
           props.onChange([...props.value, tag]);
@@ -263,7 +274,7 @@ export function TagMultiSelectField({
         returnToOptions.current = true;
         setPage(1);
         setReload((attempt) => attempt + 1);
-      } else if (editor.mode !== "create" && manageTags) {
+      } else if (editor.mode !== "create") {
         const id = editor.tag.id;
         const snapshot = { expectedName: editor.tag.name, expectedColor };
         if (editor.mode === "delete") {
@@ -300,7 +311,15 @@ export function TagMultiSelectField({
           (current.color === defaultTagColor ||
             hasVisibleTagColor(current.color))
         ) {
-          refreshTag(id, { id, name: current.name, color: current.color });
+          refreshTag(id, {
+            ...editor.tag,
+            name: current.name,
+            color: current.color,
+            canManage:
+              "canManage" in current
+                ? current.canManage === true
+                : editor.tag.canManage,
+          });
         }
         setTagConflict(true);
         setEditorError("标签已被其他人修改。请关闭弹窗并重新打开后再操作。");
@@ -353,12 +372,20 @@ export function TagMultiSelectField({
         {...props}
         items={matchingTags}
         getOptionColor={(option) => option.color}
-        onManageOption={manageTags ? manageTag : undefined}
+        onManageOption={manageTag}
+        isOptionManageable={(tag) => tag.canManage === true}
+        onManageOptionUnavailable={() => {
+          toastManager.add({
+            id: `${props.id}-tag-management-unavailable`,
+            title: "此标签已不可在当前部门管理。",
+            type: "error",
+          });
+        }}
         emptyMessage={
           searchError ||
           (loading || !currentResult ? "正在加载标签…" : "没有匹配的标签")
         }
-        disabled={props.disabled || saving}
+        disabled={props.disabled || !departmentId || saving}
         descriptionId={atTagLimit ? tagLimitId : undefined}
         open={open}
         onOpenChange={(next) => {

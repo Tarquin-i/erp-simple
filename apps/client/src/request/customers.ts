@@ -1,5 +1,12 @@
 export type CustomerChannel = { code: string; name: string; color: string };
-export type CustomerTag = { id: string; name: string; color: string };
+export type CustomerTag = {
+  id: string;
+  name: string;
+  color: string;
+  canManage: boolean;
+  departmentId: string | null;
+  departmentName?: string | null;
+};
 export type CustomerOwner = { id: string; name: string };
 
 export type Customer = {
@@ -232,7 +239,10 @@ export function listCustomerChannels(signal?: AbortSignal) {
   return request<{ channels: CustomerChannel[] }>("/channels", { signal });
 }
 
-export function listCustomerTags(query: PageQuery = {}, signal?: AbortSignal) {
+export function listCustomerTags(
+  query: PageQuery & { departmentId?: string } = {},
+  signal?: AbortSignal
+) {
   return request<PageMetadata & { tags: CustomerTag[] }>(
     `/tags${queryString(query)}`,
     { signal }
@@ -258,7 +268,11 @@ export function getCustomerTag(id: string, signal?: AbortSignal) {
  * @returns `{ tag }`，包含新标签的 ID、名称和颜色。
  * @throws HTTP 失败时抛出 `CustomerApiError`，标签重名的错误码为 `tag_name_exists`。
  */
-export function createCustomerTag(input: { name: string; color?: string }) {
+export function createCustomerTag(input: {
+  name: string;
+  color?: string;
+  departmentId?: string;
+}) {
   return write<{ tag: CustomerTag }>("/tags", "POST", input);
 }
 

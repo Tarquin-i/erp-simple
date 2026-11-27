@@ -1,11 +1,13 @@
 import { Menu } from "@base-ui/react";
 import { cn } from "cn";
-import { ChevronDown, Ellipsis, Pencil, Trash2, X } from "lucide-react";
+import { ChevronDown, Pencil, Trash2, X } from "lucide-react";
 import {
   type KeyboardEvent,
   type MouseEvent,
+  type PointerEvent,
   type ReactNode,
   type Ref,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -47,6 +49,15 @@ type OptionMenu<Option> = {
   point?: DOMRect;
 };
 
+type OptionPress = {
+  pointerId: number;
+  target: HTMLElement;
+  x: number;
+  y: number;
+  timer: number;
+  handled: boolean;
+};
+
 type SearchableMultiSelectProps<Option extends MultiSelectOption> = {
   id: string;
   label: string;
@@ -54,6 +65,7 @@ type SearchableMultiSelectProps<Option extends MultiSelectOption> = {
   value: Option[];
   onChange: (value: Option[]) => void;
   disabled?: boolean;
+  placeholder?: string;
   emptyMessage: string;
   descriptionId?: string;
   open?: boolean;
@@ -66,6 +78,8 @@ type SearchableMultiSelectProps<Option extends MultiSelectOption> = {
   isOptionDisabled?: (option: Option) => boolean;
   getOptionColor?: (option: Option) => string | undefined;
   onManageOption?: (option: Option, action: OptionAction) => void;
+  isOptionManageable?: (option: Option) => boolean;
+  onManageOptionUnavailable?: () => void;
   allowClear?: boolean;
   action?: DropdownAction;
   footer?: ReactNode;
@@ -79,6 +93,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
   value,
   onChange,
   disabled,
+  placeholder,
   emptyMessage,
   descriptionId,
   open,
@@ -87,6 +102,8 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
   isOptionDisabled,
   getOptionColor,
   onManageOption,
+  isOptionManageable,
+  onManageOptionUnavailable,
   allowClear,
   action,
   footer,
@@ -95,15 +112,23 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
   const anchor = useComboboxAnchor();
   const popup = useRef<HTMLDivElement>(null);
   const menuPopup = useRef<HTMLDivElement>(null);
+  const optionPress = useRef<OptionPress | null>(null);
   const [localOpen, setLocalOpen] = useState(false);
   const [optionMenu, setOptionMenu] = useState<OptionMenu<Option> | null>(null);
-  const [hoveredOptionId, setHoveredOptionId] = useState<string>();
   const isOpen = open ?? localOpen;
-  const canManageOptions = Boolean(search && onManageOption && !disabled);
+  const handlesOptionMenu = Boolean(
+    search && !disabled && (onManageOption || onManageOptionUnavailable)
+  );
   const menuPoint = optionMenu?.point;
   const visibleChips = value.slice(0, 2);
   const remainingCount = value.length - visibleChips.length;
   const selectionDescriptionId = value.length ? `${id}-selection` : undefined;
+
+  useEffect(() => () => window.clearTimeout(optionPress.current?.timer), []);
+
+  function canManageOption(option: Option) {
+    return Boolean(onManageOption && (isOptionManageable?.(option) ?? true));
+  }
 
   function changeOpen(next: boolean) {
     if (!next) setOptionMenu(null);
@@ -134,19 +159,101 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
     onChange([]);
   }
 
-  function openContextMenu(option: Option, event: MouseEvent<HTMLElement>) {
-    event.preventDefault();
-    const origin =
+  function showOptionMenu(
+    option: Option,
+    target: HTMLElement,
+    point?: DOMRect
+  ) {
+    if (!canManageOption(option)) {
+      onManageOptionUnavailable?.();
+      return;
+    }
+    setOptionMenu({ option, origin: target, point });
+  }
+
+  function menuOrigin(target: HTMLElement) {
+    return (
       popup.current?.querySelector<HTMLInputElement>("input") ??
       getTrigger() ??
-      event.currentTarget;
+      target
+    );
+  }
+
+  function openContextMenu(option: Option, event: MouseEvent<HTMLElement>) {
+    event.preventDefault();
+    const press = optionPress.current;
+    if (press?.handled) return;
+    if (press) {
+      window.clearTimeout(press.timer);
+      press.handled = true;
+    }
     const { clientX, clientY } = event;
-    setOptionMenu({
+    showOptionMenu(
       option,
-      origin,
-      point:
-        clientX || clientY ? new DOMRect(clientX, clientY, 0, 0) : undefined,
-    });
+      menuOrigin(event.currentTarget),
+      clientX || clientY ? new DOMRect(clientX, clientY, 0, 0) : undefined
+    );
+  }
+
+  function finishOptionPress(event: PointerEvent<HTMLElement>) {
+    const press = optionPress.current;
+    if (press?.pointerId !== event.pointerId) return;
+    window.clearTimeout(press.timer);
+    if (!press.handled) optionPress.current = null;
+  }
+
+  function touchMenuHandlers(option: Option) {
+    if (!handlesOptionMenu) return {};
+    return {
+      onPointerDown(event: PointerEvent<HTMLElement>) {
+        if (!event.isPrimary) return;
+        window.clearTimeout(optionPress.current?.timer);
+        optionPress.current = null;
+        if (event.pointerType !== "touch") return;
+
+        const { clientX: x, clientY: y, pointerId, currentTarget } = event;
+        const timer = window.setTimeout(() => {
+          const press = optionPress.current;
+          if (!press || !currentTarget.isConnected) return;
+          press.handled = true;
+          showOptionMenu(
+            option,
+            menuOrigin(currentTarget),
+            new DOMRect(x, y, 0, 0)
+          );
+        }, 500);
+        optionPress.current = {
+          pointerId,
+          target: currentTarget,
+          x,
+          y,
+          timer,
+          handled: false,
+        };
+      },
+      onPointerMove(event: PointerEvent<HTMLElement>) {
+        const press = optionPress.current;
+        if (
+          press &&
+          Math.hypot(event.clientX - press.x, event.clientY - press.y) > 10
+        ) {
+          finishOptionPress(event);
+        }
+      },
+      onPointerUp: finishOptionPress,
+      onPointerCancel: finishOptionPress,
+      onLostPointerCapture: finishOptionPress,
+      onMouseDownCapture(event: MouseEvent<HTMLElement>) {
+        if (optionPress.current?.handled) event.preventDefault();
+      },
+      onClickCapture(event: MouseEvent<HTMLElement>) {
+        if (!optionPress.current?.handled || event.detail === 0) return;
+        // 长按只打开菜单，抬手后的点击不应勾选标签。
+        optionPress.current = null;
+        event.preventDefault();
+        event.stopPropagation();
+      },
+    };
   }
 
   function openMenuFromKeyboard(
@@ -161,10 +268,10 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
     }
     event.preventDefault();
     const target = event.target;
-    setOptionMenu({
+    showOptionMenu(
       option,
-      origin: target instanceof HTMLElement ? target : event.currentTarget,
-    });
+      target instanceof HTMLElement ? target : event.currentTarget
+    );
   }
 
   const triggerProps = {
@@ -186,7 +293,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
   };
   const triggerContent = (
     <span className="truncate text-muted-foreground" aria-hidden="true">
-      {!value.length ? `选择${label}` : ""}
+      {!value.length ? (placeholder ?? `选择${label}`) : ""}
     </span>
   );
   const chips = value.length > 0 && (
@@ -206,20 +313,21 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
               className={cn(
                 "min-w-0 shrink pr-0",
                 showColor ? "gap-1" : "gap-0.5",
-                canManageOptions && "pointer-events-auto"
+                handlesOptionMenu && "pointer-events-auto"
               )}
               onContextMenu={
-                canManageOptions
+                handlesOptionMenu
                   ? (event) => openContextMenu(option, event)
                   : undefined
               }
             >
-              {canManageOptions ? (
+              {handlesOptionMenu ? (
                 <button
                   type="button"
-                  className="flex min-w-0 items-center gap-1 focus-visible:underline"
+                  className="flex min-w-0 items-center gap-1 select-none [-webkit-touch-callout:none] focus-visible:underline"
                   onClick={() => getTrigger()?.click()}
                   onKeyDown={(event) => openMenuFromKeyboard(option, event)}
+                  {...touchMenuHandlers(option)}
                 >
                   <TagColorDot color={color} />
                   <span className="truncate">{option.name}</span>
@@ -281,13 +389,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
 
   if (search) {
     const optionsList = (
-      <ComboboxList
-        showScrollbar
-        className={cn(
-          formDropdownStyles.list,
-          onManageOption && "max-h-none overflow-visible pr-0"
-        )}
-      >
+      <ComboboxList showScrollbar className={formDropdownStyles.list}>
         {(option: Option) => (
           <ComboboxItem
             key={option.id}
@@ -295,20 +397,16 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
             disabled={isOptionDisabled?.(option)}
             className={cn(
               formDropdownStyles.option,
-              onManageOption && "data-disabled:pointer-events-auto"
+              handlesOptionMenu &&
+                "[-webkit-touch-callout:none] data-disabled:pointer-events-auto"
             )}
             data-option-id={option.id}
             onContextMenu={
-              canManageOptions
+              handlesOptionMenu
                 ? (event) => openContextMenu(option, event)
                 : undefined
             }
-            onPointerEnter={
-              canManageOptions ? () => setHoveredOptionId(option.id) : undefined
-            }
-            onPointerLeave={
-              canManageOptions ? () => setHoveredOptionId(undefined) : undefined
-            }
+            {...touchMenuHandlers(option)}
           >
             <TagColorDot color={getOptionColor?.(option)} />
             <span className="min-w-0 truncate">{option.name}</span>
@@ -379,7 +477,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
           sideOffset={4}
           className={formDropdownStyles.popup}
           onKeyDown={
-            canManageOptions
+            handlesOptionMenu
               ? (event) => {
                   if (
                     event.key !== "ContextMenu" &&
@@ -401,45 +499,29 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
         >
           <SelectSearchInput placeholder={search.placeholder} maxLength={64} />
           <ComboboxEmpty className="shrink-0">{emptyMessage}</ComboboxEmpty>
-          {onManageOption ? (
-            <div className="grid min-h-0 max-h-63 grid-cols-[minmax(0,1fr)_auto] scroll-py-1 overflow-y-auto overscroll-contain scrollbar-thin">
-              {optionsList}
-              {/* 菜单按钮与选项同步滚动，并保留独立的键盘焦点。 */}
-              <div className="flex flex-col py-1 pr-1 empty:p-0">
-                {items.map((option) => (
-                  <Button
-                    key={option.id}
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "shrink-0 text-muted-foreground hover:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 pointer-coarse:opacity-100",
-                      hoveredOptionId !== option.id && "opacity-0"
-                    )}
-                    aria-label={`打开「${option.name}」的操作菜单`}
-                    aria-haspopup="menu"
-                    aria-expanded={optionMenu?.option.id === option.id}
-                    disabled={disabled}
-                    onClick={(event) =>
-                      setOptionMenu({ option, origin: event.currentTarget })
-                    }
-                  >
-                    <Ellipsis aria-hidden="true" />
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            optionsList
-          )}
+          {optionsList}
           {panelFooter}
         </ComboboxContent>
         {onManageOption && (
           <Menu.Root
             modal={false}
             open={optionMenu !== null && !disabled}
-            onOpenChange={(next) => {
-              if (!next) setOptionMenu(null);
+            onOpenChange={(next, details) => {
+              if (next) return;
+              const press = optionPress.current;
+              const { event } = details;
+              // 长按后的合成点击可能先被菜单识别为外部点击。
+              if (
+                press?.handled &&
+                details.reason === "outside-press" &&
+                (event.type === "mousedown" || event.type === "click") &&
+                event.target instanceof Node &&
+                press.target.contains(event.target)
+              ) {
+                details.cancel();
+                return;
+              }
+              setOptionMenu(null);
             }}
           >
             <Menu.Portal>

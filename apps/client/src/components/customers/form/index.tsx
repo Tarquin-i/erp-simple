@@ -86,6 +86,8 @@ export function CustomerForm({
   const [error, setError] = useState("");
   const [nameError, setNameError] = useState("");
   const [departmentId, setDepartmentId] = useState("");
+  const tagDepartmentId =
+    customer?.departmentId || departmentId || viewer.department?.id;
   const [conflict, setConflict] = useState<{
     current: Customer;
     changes: CustomerWriteInput;
@@ -351,8 +353,11 @@ export function CustomerForm({
             disabled={pending}
           />
           <TagMultiSelectField
+            key={tagDepartmentId}
             id="customer-form-tags"
             label="标签"
+            departmentId={tagDepartmentId}
+            placeholder={tagDepartmentId ? undefined : "请先选择部门"}
             value={draft.tags}
             onChange={(value) =>
               setDraft((current) => ({ ...current, tags: value }))
@@ -360,15 +365,11 @@ export function CustomerForm({
             onCreatingChange={setTagPending}
             loadTags={listCustomerTags}
             createTag={createCustomerTag}
-            manageTags={
-              viewer.role === "company-admin"
-                ? {
-                    update: updateCustomerTag,
-                    usage: getCustomerTagUsage,
-                    remove: deleteCustomerTag,
-                  }
-                : undefined
-            }
+            manageTags={{
+              update: updateCustomerTag,
+              usage: getCustomerTagUsage,
+              remove: deleteCustomerTag,
+            }}
             tagLimitLabel="每个客户"
             disabled={pending}
           />
@@ -377,11 +378,15 @@ export function CustomerForm({
             departments={departments}
             departmentId={departmentId}
             onDepartmentChange={(id) => {
-              // 新部门的业务员需要重新选择，旧部门的人选随部门切换清除。
+              // 业务员和标签随目标部门切换重新选择。
               setDepartmentId(id);
               setNameError("");
               setError("");
-              setDraft((current) => ({ ...current, owner: undefined }));
+              setDraft((current) => ({
+                ...current,
+                owner: undefined,
+                tags: [],
+              }));
             }}
             owner={draft.owner}
             assignableOwners={assignableOwners}

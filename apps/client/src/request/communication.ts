@@ -11,12 +11,20 @@ export const communicationStatusLabels: Record<CommunicationStatus, string> = {
   completed: "已完结",
 };
 
-export type CommunicationTag = { id: string; name: string; color: string };
+export type CommunicationTag = {
+  id: string;
+  name: string;
+  color: string;
+  canManage: boolean;
+  departmentId: string | null;
+  departmentName?: string | null;
+};
 
 type CommunicationCustomer = {
   id: string;
   companyName: string;
   customerNo: string;
+  departmentId?: string;
   status?: "active" | "archived";
 };
 
@@ -40,6 +48,7 @@ export type CommunicationListItem = {
 export type Communication = {
   id: string;
   customerId: string;
+  departmentId: string;
   customer: CommunicationCustomer | null;
   canViewCustomer: boolean;
   title: string;
@@ -220,7 +229,7 @@ export function listCommunicationOwners(signal?: AbortSignal) {
 }
 
 export function listCommunicationTags(
-  query: PageQuery = {},
+  query: PageQuery & { departmentId?: string } = {},
   signal?: AbortSignal
 ) {
   return request<PageResult & { tags: CommunicationTag[] }>(
@@ -238,6 +247,7 @@ export function getCommunicationTag(id: string, signal?: AbortSignal) {
 export function createCommunicationTag(input: {
   name: string;
   color?: string;
+  departmentId?: string;
 }) {
   return write<{ tag: CommunicationTag }>("/tags", "POST", input);
 }

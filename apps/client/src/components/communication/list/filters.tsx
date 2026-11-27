@@ -1,3 +1,4 @@
+import { useRouteContext } from "@tanstack/react-router";
 import { ListChecks, Tag, UserRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode, SetStateAction } from "react";
@@ -13,7 +14,10 @@ import {
   hasVisibleTagColor,
   TagColorDot,
 } from "@/components/shared/tag-color-dot";
-import { TagListFilter } from "@/components/shared/tag-list-filter";
+import {
+  TagListFilter,
+  tagFilterLabel,
+} from "@/components/shared/tag-list-filter";
 import type { TagFilterOption } from "@/components/shared/tag-list-filter";
 import { Button } from "@/components/ui/button";
 import {
@@ -137,6 +141,8 @@ export function CommunicationFilterToolbar({
   search: ReactNode;
   actions: ReactNode;
 }) {
+  const { viewer } = useRouteContext({ from: "/_protected" });
+  const showTagDepartment = viewer.role === "company-admin";
   const [owners, setOwners] = useState<ColumnOption[]>();
   const [ownerError, setOwnerError] = useState(false);
   const [ownerRetry, setOwnerRetry] = useState(0);
@@ -180,7 +186,10 @@ export function CommunicationFilterToolbar({
       missingIds.map(async (id): Promise<[string, TagLabel]> => {
         try {
           const { tag } = await getCommunicationTag(id, controller.signal);
-          return [id, { label: tag.name, color: tag.color }];
+          return [
+            id,
+            { label: tagFilterLabel(tag, showTagDepartment), color: tag.color },
+          ];
         } catch (error) {
           const unavailable =
             error instanceof CommunicationApiError && error.status === 404;
@@ -199,7 +208,7 @@ export function CommunicationFilterToolbar({
       }
     });
     return () => controller.abort();
-  }, [tagIds, pageTags, tagLabels]);
+  }, [tagIds, pageTags, showTagDepartment, tagLabels]);
 
   const onFiltersChange = useCallback(
     (update: SetStateAction<FiltersState>) =>
@@ -208,12 +217,13 @@ export function CommunicationFilterToolbar({
   );
   const toggleTag = useCallback(
     (tag: TagFilterOption) => {
+      const label = tagFilterLabel(tag, showTagDepartment);
       setTagLabels((previous) => {
         const current = previous.get(tag.id);
-        return current?.label === tag.name && current.color === tag.color
+        return current?.label === label && current.color === tag.color
           ? previous
           : new Map(previous).set(tag.id, {
-              label: tag.name,
+              label,
               color: tag.color,
             });
       });
@@ -231,7 +241,7 @@ export function CommunicationFilterToolbar({
         };
       });
     },
-    [onQueryChange]
+    [onQueryChange, showTagDepartment]
   );
 
   const columnsConfig = useMemo(() => {
@@ -253,7 +263,9 @@ export function CommunicationFilterToolbar({
           const color = tag ? tag.color : cached?.color;
           return {
             value: id,
-            label: tag?.name ?? cached?.label ?? "正在读取标签…",
+            label: tag
+              ? tagFilterLabel(tag, showTagDepartment)
+              : (cached?.label ?? "正在读取标签…"),
             icon: hasVisibleTagColor(color) ? (
               <TagColorDot color={color} />
             ) : undefined,
@@ -262,6 +274,7 @@ export function CommunicationFilterToolbar({
         renderFilterValue: (filter) => (
           <TagListFilter
             loadTags={listCommunicationTags}
+            showDepartment={showTagDepartment}
             selectionLimit={listOptionLimit}
             selected={filter?.values ?? []}
             labelLookupFailed={tagIds.some(
@@ -323,6 +336,7 @@ export function CommunicationFilterToolbar({
     ownerError,
     query.ownerUserId,
     pageTags,
+    showTagDepartment,
     tagIds,
     tagLabels,
     toggleTag,

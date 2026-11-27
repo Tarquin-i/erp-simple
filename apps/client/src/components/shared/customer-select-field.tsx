@@ -110,10 +110,11 @@ function CustomerPicker({
           .then(({ customers, total }) => {
             if (signal.aborted) return;
             const options = customers.map(
-              ({ id, companyName, customerNo }) => ({
+              ({ id, companyName, customerNo, departmentId }) => ({
                 id,
                 companyName,
                 customerNo,
+                departmentId,
               })
             );
             setLookup((previous) => ({
@@ -219,8 +220,8 @@ function CustomerPicker({
         getOptionKey={(customer) => customer.id}
         renderOption={renderCustomerOption}
         footer={footer}
-        onValueChange={({ id, companyName, customerNo }) =>
-          onChange({ id, companyName, customerNo })
+        onValueChange={({ id, companyName, customerNo, departmentId }) =>
+          onChange({ id, companyName, customerNo, departmentId })
         }
       />
     </Field>
