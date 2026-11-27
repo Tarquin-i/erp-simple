@@ -71,7 +71,7 @@ export function PayoutFormPending() {
         ))}
         <div className="grid gap-2 sm:col-span-2">
           <Skeleton className="h-[1.375em] w-8 text-sm" />
-          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-36 w-full" />
         </div>
       </div>
     </main>

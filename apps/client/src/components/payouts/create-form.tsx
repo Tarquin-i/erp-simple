@@ -206,6 +206,7 @@ export function CreatePayoutForm({
             <FieldLabel htmlFor={`${id}-remark`}>备注</FieldLabel>
             <Textarea
               id={`${id}-remark`}
+              className="min-h-36"
               value={remark}
               maxLength={2000}
               disabled={disabled}

@@ -235,6 +235,7 @@ export function EditPayoutForm({
             </FieldLabel>
             <Textarea
               id={`${id}-remark`}
+              className="min-h-36"
               value={draft.remark}
               maxLength={2000}
               disabled={disabled}
