@@ -1,9 +1,20 @@
 import type { DatabaseTransaction } from "@repo/db";
 import { communicationTag, customerTag } from "@repo/db/schema";
+import { and, inArray } from "drizzle-orm";
 
 import type { DepartmentKey } from "./account-definitions";
 
 type SeedTag = { name: string; color: string };
+type StoredTag = {
+  id: string;
+  departmentId: string | null;
+  normalizedName: string;
+};
+
+export type DepartmentSeedTagIds = {
+  customers: readonly string[];
+  communications: readonly string[];
+};
 
 const departmentTags: Record<
   DepartmentKey,
@@ -51,6 +62,23 @@ const departmentTags: Record<
   },
 };
 
+function resolveTagIds(
+  tags: SeedTag[],
+  departmentId: string,
+  storedTags: StoredTag[]
+) {
+  return tags.map(({ name }) => {
+    const tag = storedTags.find(
+      (row) =>
+        row.departmentId === departmentId &&
+        row.normalizedName === name.trim().toLowerCase()
+    );
+    if (!tag)
+      throw new Error(`找不到部门 ${departmentId} 的种子标签「${name}」。`);
+    return tag.id;
+  });
+}
+
 export async function seedDepartmentTags(
   tx: DatabaseTransaction,
   departmentIds: ReadonlyMap<DepartmentKey, string>
@@ -77,8 +105,59 @@ export async function seedDepartmentTags(
     })
     .returning({ id: communicationTag.id });
 
+  const ids = [...departmentIds.values()];
+  const storedCustomerTags = await tx
+    .select({
+      id: customerTag.id,
+      departmentId: customerTag.departmentId,
+      normalizedName: customerTag.normalizedName,
+    })
+    .from(customerTag)
+    .where(
+      and(
+        inArray(customerTag.departmentId, ids),
+        inArray(
+          customerTag.normalizedName,
+          customerTags.map(({ name }) => name.trim().toLowerCase())
+        )
+      )
+    );
+  const storedCommunicationTags = await tx
+    .select({
+      id: communicationTag.id,
+      departmentId: communicationTag.departmentId,
+      normalizedName: communicationTag.normalizedName,
+    })
+    .from(communicationTag)
+    .where(
+      and(
+        inArray(communicationTag.departmentId, ids),
+        inArray(
+          communicationTag.normalizedName,
+          communicationTags.map(({ name }) => name.trim().toLowerCase())
+        )
+      )
+    );
+  const tagIdsByDepartment = new Map<DepartmentKey, DepartmentSeedTagIds>();
+  for (const [key, departmentId] of departmentIds) {
+    const tags = departmentTags[key];
+    tagIdsByDepartment.set(key, {
+      customers: resolveTagIds(
+        tags.customers,
+        departmentId,
+        storedCustomerTags
+      ),
+      communications: resolveTagIds(
+        tags.communications,
+        departmentId,
+        storedCommunicationTags
+      ),
+    });
+  }
+
   return {
     createdCustomerTags: createdCustomerTags.length,
     createdCommunicationTags: createdCommunicationTags.length,
+    tagIdsByDepartment,
   };
 }

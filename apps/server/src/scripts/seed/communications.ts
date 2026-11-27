@@ -1,5 +1,6 @@
 import type { DatabaseTransaction } from "@repo/db";
-import { communication } from "@repo/db/schema";
+import { communication, communicationTagAssignment } from "@repo/db/schema";
+import { and, eq, isNull } from "drizzle-orm";
 
 import {
   seedCommunicationStatuses,
@@ -19,6 +20,7 @@ export async function seedCustomerCommunications(
     colleagueUserId,
     createdAt,
     now,
+    tagIds,
   }: {
     definition: SeedCustomerDefinition;
     offset: number;
@@ -28,10 +30,13 @@ export async function seedCustomerCommunications(
     colleagueUserId: string;
     createdAt: Date;
     now: number;
+    tagIds: readonly string[];
   }
 ) {
   let createdCount = 0;
   for (const [step, template] of seedCommunicationTemplates.entries()) {
+    const tagId = tagIds[step];
+    if (!tagId) throw new Error("缺少演示沟通标签。");
     const communicationId = seedId("communication", offset * 2 + step + 1);
     const [createdCommunication] = await tx
       .insert(communication)
@@ -51,7 +56,40 @@ export async function seedCustomerCommunications(
       })
       .onConflictDoNothing({ target: communication.id })
       .returning({ id: communication.id });
-    if (createdCommunication) createdCount++;
+    if (createdCommunication) {
+      createdCount++;
+    } else {
+      // 旧种子只补未编辑、未归档且尚无标签的记录。
+      const [existing] = await tx
+        .select({ id: communication.id })
+        .from(communication)
+        .where(
+          and(
+            eq(communication.id, communicationId),
+            eq(communication.customerId, customerId),
+            eq(communication.departmentId, departmentId),
+            eq(communication.version, 1),
+            isNull(communication.archiveStartedAt),
+            isNull(communication.archivedAt)
+          )
+        )
+        .for("update");
+      if (!existing) continue;
+      const [assignment] = await tx
+        .select({ tagId: communicationTagAssignment.tagId })
+        .from(communicationTagAssignment)
+        .where(eq(communicationTagAssignment.communicationId, communicationId))
+        .limit(1);
+      if (assignment) continue;
+      await tx
+        .update(communication)
+        .set({ version: 2, updatedAt: communication.updatedAt })
+        .where(eq(communication.id, communicationId));
+    }
+
+    await tx
+      .insert(communicationTagAssignment)
+      .values({ communicationId, tagId });
   }
 
   return createdCount;

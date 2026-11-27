@@ -5,6 +5,7 @@ import {
   customerChannelAssignment,
   customerContact,
   customerContactMethod,
+  customerTagAssignment,
   member,
   user,
 } from "@repo/db/schema";
@@ -18,12 +19,14 @@ import {
   seedCustomerChannels,
   seedCustomerDefinitions,
 } from "./customer-definitions";
+import type { DepartmentSeedTagIds } from "./department-tags";
 import { seedCustomerProducts } from "./products";
 import { seedId } from "./seed-ids";
 
 export async function seedCustomers(
   tx: DatabaseTransaction,
-  departmentIds: ReadonlyMap<DepartmentKey, string>
+  departmentIds: ReadonlyMap<DepartmentKey, string>,
+  tagIdsByDepartment: ReadonlyMap<DepartmentKey, DepartmentSeedTagIds>
 ) {
   const createdChannels = await tx
     .insert(customerChannel)
@@ -53,6 +56,7 @@ export async function seedCustomers(
   for (const [offset, definition] of seedCustomerDefinitions.entries()) {
     const index = offset + 1;
     const departmentId = departmentIds.get(definition.department);
+    const tagIds = tagIdsByDepartment.get(definition.department);
     const owner = ownerByLogin.get(definition.owner);
     const colleague = ownerByLogin.get(
       definition.owner.endsWith("1")
@@ -68,6 +72,7 @@ export async function seedCustomers(
         `种子业务员 ${definition.owner} 及同部门同事的部门配置不正确。`
       );
     }
+    if (!tagIds) throw new Error(`缺少部门 ${departmentId} 的种子标签。`);
     const customerId = seedId("customer", index);
     const createdAt = new Date(now - index * 86400000);
     const customerFields = {
@@ -75,6 +80,7 @@ export async function seedCustomers(
       departmentId: customer.departmentId,
       ownerUserId: customer.ownerUserId,
       status: customer.status,
+      version: customer.version,
       createdAt: customer.createdAt,
     };
     const [created] = await tx
@@ -101,6 +107,27 @@ export async function seedCustomers(
       throw new Error(`客户种子标识 ${customerId} 的部门不匹配。`);
     }
     if (record.status === "archived") continue;
+    // 旧版种子只建了标签。只补齐尚未编辑且没有标签的演示客户。
+    const existingTags =
+      !created && record.version === 1
+        ? await tx
+            .select({ id: customerTagAssignment.tagId })
+            .from(customerTagAssignment)
+            .where(eq(customerTagAssignment.customerId, customerId))
+            .limit(1)
+        : [];
+    if (created || (record.version === 1 && existingTags.length === 0)) {
+      await tx.insert(customerTagAssignment).values({
+        customerId,
+        tagId: tagIds.customers[offset % tagIds.customers.length],
+      });
+      if (!created) {
+        await tx
+          .update(customer)
+          .set({ updatedAt: customer.updatedAt, version: record.version + 1 })
+          .where(eq(customer.id, customerId));
+      }
+    }
     createdProducts += await seedCustomerProducts(tx, index, record);
     createdAddresses += await seedCustomerAddresses(
       tx,
@@ -137,6 +164,7 @@ export async function seedCustomers(
       offset,
       customerId,
       departmentId,
+      tagIds: tagIds.communications,
       ownerUserId: owner.id,
       colleagueUserId: colleague.id,
       createdAt,

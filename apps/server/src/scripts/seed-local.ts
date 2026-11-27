@@ -91,11 +91,19 @@ async function seedLocalData() {
       await lockCompanyAdminInitialization(tx);
       const { createdAccounts, departmentIds } =
         await seedDevelopmentAccounts(tx);
-      const business = await seedCustomers(tx, departmentIds);
+      const { tagIdsByDepartment, ...tagCounts } = await seedDepartmentTags(
+        tx,
+        departmentIds
+      );
+      const business = await seedCustomers(
+        tx,
+        departmentIds,
+        tagIdsByDepartment
+      );
       return {
         createdAccounts,
         ...business,
-        ...(await seedDepartmentTags(tx, departmentIds)),
+        ...tagCounts,
         createdPayouts: await seedPayouts(tx),
       };
     });
