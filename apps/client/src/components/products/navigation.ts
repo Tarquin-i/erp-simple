@@ -17,7 +17,11 @@ declare module "@tanstack/react-router" {
   interface HistoryState {
     productListQuery?: ProductListQuery;
     productListEntryIndex?: number;
-    productCustomerList?: { customerId: string; page?: number };
+    productCustomerList?: {
+      customerId: string;
+      page?: number;
+      pageSize?: number;
+    };
     productPreviousListHref?: string;
     discardedProductListEntry?: true;
   }
@@ -41,7 +45,11 @@ export function productListDestination(state: HistoryState) {
     ? ({
         to: "/customers/$customerId",
         params: { customerId: origin.customerId },
-        search: { tab: "products", productPage: origin.page },
+        search: {
+          tab: "products",
+          productPage: origin.page,
+          productPageSize: origin.pageSize,
+        },
         state: { customerListQuery: state.customerListQuery },
       } as const)
     : ({ to: "/products", search: state.productListQuery ?? {} } as const);
@@ -90,6 +98,13 @@ export function readProductPage(value: unknown) {
   return page === 1 ? undefined : page;
 }
 
+export const DEFAULT_CUSTOMER_PRODUCT_PAGE_SIZE = 5;
+
+export function readCustomerProductPageSize(value: unknown) {
+  const size = positiveInteger(value, 100);
+  return size === DEFAULT_CUSTOMER_PRODUCT_PAGE_SIZE ? undefined : size;
+}
+
 function readProductCustomerId(value: unknown) {
   return typeof value === "string" && uuidPattern.test(value)
     ? value.toLowerCase()
@@ -99,11 +114,15 @@ function readProductCustomerId(value: unknown) {
 export function readNewProductSearch(search: Record<string, unknown>): {
   customerId?: string;
   productPage?: number;
+  productPageSize?: number;
 } {
   const customerId = readProductCustomerId(search.customerId);
   return {
     customerId,
     productPage: customerId ? readProductPage(search.productPage) : undefined,
+    productPageSize: customerId
+      ? readCustomerProductPageSize(search.productPageSize)
+      : undefined,
   };
 }
 

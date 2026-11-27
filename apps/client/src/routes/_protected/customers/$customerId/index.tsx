@@ -16,6 +16,8 @@ import { isCustomerDetailTab } from "@/components/customers/detail/tabs";
 import type { CustomerDetailTab } from "@/components/customers/detail/tabs";
 import { readListQueryFromState } from "@/components/customers/list-query";
 import {
+  DEFAULT_CUSTOMER_PRODUCT_PAGE_SIZE,
+  readCustomerProductPageSize,
   readProductPage,
   replaceProductEntryAndGoBack,
 } from "@/components/products/navigation";
@@ -31,6 +33,7 @@ export const Route = createFileRoute("/_protected/customers/$customerId/")({
     tab?: CustomerDetailTab;
     communicationPage?: number;
     productPage?: number;
+    productPageSize?: number;
   } => {
     const tab =
       isCustomerDetailTab(search.tab) && search.tab !== "contacts"
@@ -44,6 +47,10 @@ export const Route = createFileRoute("/_protected/customers/$customerId/")({
           : undefined,
       productPage:
         tab === "products" ? readProductPage(search.productPage) : undefined,
+      productPageSize:
+        tab === "products"
+          ? readCustomerProductPageSize(search.productPageSize)
+          : undefined,
     };
   },
   loader: ({ params, abortController }) =>
@@ -73,21 +80,26 @@ export const Route = createFileRoute("/_protected/customers/$customerId/")({
 
 function CustomerDetailRoute() {
   const { customer } = Route.useLoaderData();
-  const { tab, productPage } = Route.useSearch();
+  const { tab, productPage, productPageSize } = Route.useSearch();
   const { href, state } = useLocation();
   const navigate = Route.useNavigate();
   const router = useRouter();
   const productLinkState = {
-    productCustomerList: { customerId: customer.id, page: productPage },
+    productCustomerList: {
+      customerId: customer.id,
+      page: productPage,
+      pageSize: productPageSize,
+    },
     productListEntryIndex: state.__TSR_index,
     customerListQuery: readListQueryFromState(state),
   };
 
   const changeProductPage = useCallback(
-    (page: number, replace?: boolean) => {
+    (page: number, replace?: boolean, size = productPageSize) => {
       const search = {
         tab: "products",
         productPage: readProductPage(page),
+        productPageSize: readCustomerProductPageSize(size),
       } as const;
       if (
         replace &&
@@ -116,7 +128,14 @@ function CustomerDetailRoute() {
         replace,
       });
     },
-    [customer.id, href, navigate, router, state.productPreviousListHref]
+    [
+      customer.id,
+      href,
+      navigate,
+      productPageSize,
+      router,
+      state.productPreviousListHref,
+    ]
   );
 
   return (
@@ -140,7 +159,7 @@ function CustomerDetailRoute() {
         <Button asChild size="icon">
           <Link
             to="/products/new"
-            search={{ customerId: customer.id, productPage }}
+            search={{ customerId: customer.id, productPage, productPageSize }}
             state={productLinkState}
             aria-label="新建产品"
             title="新建产品"
@@ -154,7 +173,9 @@ function CustomerDetailRoute() {
         <CustomerProductsTab
           customerId={customer.id}
           page={productPage ?? 1}
+          pageSize={productPageSize ?? DEFAULT_CUSTOMER_PRODUCT_PAGE_SIZE}
           onPageChange={changeProductPage}
+          onPageSizeChange={(size) => changeProductPage(1, false, size)}
           productLinkState={productLinkState}
           onOpenProduct={(productId) =>
             void navigate({

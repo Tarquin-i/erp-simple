@@ -50,7 +50,7 @@ function NewProductPage() {
 }
 
 function NewProductSession({ customer }: { customer?: CustomerChoice }) {
-  const { productPage } = Route.useSearch();
+  const { productPage, productPageSize } = Route.useSearch();
   const { state } = useLocation();
   const navigate = Route.useNavigate();
   const router = useRouter();
@@ -63,11 +63,12 @@ function NewProductSession({ customer }: { customer?: CustomerChoice }) {
   const [pending, setPending] = useState(false);
   const submitting = useRef(false);
   const customerOrigin = customer
-    ? { customerId: customer.id, page: productPage }
+    ? { customerId: customer.id, page: productPage, pageSize: productPageSize }
     : undefined;
   const canUseCustomerListEntry =
     state.productCustomerList?.customerId === customerOrigin?.customerId &&
-    state.productCustomerList?.page === customerOrigin?.page;
+    state.productCustomerList?.page === customerOrigin?.page &&
+    state.productCustomerList?.pageSize === customerOrigin?.pageSize;
   const listOrigin = productListOrigin({
     ...state,
     productCustomerList: customerOrigin,

@@ -2,6 +2,7 @@ import { type HistoryState, Link } from "@tanstack/react-router";
 import { Package } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
+import { DEFAULT_CUSTOMER_PRODUCT_PAGE_SIZE } from "@/components/products/navigation";
 import { ListEmptyState } from "@/components/shared/list-empty-state";
 import { ListLoadError } from "@/components/shared/list-load-error";
 import { ListPagination } from "@/components/shared/list-pagination";
@@ -16,6 +17,7 @@ import {
   tableLinkClassName,
   TableRow,
 } from "@/components/ui/table";
+import { LIST_PAGE_SIZES } from "@/lib/list-page-size";
 import {
   listProducts,
   type ProductPage,
@@ -23,15 +25,21 @@ import {
 } from "@/request/products";
 
 const columns = ["产品编号", "产品名称", "产品类型", "创建时间"] as const;
-const pageSize = 5;
-const pendingRows = Array.from({ length: pageSize }, (_, index) => index);
+const pageSizeOptions = [
+  DEFAULT_CUSTOMER_PRODUCT_PAGE_SIZE,
+  ...LIST_PAGE_SIZES,
+];
+const pendingRows = Array.from(
+  { length: DEFAULT_CUSTOMER_PRODUCT_PAGE_SIZE },
+  (_, index) => index
+);
 const creationDate = new Intl.DateTimeFormat("sv-SE", {
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
 });
 
-type ProductLoad = { customerId: string; page: number } & (
+type ProductLoad = { customerId: string; page: number; pageSize: number } & (
   | { result: ProductPage; error?: undefined }
   | { result?: undefined; error: string }
 );
@@ -61,20 +69,28 @@ function CustomerProductTable({ children }: { children: ReactNode }) {
 export function CustomerProductsTab({
   customerId,
   page,
+  pageSize,
   onPageChange,
+  onPageSizeChange,
   onOpenProduct,
   productLinkState,
 }: {
   customerId: string;
   page: number;
+  pageSize: number;
   onPageChange: (page: number, replace?: boolean) => void;
+  onPageSizeChange: (size: number) => void;
   onOpenProduct: (productId: string) => void;
   productLinkState?: HistoryState;
 }) {
   const [load, setLoad] = useState<ProductLoad>();
   const [retry, setRetry] = useState(0);
   const current =
-    load?.customerId === customerId && load.page === page ? load : undefined;
+    load?.customerId === customerId &&
+    load.page === page &&
+    load.pageSize === pageSize
+      ? load
+      : undefined;
   const loadedPage = current?.result;
   const pageCount = loadedPage
     ? Math.max(1, Math.ceil(loadedPage.total / loadedPage.pageSize))
@@ -88,20 +104,21 @@ export function CustomerProductsTab({
     const { signal } = controller;
     void listProducts({ customerId, page, pageSize }, signal).then(
       (result) => {
-        if (!signal.aborted) setLoad({ customerId, page, result });
+        if (!signal.aborted) setLoad({ customerId, page, pageSize, result });
       },
       (error: unknown) => {
         if (!signal.aborted) {
           setLoad({
             customerId,
             page,
+            pageSize,
             error: error instanceof Error ? error.message : "请稍后重试。",
           });
         }
       }
     );
     return () => controller.abort();
-  }, [customerId, page, retry]);
+  }, [customerId, page, pageSize, retry]);
 
   useEffect(() => {
     if (loadedPage && loadedPage.page > pageCount)
@@ -174,7 +191,7 @@ export function CustomerProductsTab({
               </TableCell>
             </TableRow>
           ))
-        : pendingRows.map((row) => (
+        : pendingRows.slice(0, pageSize).map((row) => (
             <TableRow key={row} aria-hidden="true">
               {columns.map((column) => (
                 <TableCell key={column} className="h-11.25">
@@ -200,6 +217,8 @@ export function CustomerProductsTab({
         result={result}
         className="mt-5"
         onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
+        pageSizeOptions={pageSizeOptions}
       />
     </>
   );
