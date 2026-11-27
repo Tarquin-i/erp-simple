@@ -26,12 +26,14 @@ export function ListPagination({
   className,
   onPageChange,
   onPageSizeChange,
+  pageSizeOptions = LIST_PAGE_SIZES,
 }: {
   label: string;
   result?: { page: number; pageSize: number; total: number };
   className?: string;
   onPageChange: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
+  pageSizeOptions?: readonly number[];
 }) {
   const previousButton = useRef<HTMLButtonElement>(null);
   const currentButton = useRef<HTMLButtonElement>(null);
@@ -78,9 +80,9 @@ export function ListPagination({
     { length: Math.min(3, pageCount) },
     (_, index) => firstPage + index
   );
-  const pageSizes = LIST_PAGE_SIZES.includes(pageSize)
-    ? LIST_PAGE_SIZES
-    : [...LIST_PAGE_SIZES, pageSize].sort((left, right) => left - right);
+  const pageSizes = pageSizeOptions.includes(pageSize)
+    ? pageSizeOptions
+    : [...pageSizeOptions, pageSize].sort((left, right) => left - right);
 
   function changePage(
     event: MouseEvent<HTMLButtonElement>,
