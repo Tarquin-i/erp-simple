@@ -773,7 +773,7 @@ export function FilterValueNumberController<TData>({
 
   return (
     <Command>
-      <CommandList className="w-[300px] px-2 py-2">
+      <CommandList className="w-75 px-2 py-2">
         <CommandGroup>
           <div className="flex flex-col w-full">
             <Tabs

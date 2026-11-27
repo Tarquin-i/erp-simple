@@ -157,7 +157,7 @@ export function SearchableMultiSelect<Option extends MultiSelectOption>({
                 variant="ghost"
                 size="icon-xs"
                 className={cn(
-                  "pointer-events-auto size-[18px] rounded-full border-0 text-inherit opacity-80 hover:text-inherit hover:opacity-100",
+                  "pointer-events-auto size-4.5 rounded-full border-0 text-inherit opacity-80 hover:text-inherit hover:opacity-100",
                   showColor
                     ? "hover:bg-muted focus-visible:ring-ring"
                     : "hover:bg-primary-foreground/15 focus-visible:ring-primary-foreground/70"
