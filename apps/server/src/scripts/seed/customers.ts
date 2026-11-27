@@ -150,17 +150,15 @@ export async function seedCustomers(
             : ["kingwin_international_station", "kingwin_alibaba"]
           ).map((channelCode) => ({ customerId, channelCode }))
         );
-      await tx
-        .insert(customerTagAssignment)
-        .values(
-          [
-            seedCustomerTags[offset % seedCustomerTags.length],
-            seedCustomerTags[(offset + 1) % seedCustomerTags.length],
-          ].map((name) => ({
-            customerId,
-            tagId: readSeedTagId(customerTags, name),
-          }))
-        );
+      await tx.insert(customerTagAssignment).values(
+        [
+          seedCustomerTags[offset % seedCustomerTags.length],
+          seedCustomerTags[(offset + 1) % seedCustomerTags.length],
+        ].map((name) => ({
+          customerId,
+          tagId: readSeedTagId(customerTags, name),
+        }))
+      );
       const contactId = seedId("contact", index);
       await tx
         .insert(customerContact)
