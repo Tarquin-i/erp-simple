@@ -47,9 +47,11 @@ export function CustomerDetail({
   );
   const tabViewport = useRef<HTMLDivElement>(null);
   const activeTabTrigger = useRef<HTMLButtonElement>(null);
-  // 鼠标点击仅显示选中样式，键盘操作时保留焦点提示。
+  // 鼠标切换只显示选中样式，键盘切换沿用公共焦点样式。
   const [pointerFocus, setPointerFocus] = useState(false);
-  const tabTriggerClass = `focus-visible:border-transparent focus-visible:ring-0 ${pointerFocus ? "focus-visible:outline-none" : "focus-visible:outline-2 focus-visible:outline-offset-1"}`;
+  const tabTriggerClass = pointerFocus
+    ? "focus-visible:border-transparent focus-visible:ring-0 focus-visible:outline-none"
+    : undefined;
   const listQuery = readListQueryFromState(
     useRouterState({ select: (state) => state.location.state })
   );

@@ -25,7 +25,7 @@ import {
 const columns = ["产品编号", "产品名称", "产品类型", "创建时间"] as const;
 const pageSize = 5;
 const pendingRows = Array.from({ length: pageSize }, (_, index) => index);
-const creationDate = new Intl.DateTimeFormat("zh-CN", {
+const creationDate = new Intl.DateTimeFormat("sv-SE", {
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
@@ -46,7 +46,7 @@ function CustomerProductTable({ children }: { children: ReactNode }) {
             <TableHead
               key={column}
               scope="col"
-              className="px-2.5 text-muted-foreground"
+              className="text-muted-foreground"
             >
               {column}
             </TableHead>
@@ -148,10 +148,10 @@ export function CustomerProductsTab({
                 onOpenProduct(product.id);
               }}
             >
-              <TableCell className="h-14 truncate px-2.5 tabular-nums">
+              <TableCell className="h-11.25 truncate tabular-nums">
                 {product.productNo}
               </TableCell>
-              <TableCell className="max-w-0 px-2.5">
+              <TableCell className="max-w-0">
                 <Link
                   to="/products/$productId"
                   params={{ productId: product.id }}
@@ -163,11 +163,11 @@ export function CustomerProductsTab({
                   {product.name}
                 </Link>
               </TableCell>
-              <TableCell className="truncate px-2.5">
+              <TableCell className="truncate">
                 {product.customerDefinedType ??
                   productTypeLabels[product.productType]}
               </TableCell>
-              <TableCell className="px-2.5 tabular-nums">
+              <TableCell className="tabular-nums">
                 <time dateTime={product.createdAt}>
                   {creationDate.format(new Date(product.createdAt))}
                 </time>
@@ -177,7 +177,7 @@ export function CustomerProductsTab({
         : pendingRows.map((row) => (
             <TableRow key={row} aria-hidden="true">
               {columns.map((column) => (
-                <TableCell key={column} className="h-14 px-2.5">
+                <TableCell key={column} className="h-11.25">
                   <Skeleton className="h-4 w-24 max-w-full" />
                 </TableCell>
               ))}
@@ -198,7 +198,7 @@ export function CustomerProductsTab({
       <ListPagination
         label="客户产品分页"
         result={result}
-        className="mt-4"
+        className="mt-5"
         onPageChange={onPageChange}
       />
     </>

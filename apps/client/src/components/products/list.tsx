@@ -231,7 +231,6 @@ export function ProductList({
           <ListEmptyState
             icon={<Package />}
             variant="prominent"
-            mediaClassName="[&_svg]:size-6"
             title={
               query.search || filterModel.filters.length
                 ? "没有找到符合条件的产品"

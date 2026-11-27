@@ -79,9 +79,13 @@ const defaultColumns = [
   { label: "业务员", width: "w-[14%]" },
   { label: "最近更新", width: "w-[14%]" },
 ];
-const customerColumns = defaultColumns
-  .filter(({ label }) => label !== "客户")
-  .map(({ label }) => ({ label }));
+const customerColumns = [
+  { label: "主题", width: "w-[30%]" },
+  { label: "标签", width: "w-[18%]" },
+  { label: "状态", width: "w-[16%]" },
+  { label: "业务员", width: "w-[18%]" },
+  { label: "最近更新", width: "w-[18%]" },
+];
 const pendingRows = Array.from({ length: 5 }, (_, rowId) => rowId);
 const customerPendingRows = pendingRows.slice(0, 4);
 const pendingCreationLabel = "处理待确认提交";
@@ -165,7 +169,6 @@ export function CommunicationList({
     : {};
   const customerView = Boolean(customerId);
   const columns = customerView ? customerColumns : defaultColumns;
-  const cellPadding = customerView ? "px-2.5" : undefined;
   const [load, setLoad] = useState<ListState>();
   const [retry, setRetry] = useState(0);
   const [opening, setOpening] = useState(false);
@@ -360,7 +363,7 @@ export function CommunicationList({
               <TableRow aria-hidden="true" key={rowId}>
                 {columns.map(({ label }) => (
                   <TableCell
-                    className={cn(customerView ? "h-14" : "h-11", cellPadding)}
+                    className={customerView ? "h-11.25" : "h-11"}
                     key={label}
                   >
                     <Skeleton className="h-4 w-16" />
@@ -401,9 +404,7 @@ export function CommunicationList({
                   if (shouldOpenTableRow(event)) void navigate(destination);
                 }}
               >
-                <TableCell
-                  className={cn(customerView ? "h-14" : "py-3", cellPadding)}
-                >
+                <TableCell className={customerView ? "h-11.25" : "py-3"}>
                   <Link
                     {...destination}
                     preload={false}
@@ -425,10 +426,10 @@ export function CommunicationList({
                     />
                   </TableCell>
                 )}
-                <TableCell className={cn("max-w-0", cellPadding)}>
+                <TableCell className="max-w-0">
                   <ListBadgeSummary items={communication.tags} />
                 </TableCell>
-                <TableCell className={cn("py-1", cellPadding)}>
+                <TableCell className="py-1">
                   <div className="flex flex-wrap items-center gap-1">
                     <Badge
                       variant={
@@ -444,13 +445,10 @@ export function CommunicationList({
                     )}
                   </div>
                 </TableCell>
-                <TableCell
-                  className={cn("truncate", cellPadding)}
-                  title={communication.ownerName}
-                >
+                <TableCell className="truncate" title={communication.ownerName}>
                   {communication.ownerName}
                 </TableCell>
-                <TableCell className={cn("tabular-nums", cellPadding)}>
+                <TableCell className="tabular-nums">
                   <time
                     dateTime={communication.updatedAt}
                     title={updatedAt.toLocaleString("zh-CN")}
@@ -467,7 +465,7 @@ export function CommunicationList({
         <ListPagination
           label="沟通记录分页"
           result={result}
-          className={customerView ? "mt-4" : "mt-5"}
+          className="mt-5"
           onPageChange={(page) =>
             onQueryChange((previous) => ({
               ...previous,
@@ -535,7 +533,7 @@ function CommunicationTable({
   customerView,
   children,
 }: {
-  columns: { label: string; width?: string }[];
+  columns: { label: string; width: string }[];
   customerView: boolean;
   children: ReactNode;
 }) {
@@ -551,11 +549,7 @@ function CommunicationTable({
         <TableRow>
           {columns.map(({ label, width }) => (
             <TableHead
-              className={cn(
-                "text-muted-foreground",
-                customerView && "px-2.5",
-                width
-              )}
+              className={cn("text-muted-foreground", width)}
               key={label}
             >
               {label}
