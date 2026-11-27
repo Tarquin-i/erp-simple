@@ -835,7 +835,7 @@ export function FilterValueNumberController<TData>({
                     </span>
                     <DebouncedInput
                       type="number"
-                      value={values[1]}
+                      value={values[1] ?? ""}
                       onChange={(v) => changeMaxNumber(Number(v))}
                     />
                   </div>
