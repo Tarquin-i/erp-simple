@@ -607,6 +607,7 @@ function AddressForm({
         <FieldLabel htmlFor={`${id}-remark`}>{fieldLabels.remark}</FieldLabel>
         <Textarea
           id={`${id}-remark`}
+          className="min-h-36"
           value={draft.remark}
           disabled={disabled}
           maxLength={4096}

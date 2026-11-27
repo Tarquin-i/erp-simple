@@ -64,7 +64,7 @@ function AddressFieldPending({
   return (
     <div className={cn("grid gap-2", className)}>
       <Skeleton className="h-[1.375em] w-14 text-sm" />
-      <Skeleton className={multiline ? "h-16 w-full" : "h-8 w-full"} />
+      <Skeleton className={multiline ? "h-36 w-full" : "h-8 w-full"} />
     </div>
   );
 }

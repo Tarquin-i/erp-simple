@@ -483,6 +483,7 @@ export function ProductForm({
           <FieldLabel htmlFor={`${id}-remark`}>备注</FieldLabel>
           <Textarea
             id={`${id}-remark`}
+            className="min-h-36"
             value={draft.remark}
             maxLength={4096}
             disabled={controlsDisabled}
