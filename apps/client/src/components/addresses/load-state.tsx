@@ -62,7 +62,7 @@ function AddressFieldPending({
   );
 }
 
-export function AddressFormPending({ editing = false }: { editing?: boolean }) {
+export function AddressFormPending() {
   return (
     <main
       aria-busy="true"
@@ -75,8 +75,8 @@ export function AddressFormPending({ editing = false }: { editing?: boolean }) {
       >
         <Skeleton className="h-8 w-24" />
         <div className="flex items-center gap-2">
-          <Skeleton className={editing ? "h-8 w-13" : "h-10 w-16"} />
-          <Skeleton className={editing ? "h-8 w-18" : "h-10 w-20"} />
+          <Skeleton className="h-8 w-12.5 rounded-lg" />
+          <Skeleton className="h-8 w-18 rounded-lg" />
         </div>
       </div>
       <AddressFieldPending />

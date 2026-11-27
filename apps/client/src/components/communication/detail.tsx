@@ -284,7 +284,7 @@ export function CommunicationDetail({
 
   if (unavailable) {
     return (
-      <main className="flex-1 space-y-4 bg-background px-5 py-6 sm:px-7 lg:px-8">
+      <main className="flex-1 space-y-4 bg-background px-4 py-6 sm:px-6">
         <h1 className="text-xl font-semibold">无法查看此沟通记录</h1>
         <FieldError>{error}</FieldError>
         <Button asChild variant="outline">
@@ -306,7 +306,7 @@ export function CommunicationDetail({
   }
 
   return (
-    <main className="min-w-0 flex-1 bg-background px-5 py-6 sm:px-7 lg:px-8">
+    <main className="min-w-0 flex-1 bg-background px-4 py-6 sm:px-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h1 className="min-w-0 text-2xl font-semibold tracking-tight wrap-anywhere">
           {record.title}
@@ -314,7 +314,7 @@ export function CommunicationDetail({
         <div className="flex flex-wrap items-center gap-2">
           {archiving && <Badge variant="outline">归档中</Badge>}
           {returnCustomerId && (
-            <Button asChild variant="outline" className="h-10 px-4">
+            <Button asChild variant="outline">
               <Link
                 to="/customers/$customerId"
                 params={{ customerId: returnCustomerId }}
@@ -330,7 +330,7 @@ export function CommunicationDetail({
           )}
           {/* 从客户页签进入编辑时复用详情的历史位置。 */}
           {!writeLocked && (
-            <Button asChild className="h-10 px-4">
+            <Button asChild>
               <Link
                 to="/communication/$communicationId/edit"
                 preload={false}
@@ -360,7 +360,6 @@ export function CommunicationDetail({
               <Button
                 type="button"
                 variant="destructive"
-                className="h-10 px-4"
                 disabled={
                   pending || archivePending || Boolean(record.archivedAt)
                 }

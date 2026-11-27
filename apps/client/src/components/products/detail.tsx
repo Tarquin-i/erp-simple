@@ -136,7 +136,6 @@ export function ProductDetail({
           <Button
             type="button"
             variant="destructive"
-            className="h-10 px-4"
             aria-haspopup="dialog"
             onClick={onArchive}
           >

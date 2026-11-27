@@ -636,18 +636,12 @@ function AddressForm({
       <Button
         variant="outline"
         type="button"
-        className={address ? undefined : "h-10 px-4"}
         disabled={pending}
         onClick={onClose}
       >
         {saved ? "关闭" : "取消"}
       </Button>
-      <Button
-        type="submit"
-        className={address ? undefined : "h-10 px-4"}
-        disabled={disabled}
-        aria-busy={pending}
-      >
+      <Button type="submit" disabled={disabled} aria-busy={pending}>
         <Save aria-hidden="true" />
         {pending ? "正在保存…" : "保存"}
       </Button>

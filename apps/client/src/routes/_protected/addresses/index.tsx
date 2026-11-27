@@ -204,7 +204,7 @@ function AddressDirectory() {
       />
 
       {current?.status === "failed" ? (
-        <Empty className="min-h-52 border">
+        <Empty className="min-h-56 border">
           <EmptyHeader>
             <EmptyTitle>暂时无法加载地址</EmptyTitle>
             <EmptyDescription role="alert">
@@ -240,6 +240,7 @@ function AddressDirectory() {
       ) : result.addresses.length === 0 ? (
         <ListEmptyState
           icon={<MapPin />}
+          variant="prominent"
           title={
             query.search || query.ownerUserId
               ? "没有匹配的地址"

@@ -82,7 +82,8 @@ const defaultColumns = [
 const customerColumns = defaultColumns
   .filter(({ label }) => label !== "客户")
   .map(({ label }) => ({ label }));
-const pendingRows = Array.from({ length: 4 }, (_, rowId) => rowId);
+const pendingRows = Array.from({ length: 5 }, (_, rowId) => rowId);
+const customerPendingRows = pendingRows.slice(0, 4);
 const pendingCreationLabel = "处理待确认提交";
 const noPendingCreation = () => false;
 const customerDetailRoute = getRouteApi("/_protected/customers/$customerId/");
@@ -336,7 +337,7 @@ export function CommunicationList({
         <FieldError className="mb-4">{creationError}</FieldError>
       )}
       {current?.error ? (
-        <Empty className="min-h-52 border">
+        <Empty className={cn("border", customerView ? "min-h-52" : "min-h-56")}>
           <EmptyHeader>
             <EmptyTitle>沟通记录加载失败</EmptyTitle>
             <EmptyDescription role="alert">{current.error}</EmptyDescription>
@@ -355,7 +356,7 @@ export function CommunicationList({
         <div role="status">
           <span className="sr-only">正在加载沟通记录…</span>
           <CommunicationTable columns={columns} customerView={customerView}>
-            {pendingRows.map((rowId) => (
+            {(customerView ? customerPendingRows : pendingRows).map((rowId) => (
               <TableRow aria-hidden="true" key={rowId}>
                 {columns.map(({ label }) => (
                   <TableCell

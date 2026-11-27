@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_protected/addresses/$addressId/edit")({
     handler: ({ params, abortController }) =>
       getAddress(params.addressId, abortController.signal),
   },
-  pendingComponent: () => <AddressFormPending editing />,
+  pendingComponent: AddressFormPending,
   errorComponent: ({ error }) => <AddressPageError error={error} detail />,
   component: EditAddressPage,
 });

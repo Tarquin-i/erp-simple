@@ -195,7 +195,7 @@ export function CustomerList({
             if (shouldOpenTableRow(event)) onOpenCustomer(customer.id);
           },
         })}
-        loading={{ label: "正在加载客户…", rowCount: 6 }}
+        loading={{ label: "正在加载客户…", rowCount: 5 }}
         emptyState={
           <ListEmptyState
             icon={<ContactRound />}

@@ -46,7 +46,7 @@ import { CommunicationOwnerField } from "./owner-field";
 type Conflict = { current: Communication; draft: CommunicationDraft };
 
 const formHeaderLayout = "flex flex-wrap items-center justify-between gap-4";
-const formFieldsLayout = "grid gap-x-5 gap-y-4 md:grid-cols-2";
+const formFieldsLayout = "grid gap-4 sm:grid-cols-2";
 
 export function CommunicationFormPending() {
   return (
@@ -76,7 +76,7 @@ export function CommunicationFormPending() {
             <Skeleton className="h-8" />
           </Field>
         ))}
-        <Field className="min-w-0 md:col-span-2">
+        <Field className="min-w-0 sm:col-span-2">
           <div className="h-lh text-sm leading-snug">
             <Skeleton className="h-3 w-21" />
           </div>
@@ -469,7 +469,7 @@ export function CommunicationForm({
               setDraft((previous) => ({ ...previous, owner }))
             }
           />
-          <Field className="min-w-0 md:col-span-2">
+          <Field className="min-w-0 sm:col-span-2">
             <FieldLabel htmlFor="communication-form-summary">
               初次沟通内容
             </FieldLabel>

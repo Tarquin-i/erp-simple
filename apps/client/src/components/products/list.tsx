@@ -226,7 +226,7 @@ export function ProductList({
             if (shouldOpenTableRow(event)) onOpenProduct(product.id);
           },
         })}
-        loading={{ label: "正在加载产品…", rowCount: 6 }}
+        loading={{ label: "正在加载产品…", rowCount: 5 }}
         emptyState={
           <ListEmptyState
             icon={<Package />}

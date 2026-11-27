@@ -26,7 +26,7 @@ export const Route = createFileRoute(
   component: CommunicationDetailRoute,
   pendingComponent: () => (
     <main
-      className="flex-1 space-y-5 bg-background px-5 py-6 sm:px-7 lg:px-8"
+      className="flex-1 space-y-5 bg-background px-4 py-6 sm:px-6"
       aria-label="正在加载沟通详情"
     >
       <Skeleton className="h-8 w-44" />
@@ -61,7 +61,7 @@ function CommunicationDetailError({ error }: { error: unknown }) {
   const inaccessible =
     error instanceof CommunicationApiError && [403, 404].includes(error.status);
   return (
-    <main className="flex-1 space-y-4 bg-background px-5 py-6 sm:px-7 lg:px-8">
+    <main className="flex-1 space-y-4 bg-background px-4 py-6 sm:px-6">
       <h1 className="text-xl font-semibold">
         {inaccessible ? "无法查看此沟通记录" : "暂时无法加载沟通详情"}
       </h1>

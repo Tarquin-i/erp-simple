@@ -275,18 +275,12 @@ export function CustomerForm({
             <Button
               type="button"
               variant="outline"
-              className="h-10 px-4"
               disabled={pending}
               onClick={onCancel}
             >
               取消
             </Button>
-            <Button
-              type="submit"
-              className="h-10 gap-2 px-4"
-              aria-busy={pending}
-              disabled={!canSubmit}
-            >
+            <Button type="submit" aria-busy={pending} disabled={!canSubmit}>
               <SubmitIcon aria-hidden="true" />
               {pending ? "正在保存…" : submitLabel}
             </Button>
@@ -307,7 +301,7 @@ export function CustomerForm({
           </p>
         )}
 
-        <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field data-invalid={Boolean(nameError)} className="min-w-0">
             <FieldLabel htmlFor="customer-form-name">客户名称</FieldLabel>
             <Input
@@ -390,7 +384,7 @@ export function CustomerForm({
             }
             disabled={pending}
           />
-          <Field className="min-w-0 md:col-span-2">
+          <Field className="min-w-0 sm:col-span-2">
             <FieldLabel htmlFor="customer-form-remark">备注</FieldLabel>
             <Textarea
               id="customer-form-remark"
@@ -467,18 +461,18 @@ export function CustomerFormPending() {
       >
         <Skeleton className="h-8 w-24" />
         <div className="flex items-center gap-2">
-          <Skeleton className="h-10 w-15.5" />
-          <Skeleton className="h-10 w-21.5" />
+          <Skeleton className="h-8 w-12.5 rounded-lg" />
+          <Skeleton className="h-8 w-18 rounded-lg" />
         </div>
       </div>
-      <div aria-hidden="true" className="grid gap-x-5 gap-y-4 md:grid-cols-2">
+      <div aria-hidden="true" className="grid gap-4 sm:grid-cols-2">
         {fields.map((field) => (
           <div key={field} className="grid gap-2">
             <Skeleton className="h-[1.375em] w-14 text-sm" />
             <Skeleton className="h-8 w-full" />
           </div>
         ))}
-        <div className="grid gap-2 md:col-span-2">
+        <div className="grid gap-2 sm:col-span-2">
           <Skeleton className="h-[1.375em] w-8 text-sm" />
           <Skeleton className="h-36 w-full" />
         </div>

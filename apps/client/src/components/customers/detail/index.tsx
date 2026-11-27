@@ -49,7 +49,7 @@ export function CustomerDetail({
   const activeTabTrigger = useRef<HTMLButtonElement>(null);
   // 鼠标点击仅显示选中样式，键盘操作时保留焦点提示。
   const [pointerFocus, setPointerFocus] = useState(false);
-  const tabTriggerClass = `min-w-[88px] focus-visible:border-transparent focus-visible:ring-0 ${pointerFocus ? "focus-visible:outline-none" : "focus-visible:outline-2 focus-visible:outline-offset-1"}`;
+  const tabTriggerClass = `focus-visible:border-transparent focus-visible:ring-0 ${pointerFocus ? "focus-visible:outline-none" : "focus-visible:outline-2 focus-visible:outline-offset-1"}`;
   const listQuery = readListQueryFromState(
     useRouterState({ select: (state) => state.location.state })
   );
@@ -86,7 +86,7 @@ export function CustomerDetail({
           <p className="text-sm text-muted-foreground">客户详情</p>
         </div>
         <div className="ml-auto flex flex-wrap justify-end gap-2">
-          <Button asChild className="h-10 px-4">
+          <Button asChild>
             <Link
               to="/customers/$customerId/edit"
               params={{ customerId: customer.id }}
@@ -148,7 +148,7 @@ export function CustomerDetail({
         }}
         className="mt-6 gap-4"
       >
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2">
           <div
             ref={tabViewport}
             className="min-w-0 overflow-x-auto overflow-y-hidden py-1"

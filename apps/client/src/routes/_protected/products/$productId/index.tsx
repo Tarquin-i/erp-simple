@@ -133,7 +133,7 @@ function ProductWorkspace({ product }: { product: ProductDetailRecord }) {
       <ProductDetail
         product={current}
         editAction={
-          <Button asChild className="h-10 px-4">
+          <Button asChild>
             <Link
               to="/products/$productId/edit"
               params={{ productId: current.id }}

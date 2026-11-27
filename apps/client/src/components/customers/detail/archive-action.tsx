@@ -83,7 +83,6 @@ export function CustomerArchiveAction({
         ref={trigger}
         type="button"
         variant="destructive"
-        className="h-10 px-4"
         aria-haspopup="dialog"
         onClick={() => {
           setIssue("");
