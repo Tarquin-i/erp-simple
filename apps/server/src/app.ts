@@ -13,7 +13,7 @@ import {
 } from "./modules/identity";
 import { createOrganizationModule } from "./modules/organization";
 import { createPayoutModule, payoutErrorResponses } from "./modules/payout";
-import { createProductModule } from "./modules/product";
+import { createProductModule, productErrorResponses } from "./modules/product";
 
 type AppDependencies = {
   db: Database;
@@ -39,6 +39,7 @@ export function createApp({ db, auth, requireAccountId }: AppDependencies) {
       new Map<string, Readonly<Record<string, BusinessErrorResponse>>>([
         ["address", addressErrorResponses],
         ["payout", payoutErrorResponses],
+        ["product", productErrorResponses],
       ])
     )
   );

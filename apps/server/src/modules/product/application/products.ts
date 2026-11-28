@@ -2,11 +2,9 @@ import { createHash } from "node:crypto";
 import { isConstraintError } from "@repo/db";
 import type { Database, DatabaseTransaction } from "@repo/db";
 
-import { failVersionConflict } from "../../../errors";
 import { withRecordReadSnapshot } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
 import { lockCustomerForWrite } from "../../customer";
-import { fail } from "../../../errors";
 import { resolveProductPatch } from "../domain/type-fields";
 import type { ProductCreateInput, ProductPatch } from "../domain/type-fields";
 import {
@@ -22,18 +20,11 @@ import {
   updateProductRow,
 } from "../persistence/products";
 import type { ProductFilters } from "../persistence/products";
-import {
-  failInvalidProductTypeFields,
-  failProductConflict,
-  failProductNotFound,
-} from "./errors";
+import { failInvalidProductTypeFields, failProduct } from "./errors";
 
 const nameConstraints = [
-  ["product_customer_active_name_unique", "product_name_conflict"],
-  [
-    "product_customer_active_english_name_unique",
-    "product_english_name_conflict",
-  ],
+  ["product_customer_active_name_unique", "name-conflict"],
+  ["product_customer_active_english_name_unique", "english-name-conflict"],
 ] as const;
 
 /** 由唯一索引兜底名称查重，撞编号或死锁时重新执行完整事务。 */
@@ -48,9 +39,9 @@ async function writeProduct<T>(
       const nameConflict = nameConstraints.find(([constraint]) =>
         isConstraintError(error, "23505", constraint)
       );
-      if (nameConflict) failProductConflict(nameConflict[1]);
+      if (nameConflict) failProduct(nameConflict[1]);
       if (isConstraintError(error, "23505", "product_product_no_unique")) {
-        if (attempt >= 5) fail(409, "产品编号生成冲突，请重试。");
+        if (attempt >= 5) failProduct("number-conflict");
         continue;
       }
       const cause = error instanceof Error ? (error.cause ?? error) : error;
@@ -62,7 +53,7 @@ async function writeProduct<T>(
       ) {
         throw error;
       }
-      if (attempt >= 3) fail(409, "产品有并发更新，请重试。");
+      if (attempt >= 3) failProduct("concurrent-update");
     }
   }
 }
@@ -77,7 +68,7 @@ async function lockProductForWrite(
 ) {
   const activeOnly = operation === "update";
   const customerId = await findProductCustomerId(tx, access, id, activeOnly);
-  if (!customerId) failProductNotFound();
+  if (!customerId) failProduct("not-found");
 
   const { record: owner } = await lockCustomerForWrite(
     tx,
@@ -94,12 +85,12 @@ async function lockProductForWrite(
     !current ||
     (owner.status === "archived" && current.status === "active")
   ) {
-    failProductNotFound();
+    failProduct("not-found");
   }
   if (current.status === "archived") {
-    if (current.version !== expectedVersion + 1) failProductNotFound();
+    if (current.version !== expectedVersion + 1) failProduct("not-found");
   } else if (current.version !== expectedVersion) {
-    failVersionConflict(productView(current, owner));
+    failProduct("version-conflict", productView(current, owner));
   }
   return { current, owner };
 }
@@ -120,7 +111,7 @@ export function createProductUseCases(db: Database) {
         access.userId,
         async (tx, freshAccess) => {
           const row = await selectProductDetail(tx, freshAccess, id);
-          if (!row) failProductNotFound();
+          if (!row) failProduct("not-found");
           return productView(row.product, row.customer);
         },
         db
@@ -152,9 +143,9 @@ export function createProductUseCases(db: Database) {
             mode: "share",
             activeOnly: true,
           });
-          if (!saved) failProductNotFound();
+          if (!saved) failProduct("not-found");
           if (saved.creationRequestHash !== requestHash) {
-            failProductConflict("idempotency_conflict");
+            failProduct("idempotency-conflict");
           }
           return productView(saved, owner);
         }
@@ -219,7 +210,7 @@ export function createProductUseCases(db: Database) {
 
         // Payout 新建会共享锁定产品。等待它提交后，在当前写锁内核对有效奖表。
         if (await hasActiveProductPayout(tx, id)) {
-          failProductConflict("product_payout_conflict");
+          failProduct("payout-conflict");
         }
 
         const archived = await archiveProductRow(tx, id);
