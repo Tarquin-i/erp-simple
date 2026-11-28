@@ -27,8 +27,10 @@ export async function lockProductPayoutSource(
   ).catch((error: unknown) => {
     if (
       (error instanceof ModuleError &&
-        error.module === "customer" &&
-        error.reason === "profileWriteNotFound") ||
+        ((error.module === "customer" &&
+          error.reason === "profileWriteNotFound") ||
+          (error.module === "organization" &&
+            error.reason === "departmentNotFound"))) ||
       (error instanceof HTTPException && error.status === 404)
     ) {
       return null;

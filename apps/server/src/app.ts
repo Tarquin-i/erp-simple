@@ -15,7 +15,10 @@ import {
   identityErrorResponses,
   registerIdentityRoutes,
 } from "./modules/identity";
-import { createOrganizationModule } from "./modules/organization";
+import {
+  createOrganizationModule,
+  organizationErrorResponses,
+} from "./modules/organization";
 import { createPayoutModule, payoutErrorResponses } from "./modules/payout";
 import { createProductModule, productErrorResponses } from "./modules/product";
 
@@ -44,6 +47,7 @@ export function createApp({ db, auth, requireAccountId }: AppDependencies) {
         ["address", addressErrorResponses],
         ["customer", customerErrorResponses],
         ["identity", identityErrorResponses],
+        ["organization", organizationErrorResponses],
         ["payout", payoutErrorResponses],
         ["product", productErrorResponses],
       ])

@@ -1,5 +1,4 @@
 import type { Database } from "@repo/db";
-import { fail } from "../../../errors";
 import { approvePendingApplicationForMember } from "../persistence/department-applications";
 import { lockDepartment } from "../persistence/departments";
 import {
@@ -10,6 +9,7 @@ import {
   lockAccountByEmail,
   promoteDepartmentMember,
 } from "../persistence/members";
+import { failOrganization } from "./errors";
 
 export function createMemberUseCases(db: Database) {
   return {
@@ -19,14 +19,14 @@ export function createMemberUseCases(db: Database) {
         await lockDepartment(tx, departmentId);
 
         const candidate = await lockAccountByEmail(tx, email);
-        if (!candidate) fail(404, "未找到这个邮箱对应的注册账号。");
+        if (!candidate) failOrganization("supervisorCandidateNotFound");
         if (await findCompanyAdministrator(tx, candidate.id)) {
-          fail(409, "公司管理员使用全局角色，主管须是部门员工。");
+          failOrganization("supervisorCandidateIsAdministrator");
         }
 
         const membership = await findDepartmentMembership(tx, candidate.id);
         if (membership && membership.organizationId !== departmentId) {
-          fail(409, "此员工已加入其他部门。");
+          failOrganization("supervisorCandidateInOtherDepartment");
         }
 
         const result = {
@@ -44,7 +44,9 @@ export function createMemberUseCases(db: Database) {
             candidate.id,
             adminId
           );
-          if (!application) fail(409, "请让这名员工先申请加入该部门。");
+          if (!application) {
+            failOrganization("supervisorCandidateApplicationRequired");
+          }
         }
 
         await demoteDepartmentSupervisor(tx, departmentId);

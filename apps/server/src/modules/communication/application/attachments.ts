@@ -8,6 +8,7 @@ import {
 } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
 import { fail } from "../../../errors";
+import { ModuleError } from "../../shared/application-error";
 import type { AttachmentUploadInput } from "../domain/attachment-files";
 import {
   archiveAttachment,
@@ -462,7 +463,13 @@ export function createAttachmentUseCases(
   function isUploadInaccessible(error: unknown) {
     return (
       error instanceof CommunicationArchiveInProgress ||
-      (error instanceof HTTPException && [401, 403, 404].includes(error.status))
+      (error instanceof HTTPException &&
+        [401, 403, 404].includes(error.status)) ||
+      (error instanceof ModuleError &&
+        error.module === "organization" &&
+        (error.reason === "accountNotFound" ||
+          error.reason === "departmentMembershipRequired" ||
+          error.reason === "departmentNotFound"))
     );
   }
 

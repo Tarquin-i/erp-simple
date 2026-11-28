@@ -1,7 +1,7 @@
 import type { Database, DatabaseTransaction } from "@repo/db";
 
-import { fail } from "../../../errors";
 import { selectAccountAccessRoles } from "../persistence/account-access-roles";
+import { failOrganization } from "./errors";
 
 export type AccountRecordAccess =
   | { scope: "company"; userId: string }
@@ -20,9 +20,9 @@ export async function readAccountRecordAccess(
   userId: string
 ): Promise<AccountRecordAccess> {
   const identity = await selectAccountAccessRoles(db, userId);
-  if (!identity) fail(401, "请先登录。");
+  if (!identity) failOrganization("accountNotFound");
   if (identity.adminId) return { scope: "company", userId };
-  if (!identity.membership) fail(403, "加入部门后才能访问业务数据。");
+  if (!identity.membership) failOrganization("departmentMembershipRequired");
 
   const { departmentId, role } = identity.membership;
   return {

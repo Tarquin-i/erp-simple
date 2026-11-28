@@ -1,13 +1,13 @@
 import type { Database } from "@repo/db";
-import { fail } from "../../../errors";
 import { selectViewer } from "../persistence/viewer";
+import { failOrganization } from "./errors";
 
 export function createViewerUseCases(db: Database) {
   return {
     /** 管理员身份优先，缺少部门或申请时保留 null。 */
     async getViewer(accountId: string) {
       const viewer = await selectViewer(db, accountId);
-      if (!viewer) fail(401, "请先登录。");
+      if (!viewer) failOrganization("accountNotFound");
 
       const { application } = viewer;
       return {

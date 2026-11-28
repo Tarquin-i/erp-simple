@@ -2,7 +2,7 @@ import type { Database, DatabaseTransaction } from "@repo/db";
 import { organization } from "@repo/db/schema";
 import { asc, eq } from "drizzle-orm";
 
-import { fail } from "../../../errors";
+import { failOrganization } from "../application/errors";
 
 export function selectDepartments(db: Database | DatabaseTransaction) {
   return db
@@ -40,5 +40,5 @@ export async function lockDepartment(
     .where(eq(organization.id, departmentId))
     .for(mode)
     .limit(1);
-  if (!department) fail(404, "该部门不存在。");
+  if (!department) failOrganization("departmentNotFound");
 }

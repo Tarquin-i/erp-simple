@@ -3,6 +3,7 @@ export {
   withRecordReadSnapshot,
 } from "./application/account-record-access";
 export type { AccountRecordAccess } from "./application/account-record-access";
+export { organizationErrorResponses } from "./http/errors";
 export { createOrganizationRoutes } from "./http/routes";
 export type { OrganizationModule } from "./module";
 export { createOrganizationModule } from "./module";

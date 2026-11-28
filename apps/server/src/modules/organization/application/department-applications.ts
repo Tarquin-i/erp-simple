@@ -1,5 +1,4 @@
 import type { Database, DatabaseTransaction } from "@repo/db";
-import { fail } from "../../../errors";
 import {
   departmentExists,
   insertDepartmentApplication,
@@ -17,7 +16,9 @@ import { addDepartmentMember } from "../persistence/members";
 import { failOrganization } from "./errors";
 
 async function requireLockedApplicant(tx: DatabaseTransaction, userId: string) {
-  if (!(await lockApplicantAccount(tx, userId))) fail(404, "申请账号不存在。");
+  if (!(await lockApplicantAccount(tx, userId))) {
+    failOrganization("applicantNotFound");
+  }
 }
 
 async function requireUnassignedAccount(
@@ -26,7 +27,7 @@ async function requireUnassignedAccount(
 ) {
   const account = await selectApplicantMembership(tx, userId);
   if (account?.memberId || account?.adminId) {
-    fail(409, "该账号已加入部门或拥有公司管理权限。");
+    failOrganization("applicantAlreadyAssigned");
   }
 }
 
@@ -39,7 +40,7 @@ async function requireReviewScope(tx: DatabaseTransaction, userId: string) {
       departmentId: reviewer.departmentId,
     };
   }
-  fail(403, "只有公司管理员或部门主管可以审核入部申请。");
+  failOrganization("applicationReviewForbidden");
 }
 
 async function requireApplicationDepartment(
@@ -47,7 +48,7 @@ async function requireApplicationDepartment(
   applicationId: string
 ) {
   const application = await selectApplicationDepartment(tx, applicationId);
-  if (!application) fail(404, "未找到入部申请。");
+  if (!application) failOrganization("applicationNotFound");
   return application.departmentId;
 }
 
@@ -62,13 +63,13 @@ export function createDepartmentApplicationUseCases(db: Database) {
         const pending = await selectPendingApplicationForAccount(tx, userId);
         if (pending) {
           if (pending.departmentId !== departmentId) {
-            fail(409, "你已有一条待审核的入部申请。");
+            failOrganization("pendingApplicationExists");
           }
           return { application: pending, created: false };
         }
 
         if (!(await departmentExists(tx, departmentId))) {
-          fail(404, "所选部门不存在。");
+          failOrganization("applicationDepartmentNotFound");
         }
         const application = await insertDepartmentApplication(
           tx,
@@ -82,7 +83,7 @@ export function createDepartmentApplicationUseCases(db: Database) {
     async listPendingApplications(supervisorId: string) {
       const rows = await selectSupervisorPendingApplications(db, supervisorId);
       // 左连接保留没有待审申请的主管记录，用来区分空列表和无查看权限。
-      if (!rows.length) fail(403, "只有部门主管可以查看本部门的入部申请。");
+      if (!rows.length) failOrganization("applicationListForbidden");
       return rows.flatMap(({ id, name, email, submittedAt }) =>
         id !== null && name !== null && email !== null && submittedAt !== null
           ? [{ id, name, email, submittedAt }]
@@ -110,7 +111,7 @@ export function createDepartmentApplicationUseCases(db: Database) {
           currentScope.scope === "department" &&
           currentScope.departmentId !== departmentId
         ) {
-          fail(403, "只有部门主管可以审核本部门的入部申请。");
+          failOrganization("otherDepartmentReviewForbidden");
         }
 
         const application = await selectDepartmentApplicationForReview(
@@ -119,11 +120,10 @@ export function createDepartmentApplicationUseCases(db: Database) {
           applicationId
         );
         if (!application) {
-          fail(
-            404,
+          failOrganization(
             currentScope.scope === "company"
-              ? "未找到入部申请。"
-              : "未找到本部门的入部申请。"
+              ? "applicationNotFound"
+              : "departmentApplicationNotFound"
           );
         }
         if (application.status !== "pending") {
