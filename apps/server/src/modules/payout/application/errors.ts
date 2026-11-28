@@ -2,17 +2,15 @@ import type { PayoutDefinition } from "@repo/db/schema";
 import { HTTPException } from "hono/http-exception";
 
 import { fail } from "../../../errors";
-import { countWinningTickets } from "../domain/payout-calculations";
+import { getPayoutTicketCapacityError } from "../domain/payout-calculations";
 
 /** 基于当前发行张数检查奖项定义。 */
 export function assertPayoutTicketCapacity(
   definition: PayoutDefinition,
   ticketCount: number
 ) {
-  const winning = countWinningTickets(definition);
-  if (winning > ticketCount) {
-    fail(400, `中奖张数合计 ${winning}，不能超过总张数 ${ticketCount}。`);
-  }
+  const message = getPayoutTicketCapacityError(definition, ticketCount);
+  if (message) fail(400, message);
 }
 
 const payoutConflictMessages = {

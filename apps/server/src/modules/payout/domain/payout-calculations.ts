@@ -26,6 +26,16 @@ export function countWinningTickets(definition: PayoutDefinition) {
   );
 }
 
+export function getPayoutTicketCapacityError(
+  definition: PayoutDefinition,
+  ticketCount: number
+) {
+  const winning = countWinningTickets(definition);
+  if (winning > ticketCount) {
+    return `中奖张数合计 ${winning}，不能超过总张数 ${ticketCount}。`;
+  }
+}
+
 export function calculatePayoutMetrics({
   definition,
   ticketCount,

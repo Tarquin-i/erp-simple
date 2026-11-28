@@ -2,11 +2,18 @@ import type { PayoutDefinition } from "@repo/db/schema";
 
 import { readString, readUuid } from "../../../http/request-input";
 import { fail } from "../../../errors";
+import {
+  normalizePayoutDecimal,
+  PayoutSaleFieldError,
+  readPayoutName,
+  readPayoutRemark,
+  readPayoutSaleFields,
+  readPayoutTicketQuantity,
+  readPayoutUnitPrice,
+} from "../domain/sale-fields";
 import type { PayoutCreateInput, PayoutPatch } from "../persistence/payouts";
 
-const maxPayoutNameLength = 128;
-const maxRemarkLength = 2000;
-const maxTicketCount = 1_000_000;
+const maxPrizeTextLength = 128;
 const maxGroupCount = 1000;
 const maxPrizeCount = 10_000;
 const maxExactCents = BigInt(Number.MAX_SAFE_INTEGER);
@@ -26,60 +33,10 @@ export const payoutPatchFields = [
   "definition",
 ] as const;
 
-function readTicketQuantity(value: unknown, label: string) {
-  if (
-    typeof value !== "number" ||
-    !Number.isInteger(value) ||
-    value < 1 ||
-    value > maxTicketCount
-  ) {
-    fail(400, `${label}须为 1 至 ${maxTicketCount} 的整数。`);
-  }
-  return value;
-}
-
-function readRemark(value: unknown) {
-  if (typeof value !== "string") fail(400, "Payout 备注须为文本。");
-  const remark = value.trim();
-  if (remark.length > maxRemarkLength || remark.includes("\0")) {
-    fail(400, `请检查 Payout 备注，最多可填写 ${maxRemarkLength} 个字符。`);
-  }
-  return remark;
-}
-
-function readDecimal(value: unknown, pattern: RegExp, invalidMessage: string) {
-  const text =
-    typeof value === "number" || typeof value === "string"
-      ? String(value).trim()
-      : "";
-  const parts = pattern.exec(text);
-  if (!parts?.[1]) fail(400, invalidMessage);
-
-  // 统一提交指纹中的金额表示，也便于检查写入 JSONB 的数值精度。
-  const whole = parts[1].replace(/^0+(?=\d)/u, "");
-  const fraction = parts[2]?.replace(/0+$/u, "") ?? "";
-  return { whole, fraction, text: fraction ? `${whole}.${fraction}` : whole };
-}
-
-function readUnitPrice(value: unknown) {
-  const { text } = readDecimal(
-    value,
-    /^(\d+)(?:\.(\d{1,4}))?$/u,
-    "请输入有效的每张售价，最多保留 4 位小数。"
-  );
-  const price = Number(text);
-  if (price <= 0 || price > 100_000) {
-    fail(400, "每张售价必须大于 0 且不超过 100000。");
-  }
-  return text;
-}
-
 function readPrizeAmount(value: unknown) {
-  const { whole, fraction, text } = readDecimal(
-    value,
-    /^(\d+)(?:\.(\d{1,2}))?$/u,
-    "请输入有效的单张奖金，最多保留 2 位小数。"
-  );
+  const decimal = normalizePayoutDecimal(value, /^(\d+)(?:\.(\d{1,2}))?$/u);
+  if (!decimal) fail(400, "请输入有效的单张奖金，最多保留 2 位小数。");
+  const { whole, fraction, text } = decimal;
   const amount = Number(text);
   if (
     amount <= 0 ||
@@ -106,7 +63,7 @@ function readNestedObject(
 }
 
 function readUniqueText(value: unknown, label: string, seen: Set<string>) {
-  const text = readString(value, label, maxPayoutNameLength);
+  const text = readString(value, label, maxPrizeTextLength);
   // PostgreSQL JSONB 拒绝未配对的 UTF-16 代理字符。
   if (/[\uD800-\uDFFF]/u.test(text)) fail(400, `${label}包含无效字符。`);
   const normalized = text.toLowerCase();
@@ -151,12 +108,21 @@ function readPayoutDefinition(value: unknown): PayoutDefinition {
             id: readUniqueText(prize.id, "奖项 ID", prizeIds),
             name: readUniqueText(prize.name, "奖项名称", prizeNames),
             amount: readPrizeAmount(prize.amount),
-            quantity: readTicketQuantity(prize.quantity, "中奖张数"),
+            quantity: readPayoutTicketQuantity(prize.quantity, "中奖张数"),
           };
         }),
       };
     }),
   };
+}
+
+function readSaleFieldsForRequest<T>(read: () => T): T {
+  try {
+    return read();
+  } catch (error) {
+    if (error instanceof PayoutSaleFieldError) fail(400, error.message);
+    throw error;
+  }
 }
 
 /** 做好金额和名称规范化，再生成新建请求指纹。 */
@@ -165,25 +131,22 @@ export function readPayoutCreateInput(
 ): PayoutCreateInput {
   return {
     productId: readUuid(body.productId, "产品 ID"),
-    name: readString(body.name, "Payout 名称", maxPayoutNameLength),
-    ticketCount: readTicketQuantity(body.ticketCount, "总张数"),
-    unitPrice:
-      body.unitPrice === undefined ? "1" : readUnitPrice(body.unitPrice),
-    remark: body.remark === undefined ? "" : readRemark(body.remark),
+    ...readSaleFieldsForRequest(() => readPayoutSaleFields(body)),
   };
 }
 
 export function readPayoutPatch(body: Record<string, unknown>): PayoutPatch {
-  const patch: PayoutPatch = {};
-  if (Object.hasOwn(body, "name")) {
-    patch.name = readString(body.name, "Payout 名称", maxPayoutNameLength);
-  }
-  if (Object.hasOwn(body, "unitPrice"))
-    patch.unitPrice = readUnitPrice(body.unitPrice);
-  if (Object.hasOwn(body, "remark")) patch.remark = readRemark(body.remark);
-  if (Object.hasOwn(body, "definition")) {
-    patch.definition = readPayoutDefinition(body.definition);
-  }
-  if (!Object.keys(patch).length) fail(400, "请提交需要更新的 Payout 资料。");
-  return patch;
+  return readSaleFieldsForRequest(() => {
+    const patch: PayoutPatch = {};
+    if (Object.hasOwn(body, "name")) patch.name = readPayoutName(body.name);
+    if (Object.hasOwn(body, "unitPrice"))
+      patch.unitPrice = readPayoutUnitPrice(body.unitPrice);
+    if (Object.hasOwn(body, "remark"))
+      patch.remark = readPayoutRemark(body.remark);
+    if (Object.hasOwn(body, "definition")) {
+      patch.definition = readPayoutDefinition(body.definition);
+    }
+    if (!Object.keys(patch).length) fail(400, "请提交需要更新的 Payout 资料。");
+    return patch;
+  });
 }

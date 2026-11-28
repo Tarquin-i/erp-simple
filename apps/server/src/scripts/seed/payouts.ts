@@ -2,8 +2,10 @@ import type { DatabaseTransaction } from "@repo/db";
 import { customer, payout, product } from "@repo/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 
-import { assertPayoutTicketCapacity } from "../../modules/payout/application/errors";
-import { readPayoutCreateInput } from "../../modules/payout/http/write-requests";
+import {
+  getPayoutTicketCapacityError,
+  readPayoutSaleFields,
+} from "../../modules/payout";
 import { seedPayoutDefinitions, seedPayoutEntries } from "./payout-definitions";
 import { seedProductTemplates } from "./product-definitions";
 import { seedId } from "./seed-ids";
@@ -53,10 +55,11 @@ export async function seedPayouts(tx: DatabaseTransaction) {
 
     const definition = seedPayoutDefinitions[plan];
     const createdAt = new Date(source.createdAt.getTime() + index * 60000);
-    assertPayoutTicketCapacity(definition, ticketCount);
+    const capacityError = getPayoutTicketCapacityError(definition, ticketCount);
+    if (capacityError) throw new Error(capacityError);
     values.push({
-      ...readPayoutCreateInput({
-        productId,
+      productId,
+      ...readPayoutSaleFields({
         name: `演示·${name}`,
         ticketCount,
         unitPrice,
