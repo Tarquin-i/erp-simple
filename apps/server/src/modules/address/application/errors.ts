@@ -1,4 +1,4 @@
-import { BusinessError } from "../../shared/application-error";
+import { ModuleError } from "../../shared/application-error";
 
 const addressErrorMessages = {
   addressNotFound: "地址不存在。",
@@ -21,7 +21,7 @@ export function createAddressError(
   reason: AddressErrorReason,
   current?: unknown
 ) {
-  return new BusinessError(
+  return new ModuleError(
     "address",
     reason,
     addressErrorMessages[reason],

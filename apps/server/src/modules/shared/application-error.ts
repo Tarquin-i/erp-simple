@@ -1,4 +1,4 @@
-export class BusinessError extends Error {
+export class ModuleError extends Error {
   constructor(
     readonly module: string,
     readonly reason: string,
@@ -6,6 +6,6 @@ export class BusinessError extends Error {
     readonly current?: unknown
   ) {
     super(message);
-    this.name = "BusinessError";
+    this.name = "ModuleError";
   }
 }

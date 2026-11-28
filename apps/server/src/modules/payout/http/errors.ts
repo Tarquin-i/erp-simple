@@ -1,4 +1,4 @@
-import type { BusinessErrorResponse } from "../../../errors";
+import type { ModuleErrorResponse } from "../../../errors";
 import type { PayoutErrorReason } from "../application/errors";
 
 export const payoutErrorResponses = {
@@ -9,4 +9,4 @@ export const payoutErrorResponses = {
   "version-conflict": { status: 409, code: "version_conflict" },
   "concurrent-update": { status: 409 },
   "ticket-capacity": { status: 400 },
-} satisfies Record<PayoutErrorReason, BusinessErrorResponse>;
+} satisfies Record<PayoutErrorReason, ModuleErrorResponse>;

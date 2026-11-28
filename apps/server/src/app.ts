@@ -1,7 +1,7 @@
 import type { Database } from "@repo/db";
 import { Hono } from "hono";
 import { createServerErrorHandler } from "./errors";
-import type { BusinessErrorResponse } from "./errors";
+import type { ModuleErrorResponse } from "./errors";
 import { registerApiRoutes } from "./http/api-routes";
 import { addressErrorResponses, createAddressModule } from "./modules/address";
 import { createCommunicationModule } from "./modules/communication";
@@ -36,7 +36,7 @@ export function createApp({ db, auth, requireAccountId }: AppDependencies) {
 
   app.onError(
     createServerErrorHandler(
-      new Map<string, Readonly<Record<string, BusinessErrorResponse>>>([
+      new Map<string, Readonly<Record<string, ModuleErrorResponse>>>([
         ["address", addressErrorResponses],
         ["payout", payoutErrorResponses],
         ["product", productErrorResponses],

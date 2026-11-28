@@ -2,7 +2,7 @@ import type { ErrorHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
-import { BusinessError } from "./modules/shared/application-error";
+import { ModuleError } from "./modules/shared/application-error";
 
 export class ApplicationError extends Error {
   constructor(
@@ -15,7 +15,7 @@ export class ApplicationError extends Error {
   }
 }
 
-export type BusinessErrorResponse = {
+export type ModuleErrorResponse = {
   status: ContentfulStatusCode;
   code?: string;
 };
@@ -23,11 +23,11 @@ export type BusinessErrorResponse = {
 export function createServerErrorHandler(
   responseMappings: ReadonlyMap<
     string,
-    Readonly<Record<string, BusinessErrorResponse>>
+    Readonly<Record<string, ModuleErrorResponse>>
   >
 ): ErrorHandler {
   return (error, context) => {
-    if (error instanceof BusinessError) {
+    if (error instanceof ModuleError) {
       const responses = responseMappings.get(error.module);
       if (responses && Object.hasOwn(responses, error.reason)) {
         const { status, code } = responses[error.reason];

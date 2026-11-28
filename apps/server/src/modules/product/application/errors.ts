@@ -1,4 +1,4 @@
-import { BusinessError } from "../../shared/application-error";
+import { ModuleError } from "../../shared/application-error";
 import type { validateProductTypeFields } from "../domain/type-fields";
 
 type InvalidProductTypeFields = NonNullable<
@@ -15,7 +15,7 @@ const productTypeFieldMessages: Record<InvalidProductTypeFields, string> = {
 export function failInvalidProductTypeFields(
   reason: InvalidProductTypeFields
 ): never {
-  throw new BusinessError(
+  throw new ModuleError(
     "product",
     "invalid-type-fields",
     productTypeFieldMessages[reason]
@@ -41,7 +41,7 @@ export function failProduct(
   reason: keyof typeof productErrorMessages,
   current?: unknown
 ): never {
-  throw new BusinessError(
+  throw new ModuleError(
     "product",
     reason,
     productErrorMessages[reason],

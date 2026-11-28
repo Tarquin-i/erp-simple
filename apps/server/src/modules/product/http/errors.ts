@@ -1,4 +1,4 @@
-import type { BusinessErrorResponse } from "../../../errors";
+import type { ModuleErrorResponse } from "../../../errors";
 import type { ProductErrorReason } from "../application/errors";
 
 export const productErrorResponses = {
@@ -14,4 +14,4 @@ export const productErrorResponses = {
   "concurrent-update": { status: 409 },
   "version-conflict": { status: 409, code: "version_conflict" },
   "invalid-type-fields": { status: 400 },
-} satisfies Record<ProductErrorReason, BusinessErrorResponse>;
+} satisfies Record<ProductErrorReason, ModuleErrorResponse>;

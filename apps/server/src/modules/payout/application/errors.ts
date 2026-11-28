@@ -1,6 +1,6 @@
 import type { PayoutDefinition } from "@repo/db/schema";
 
-import { BusinessError } from "../../shared/application-error";
+import { ModuleError } from "../../shared/application-error";
 import { getPayoutTicketCapacityError } from "../domain/payout-calculations";
 
 const payoutErrorMessages = {
@@ -20,12 +20,7 @@ export function failPayout(
   reason: keyof typeof payoutErrorMessages,
   current?: unknown
 ): never {
-  throw new BusinessError(
-    "payout",
-    reason,
-    payoutErrorMessages[reason],
-    current
-  );
+  throw new ModuleError("payout", reason, payoutErrorMessages[reason], current);
 }
 
 /** 基于当前发行张数检查奖项定义。 */
@@ -34,5 +29,5 @@ export function assertPayoutTicketCapacity(
   ticketCount: number
 ) {
   const message = getPayoutTicketCapacityError(definition, ticketCount);
-  if (message) throw new BusinessError("payout", "ticket-capacity", message);
+  if (message) throw new ModuleError("payout", "ticket-capacity", message);
 }

@@ -1,4 +1,4 @@
-import type { BusinessErrorResponse } from "../../../errors";
+import type { ModuleErrorResponse } from "../../../errors";
 import type { AddressErrorReason } from "../application/errors";
 
 export const addressErrorResponses = {
@@ -17,4 +17,4 @@ export const addressErrorResponses = {
   defaultConfirmationStale: { status: 409, code: "existing_default_conflict" },
   defaultUnsetForbidden: { status: 409, code: "default_unset_forbidden" },
   versionConflict: { status: 409, code: "version_conflict" },
-} satisfies Record<AddressErrorReason, BusinessErrorResponse>;
+} satisfies Record<AddressErrorReason, ModuleErrorResponse>;
