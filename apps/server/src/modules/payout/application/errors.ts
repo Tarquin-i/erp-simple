@@ -1,5 +1,6 @@
 import type { PayoutDefinition } from "@repo/db/schema";
 
+import { BusinessError } from "../../shared/application-error";
 import { getPayoutTicketCapacityError } from "../domain/payout-calculations";
 
 const payoutErrorMessages = {
@@ -11,24 +12,16 @@ const payoutErrorMessages = {
   "concurrent-update": "Payout 有并发更新，请重试。",
 } as const;
 
-type PayoutErrorReason = keyof typeof payoutErrorMessages;
-
-export class PayoutApplicationError extends Error {
-  constructor(
-    readonly reason: PayoutErrorReason | "ticket-capacity",
-    message: string,
-    readonly current?: unknown
-  ) {
-    super(message);
-    this.name = "PayoutApplicationError";
-  }
-}
+export type PayoutErrorReason =
+  | keyof typeof payoutErrorMessages
+  | "ticket-capacity";
 
 export function failPayout(
-  reason: PayoutErrorReason,
+  reason: keyof typeof payoutErrorMessages,
   current?: unknown
 ): never {
-  throw new PayoutApplicationError(
+  throw new BusinessError(
+    "payout",
     reason,
     payoutErrorMessages[reason],
     current
@@ -41,5 +34,5 @@ export function assertPayoutTicketCapacity(
   ticketCount: number
 ) {
   const message = getPayoutTicketCapacityError(definition, ticketCount);
-  if (message) throw new PayoutApplicationError("ticket-capacity", message);
+  if (message) throw new BusinessError("payout", "ticket-capacity", message);
 }

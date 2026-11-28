@@ -1,12 +1,7 @@
-import type { ErrorHandler } from "hono";
+import type { BusinessErrorResponse } from "../../../errors";
+import type { PayoutErrorReason } from "../application/errors";
 
-import type { RecordAccessEnv } from "../../identity";
-import { PayoutApplicationError } from "../application/errors";
-
-const payoutErrorResponses: Record<
-  PayoutApplicationError["reason"],
-  { status: 400 | 404 | 409; code?: string }
-> = {
+export const payoutErrorResponses = {
   "not-found": { status: 404 },
   "product-not-found": { status: 404 },
   "name-conflict": { status: 409, code: "payout_name_conflict" },
@@ -14,19 +9,4 @@ const payoutErrorResponses: Record<
   "version-conflict": { status: 409, code: "version_conflict" },
   "concurrent-update": { status: 409 },
   "ticket-capacity": { status: 400 },
-};
-
-export const handlePayoutError: ErrorHandler<RecordAccessEnv> = (
-  error,
-  context
-) => {
-  if (!(error instanceof PayoutApplicationError)) throw error;
-
-  const { status, code } = payoutErrorResponses[error.reason];
-  // 沿用原错误响应的 JSON 类型和字符集。
-  const response = Response.json(
-    { code, message: error.message, current: error.current },
-    { status }
-  );
-  return context.newResponse(response.body, response);
-};
+} satisfies Record<PayoutErrorReason, BusinessErrorResponse>;

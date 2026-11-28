@@ -2,6 +2,8 @@ import type { ErrorHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
+import { BusinessError } from "./modules/shared/application-error";
+
 export class ApplicationError extends Error {
   constructor(
     readonly status: ContentfulStatusCode,
@@ -13,23 +15,48 @@ export class ApplicationError extends Error {
   }
 }
 
-export const handleServerError: ErrorHandler = (error, context) => {
-  if (error instanceof ApplicationError) {
-    const { code, current } = error.details;
-    return context.json(
-      { code, message: error.message, current },
-      error.status
-    );
-  }
-
-  if ("getResponse" in error) {
-    const response = error.getResponse();
-    return context.newResponse(response.body, response);
-  }
-
-  console.error(error);
-  return context.text("Internal Server Error", 500);
+export type BusinessErrorResponse = {
+  status: ContentfulStatusCode;
+  code?: string;
 };
+
+export function createServerErrorHandler(
+  responseMappings: ReadonlyMap<
+    string,
+    Readonly<Record<string, BusinessErrorResponse>>
+  >
+): ErrorHandler {
+  return (error, context) => {
+    if (error instanceof BusinessError) {
+      const responses = responseMappings.get(error.module);
+      if (responses && Object.hasOwn(responses, error.reason)) {
+        const { status, code } = responses[error.reason];
+        // 保留已迁移接口原有的 JSON 类型和字符集。
+        const response = Response.json(
+          { code, message: error.message, current: error.current },
+          { status }
+        );
+        return context.newResponse(response.body, response);
+      }
+    }
+
+    if (error instanceof ApplicationError) {
+      const { code, current } = error.details;
+      return context.json(
+        { code, message: error.message, current },
+        error.status
+      );
+    }
+
+    if ("getResponse" in error) {
+      const response = error.getResponse();
+      return context.newResponse(response.body, response);
+    }
+
+    console.error(error);
+    return context.text("Internal Server Error", 500);
+  };
+}
 
 /**
  * 在版本不匹配时中止写入，提供最新资料供客户端比较。
