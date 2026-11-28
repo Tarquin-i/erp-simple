@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 
 import { fail } from "../errors";
+import { validateRequiredText } from "../modules/shared/required-text";
 
 const uuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
@@ -37,12 +38,9 @@ export async function readObject(c: Context, allowed: readonly string[]) {
  * @throws 值不是字符串、为空、超过最大长度或包含空字符时抛出 HTTP 400。
  */
 export function readString(value: unknown, label: string, max: number) {
-  if (typeof value !== "string") fail(400, `请填写${label}。`);
-  const text = value.trim();
-  if (!text || text.length > max || text.includes("\0")) {
-    fail(400, `请检查${label}，长度应在 1 至 ${max} 个字符之间。`);
-  }
-  return text;
+  const result = validateRequiredText(value, label, max);
+  if (!result.ok) fail(400, result.message);
+  return result.value;
 }
 
 /**
