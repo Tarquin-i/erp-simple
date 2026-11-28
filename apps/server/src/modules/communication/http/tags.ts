@@ -7,7 +7,7 @@ import {
   readString,
   readUuid,
 } from "../../../http/request-input";
-import type { RecordAccessEnv } from "../../identity/http/record-access-context";
+import type { RecordAccessEnv } from "../../identity";
 import type { CommunicationModule } from "../module";
 
 function readTagColor(value: unknown, label = "标签颜色") {

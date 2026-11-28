@@ -8,10 +8,7 @@ import {
   readString,
   readUuid,
 } from "../../../http/request-input";
-import type {
-  RecordAccessEnv,
-  RecordAccessMiddleware,
-} from "../../identity/http/record-access-context";
+import type { RecordAccessEnv, RecordAccessMiddleware } from "../../identity";
 import type { AddressModule } from "../module";
 import {
   addressCreateFields,

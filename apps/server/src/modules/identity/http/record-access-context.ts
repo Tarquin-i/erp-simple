@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from "hono";
 import { createMiddleware } from "hono/factory";
 
 import type { AccountRecordAccess } from "../../organization";
+import type { RequireAccountId } from "../auth/session";
 
 export type RecordAccessEnv = {
   Variables: { recordAccess: AccountRecordAccess };
@@ -13,7 +14,7 @@ export function createRecordAccessContext({
   requireAccountId,
   readAccess,
 }: {
-  requireAccountId: (headers: Headers) => Promise<string>;
+  requireAccountId: RequireAccountId;
   readAccess: (userId: string) => Promise<AccountRecordAccess>;
 }): RecordAccessMiddleware {
   return createMiddleware<RecordAccessEnv>(async (c, next) => {

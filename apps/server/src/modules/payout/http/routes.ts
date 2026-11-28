@@ -1,10 +1,7 @@
 import { Hono } from "hono";
 
 import { fail } from "../../../errors";
-import type {
-  RecordAccessEnv,
-  RecordAccessMiddleware,
-} from "../../identity/http/record-access-context";
+import type { RecordAccessEnv, RecordAccessMiddleware } from "../../identity";
 import {
   readExpectedVersion,
   readObject,

@@ -8,7 +8,7 @@ import {
   readString,
   readUuid,
 } from "../../../http/request-input";
-import type { RecordAccessEnv } from "../../identity/http/record-access-context";
+import type { RecordAccessEnv } from "../../identity";
 import { fail } from "../../../errors";
 import { attachmentUploadLimit } from "../application/attachments";
 import {

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 
 import { fail } from "../../../errors";
-import type { RecordAccessEnv } from "../../identity/http/record-access-context";
+import type { RecordAccessEnv } from "../../identity";
 import type { createTagUseCases } from "../application/tags";
 import {
   readObject,

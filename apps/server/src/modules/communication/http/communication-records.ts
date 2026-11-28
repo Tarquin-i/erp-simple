@@ -2,7 +2,7 @@ import { communicationStatus } from "@repo/db/schema";
 import { Hono } from "hono";
 import { getBunServer } from "hono/bun";
 
-import type { RecordAccessEnv } from "../../identity/http/record-access-context";
+import type { RecordAccessEnv } from "../../identity";
 import {
   readExpectedVersion,
   readObject,

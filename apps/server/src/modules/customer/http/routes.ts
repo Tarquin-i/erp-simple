@@ -1,9 +1,6 @@
 import { Hono } from "hono";
 
-import type {
-  RecordAccessEnv,
-  RecordAccessMiddleware,
-} from "../../identity/http/record-access-context";
+import type { RecordAccessEnv, RecordAccessMiddleware } from "../../identity";
 import type { CustomerModule } from "../module";
 import { createCustomerChannelRoutes } from "./channels";
 import { createCustomerContactRoutes } from "./contacts";

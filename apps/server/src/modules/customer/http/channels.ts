@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import type { RecordAccessEnv } from "../../identity/http/record-access-context";
+import type { RecordAccessEnv } from "../../identity";
 import type { CustomerModule } from "../module";
 
 export function createCustomerChannelRoutes(

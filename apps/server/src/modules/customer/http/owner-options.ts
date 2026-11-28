@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import type { RecordAccessEnv } from "../../identity/http/record-access-context";
+import type { RecordAccessEnv } from "../../identity";
 import { createCustomerError } from "../application/errors";
 import type { createOwnerOptionUseCases } from "../application/owner-options";
 import { readString, readUuid } from "../../../http/request-input";

@@ -1,3 +1,4 @@
+export { createCustomerRoutes } from "./http/routes";
 export { createCustomerModule } from "./module";
 export {
   lockCustomerForWrite,
