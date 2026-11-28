@@ -2,8 +2,7 @@ import type { Context } from "hono";
 
 import { fail } from "../errors";
 import { validateRequiredText } from "../modules/shared/required-text";
-
-const uuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+import { normalizeUuid } from "../modules/shared/uuid";
 
 /**
  * 读取 JSON 请求体并拒绝白名单以外的字段。
@@ -51,10 +50,9 @@ export function readString(value: unknown, label: string, max: number) {
  * @throws ID 格式无效时抛出 HTTP 400。
  */
 export function readUuid(value: unknown, label: string) {
-  if (typeof value !== "string" || !uuidPattern.test(value)) {
-    fail(400, `${label}格式不正确。`);
-  }
-  return value.toLowerCase();
+  const id = normalizeUuid(value);
+  if (id === undefined) fail(400, `${label}格式不正确。`);
+  return id;
 }
 
 /**
