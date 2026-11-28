@@ -3,7 +3,7 @@ import {
   FilterMenuCommand,
   FilterMenuContent,
   FilterMenuSearch,
-} from "@/components/shared/filter-menu";
+} from "./filter-menu";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,7 +37,7 @@ import {
   useState,
 } from "react";
 import type { DateRange } from "react-day-picker";
-import { numberFilterOperators } from "../core/operators";
+import { numberFilterOperators } from "../model/operators";
 import type {
   Column,
   ColumnDataType,
@@ -45,12 +45,12 @@ import type {
   DataTableFilterActions,
   FilterModel,
   FilterStrategy,
-} from "../core/types";
+} from "../model/types";
 import { useDebouncedChange } from "../hooks/use-debounced-change";
 import { take } from "../lib/array";
 import { createNumberRange } from "../lib/helpers";
 import { type Locale, t } from "../lib/i18n";
-import { DebouncedInput } from "../ui/debounced-input";
+import { DebouncedInput } from "./debounced-input";
 
 interface FilterValueProps<TData, TType extends ColumnDataType> {
   filter: FilterModel<TType>;

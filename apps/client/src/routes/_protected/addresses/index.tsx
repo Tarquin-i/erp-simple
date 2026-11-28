@@ -6,11 +6,11 @@ import type { FormEvent, ReactNode } from "react";
 import { useAddressListFilters } from "@/components/addresses/list-filters";
 import { readAddressListQuery } from "@/components/addresses/navigation";
 import { AddressPhoneValue } from "@/components/addresses/phone-value";
-import { ListEmptyState } from "@/components/shared/list-empty-state";
-import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
-import { ListPage } from "@/components/shared/list-page";
-import { ListPagination } from "@/components/shared/list-pagination";
-import { ListSearchInput } from "@/components/shared/list-toolbar";
+import { ListEmptyState } from "@/components/core/data-table/list-empty-state";
+import { ListFilterToolbar } from "@/components/core/data-table/list-filter-toolbar";
+import { ListPage } from "@/components/core/data-table/list-page";
+import { ListPagination } from "@/components/core/data-table/list-pagination";
+import { ListSearchInput } from "@/components/core/data-table/list-toolbar";
 import { Button } from "@/components/ui/button";
 import {
   Empty,

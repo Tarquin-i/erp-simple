@@ -2,7 +2,7 @@ import {
   FilterMenuCommand,
   FilterMenuContent,
   FilterMenuSearch,
-} from "@/components/shared/filter-menu";
+} from "./filter-menu";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -21,14 +21,14 @@ import {
   numberFilterOperators,
   optionFilterOperators,
   textFilterOperators,
-} from "../core/operators";
+} from "../model/operators";
 import type {
   Column,
   ColumnDataType,
   DataTableFilterActions,
   FilterModel,
   FilterOperators,
-} from "../core/types";
+} from "../model/types";
 import { type Locale, t } from "../lib/i18n";
 
 interface FilterOperatorProps<TData, TType extends ColumnDataType> {

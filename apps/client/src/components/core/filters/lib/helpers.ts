@@ -1,5 +1,5 @@
 import { isBefore } from "date-fns";
-import type { Column, ColumnOption } from "../core/types";
+import type { Column, ColumnOption } from "../model/types";
 
 export function getColumn<TData>(columns: Column<TData>[], id: string) {
   const column = columns.find((c) => c.id === id);

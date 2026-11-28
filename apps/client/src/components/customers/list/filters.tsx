@@ -7,8 +7,8 @@ import type {
   ColumnConfig,
   ColumnOption,
   FiltersState,
-} from "@/components/shared/data-table-filter/core/types";
-import { useDataTableFilters } from "@/components/shared/data-table-filter";
+} from "@/components/core/filters/model/types";
+import { useDataTableFilters } from "@/components/core/filters";
 import {
   hasVisibleTagColor,
   TagColorDot,

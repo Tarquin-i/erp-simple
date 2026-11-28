@@ -2,13 +2,13 @@ import { Package } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SetStateAction } from "react";
 
-import { useDataTableFilters } from "@/components/shared/data-table-filter";
+import { useDataTableFilters } from "@/components/core/filters";
 import type {
   ColumnConfig,
   FiltersState,
-} from "@/components/shared/data-table-filter/core/types";
-import { PaginatedFilterOptions } from "@/components/shared/paginated-filter-options";
-import type { PaginatedFilterOptionsQuery } from "@/components/shared/paginated-filter-options";
+} from "@/components/core/filters/model/types";
+import { PaginatedFilterOptions } from "@/components/core/filters/components/paginated-filter-options";
+import type { PaginatedFilterOptionsQuery } from "@/components/core/filters/components/paginated-filter-options";
 import {
   listOptionLimit,
   listOptionOperator,

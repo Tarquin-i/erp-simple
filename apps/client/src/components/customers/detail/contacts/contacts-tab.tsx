@@ -3,8 +3,8 @@ import { ContactRound, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { ListEmptyState } from "@/components/shared/list-empty-state";
-import { ListLoadError } from "@/components/shared/list-load-error";
+import { ListEmptyState } from "@/components/core/data-table/list-empty-state";
+import { ListLoadError } from "@/components/core/data-table/list-load-error";
 import { VersionConflictDialog } from "@/components/shared/version-conflict-dialog";
 import { VirtualList } from "@/components/shared/virtual-list";
 import {

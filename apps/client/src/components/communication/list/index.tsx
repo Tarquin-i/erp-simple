@@ -21,9 +21,9 @@ import { createPortal } from "react-dom";
 
 import { readListQueryFromState } from "@/components/customers/list-query";
 import { ListBadgeSummary } from "@/components/shared/list-badge-summary";
-import { ListEmptyState } from "@/components/shared/list-empty-state";
-import { ListPagination } from "@/components/shared/list-pagination";
-import { ListSearchInput } from "@/components/shared/list-toolbar";
+import { ListEmptyState } from "@/components/core/data-table/list-empty-state";
+import { ListPagination } from "@/components/core/data-table/list-pagination";
+import { ListSearchInput } from "@/components/core/data-table/list-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

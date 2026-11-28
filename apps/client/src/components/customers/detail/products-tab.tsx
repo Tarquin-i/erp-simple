@@ -3,9 +3,9 @@ import { Package } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { DEFAULT_CUSTOMER_PRODUCT_PAGE_SIZE } from "@/components/products/navigation";
-import { ListEmptyState } from "@/components/shared/list-empty-state";
-import { ListLoadError } from "@/components/shared/list-load-error";
-import { ListPagination } from "@/components/shared/list-pagination";
+import { ListEmptyState } from "@/components/core/data-table/list-empty-state";
+import { ListLoadError } from "@/components/core/data-table/list-load-error";
+import { ListPagination } from "@/components/core/data-table/list-pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,

@@ -2,12 +2,12 @@
 
 import type React from "react";
 import { useMemo, useState } from "react";
-import { createColumns } from "../core/filters";
+import { createColumns } from "../model/filters";
 import {
   DEFAULT_OPERATORS,
   determineNewOperator,
   filterTypeOperatorDetails,
-} from "../core/operators";
+} from "../model/operators";
 import type {
   ColumnConfig,
   ColumnDataType,
@@ -21,7 +21,7 @@ import type {
   OptionBasedColumnDataType,
   OptionColumnIds,
   TableColumnConfig,
-} from "../core/types";
+} from "../model/types";
 import { uniq } from "../lib/array";
 import { addUniq, removeUniq } from "../lib/array";
 import {

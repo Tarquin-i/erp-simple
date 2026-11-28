@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 
-import { PaginatedFilterOptions } from "./paginated-filter-options";
-import type { PaginatedFilterOptionsQuery } from "./paginated-filter-options";
+import { PaginatedFilterOptions } from "@/components/core/filters/components/paginated-filter-options";
+import type { PaginatedFilterOptionsQuery } from "@/components/core/filters/components/paginated-filter-options";
 import { TagColorDot } from "./tag-color-dot";
 
 export type TagFilterOption = {

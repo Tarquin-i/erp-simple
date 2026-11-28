@@ -2,12 +2,12 @@ import { UserRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SetStateAction } from "react";
 
-import { useDataTableFilters } from "@/components/shared/data-table-filter";
+import { useDataTableFilters } from "@/components/core/filters";
 import type {
   ColumnConfig,
   ColumnOption,
   FiltersState,
-} from "@/components/shared/data-table-filter/core/types";
+} from "@/components/core/filters/model/types";
 import { Button } from "@/components/ui/button";
 import {
   listOptionLimit,

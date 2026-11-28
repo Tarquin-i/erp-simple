@@ -4,7 +4,7 @@ import {
   FilterMenuCommand,
   FilterMenuContent,
   FilterMenuSearch,
-} from "@/components/shared/filter-menu";
+} from "./filter-menu";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -40,7 +40,7 @@ import type {
   FilterStrategy,
   FiltersState,
   OptionBasedColumnDataType,
-} from "../core/types";
+} from "../model/types";
 import { isAnyOf } from "../lib/array";
 import { getColumn } from "../lib/helpers";
 import { type Locale, t } from "../lib/i18n";

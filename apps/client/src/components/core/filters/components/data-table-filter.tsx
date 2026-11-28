@@ -6,7 +6,7 @@ import type {
   DataTableFilterActions,
   FilterStrategy,
   FiltersState,
-} from "../core/types";
+} from "../model/types";
 import type { Locale } from "../lib/i18n";
 import { ActiveFilters, ActiveFiltersMobileContainer } from "./active-filters";
 import { FilterActions } from "./filter-actions";

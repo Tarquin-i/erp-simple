@@ -3,7 +3,7 @@ import { useCallback } from "react";
 
 import { CommunicationList } from "@/components/communication/list";
 import { parseCommunicationListQuery } from "@/components/communication/list/query";
-import { ListPage } from "@/components/shared/list-page";
+import { ListPage } from "@/components/core/data-table/list-page";
 import type { CommunicationListQuery } from "@/request/communication";
 
 export const Route = createFileRoute("/_protected/communication/")({

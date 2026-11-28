@@ -2,14 +2,11 @@ import { Link } from "@tanstack/react-router";
 import { Package, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  DataTable,
-  type DataTableColumn,
-} from "@/components/shared/data-table";
-import { ListEmptyState } from "@/components/shared/list-empty-state";
-import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
-import { ListPage } from "@/components/shared/list-page";
-import { ListSearchInput } from "@/components/shared/list-toolbar";
+import { DataTable, type DataTableColumn } from "@/components/core/data-table";
+import { ListEmptyState } from "@/components/core/data-table/list-empty-state";
+import { ListFilterToolbar } from "@/components/core/data-table/list-filter-toolbar";
+import { ListPage } from "@/components/core/data-table/list-page";
+import { ListSearchInput } from "@/components/core/data-table/list-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { tableLinkClassName } from "@/components/ui/table";

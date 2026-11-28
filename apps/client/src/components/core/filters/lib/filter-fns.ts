@@ -6,8 +6,8 @@ import {
   isWithinInterval,
   startOfDay,
 } from "date-fns";
-import { dateFilterOperators } from "../core/operators";
-import type { FilterModel } from "../core/types";
+import { dateFilterOperators } from "../model/operators";
+import type { FilterModel } from "../model/types";
 import { intersection } from "./array";
 
 export function optionFilterFn(

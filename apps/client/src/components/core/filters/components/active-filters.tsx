@@ -9,7 +9,7 @@ import type {
   FilterModel,
   FilterStrategy,
   FiltersState,
-} from "../core/types";
+} from "../model/types";
 import { getColumn } from "../lib/helpers";
 import type { Locale } from "../lib/i18n";
 import { FilterOperator } from "./filter-operator";

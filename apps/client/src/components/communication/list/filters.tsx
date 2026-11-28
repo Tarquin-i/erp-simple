@@ -3,13 +3,13 @@ import { ListChecks, Tag, UserRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode, SetStateAction } from "react";
 
-import { useDataTableFilters } from "@/components/shared/data-table-filter";
+import { useDataTableFilters } from "@/components/core/filters";
 import type {
   ColumnConfig,
   ColumnOption,
   FiltersState,
-} from "@/components/shared/data-table-filter/core/types";
-import { ListFilterToolbar } from "@/components/shared/list-filter-toolbar";
+} from "@/components/core/filters/model/types";
+import { ListFilterToolbar } from "@/components/core/data-table/list-filter-toolbar";
 import {
   hasVisibleTagColor,
   TagColorDot,

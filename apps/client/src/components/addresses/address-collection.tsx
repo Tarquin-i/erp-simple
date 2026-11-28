@@ -8,8 +8,8 @@ import {
   useState,
 } from "react";
 
-import { ListEmptyState } from "@/components/shared/list-empty-state";
-import { ListLoadError } from "@/components/shared/list-load-error";
+import { ListEmptyState } from "@/components/core/data-table/list-empty-state";
+import { ListLoadError } from "@/components/core/data-table/list-load-error";
 import { toastManager } from "@/components/shared/toast";
 import {
   VirtualList,

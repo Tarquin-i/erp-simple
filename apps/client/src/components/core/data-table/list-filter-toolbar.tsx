@@ -1,15 +1,15 @@
 import { cn } from "cn";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
-import { ActiveFilters } from "./data-table-filter/components/active-filters";
-import { FilterActions } from "./data-table-filter/components/filter-actions";
-import { FilterSelector } from "./data-table-filter/components/filter-selector";
+import { ActiveFilters } from "../filters/components/active-filters";
+import { FilterActions } from "../filters/components/filter-actions";
+import { FilterSelector } from "../filters/components/filter-selector";
 import type {
   Column,
   DataTableFilterActions,
   FilterStrategy,
   FiltersState,
-} from "./data-table-filter/core/types";
+} from "../filters/model/types";
 import { ListFilterButton, ListToolbar } from "./list-toolbar";
 
 export function ListFilterToolbar<TData>({
