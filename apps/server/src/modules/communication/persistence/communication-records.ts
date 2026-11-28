@@ -27,7 +27,7 @@ import {
   recordScopeWhere,
 } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
-import { fail } from "../../../errors";
+import { createCommunicationError } from "../application/errors";
 
 type CommunicationStatus = typeof communication.$inferSelect.status;
 
@@ -157,7 +157,8 @@ export async function selectCommunicationPage(
           recordScopeWhere(freshAccess, customer)
         )
       );
-    if (!visibleCustomer) fail(404, "客户不存在。");
+    if (!visibleCustomer)
+      throw createCommunicationError("recordCustomerNotFound");
   }
 
   const filter = and(
@@ -265,7 +266,7 @@ export async function readCommunication(
       )
     );
   const [record] = await readTags(tx, rows);
-  if (!record) fail(404, "沟通记录不存在。");
+  if (!record) throw createCommunicationError("recordNotFound");
   return { ...record, canViewCustomer: record.customer !== null };
 }
 
@@ -309,7 +310,7 @@ export async function lockCommunicationForWrite(
         recordScopeWhere(access, communication)
       )
     );
-  if (!target) fail(404, "沟通记录不存在。");
+  if (!target) throw createCommunicationError("recordNotFound");
 
   await lockDepartment(tx, target.departmentId, "share");
   // 等待部门锁或记录锁期间可能发生主管降级或记录改派，按最新权限锁定记录。
@@ -331,7 +332,7 @@ export async function lockCommunicationForWrite(
       )
     )
     .for("update");
-  if (!record) fail(404, "沟通记录不存在。");
+  if (!record) throw createCommunicationError("recordNotFound");
   return { freshAccess, record };
 }
 
@@ -379,7 +380,7 @@ export async function lockCreatedCommunication(
       )
     )
     .for("share");
-  if (!visible) fail(404, "沟通记录不存在。");
+  if (!visible) throw createCommunicationError("recordNotFound");
   return { freshAccess, visible };
 }
 

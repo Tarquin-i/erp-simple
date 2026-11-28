@@ -7,7 +7,6 @@ import {
   withRecordReadSnapshot,
 } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
-import { ApplicationError, fail } from "../../../errors";
 import {
   countTagReferences,
   deleteTag,
@@ -17,7 +16,10 @@ import {
   selectTagPage,
   updateTag,
 } from "../persistence/tags";
-import { createTagConflict } from "./errors";
+import {
+  createCommunicationError,
+  createCommunicationTagInUseError,
+} from "./errors";
 
 type TagEdit = { color: string; expectedColor: string } & (
   | { name: string; expectedName: string }
@@ -33,7 +35,7 @@ function presentTag(
   access: AccountRecordAccess
 ) {
   if (access.scope !== "company" && access.departmentId !== departmentId) {
-    fail(404, "标签不存在。");
+    throw createCommunicationError("tagNotFound");
   }
   return {
     id,
@@ -49,7 +51,7 @@ function presentTag(
 function resolveDepartment(access: AccountRecordAccess, requested?: string) {
   if (access.scope === "company") return requested;
   if (requested !== undefined && requested !== access.departmentId) {
-    fail(403, "只能访问当前所属部门的标签。");
+    throw createCommunicationError("tagDepartmentForbidden");
   }
   return access.departmentId;
 }
@@ -62,7 +64,7 @@ function translateTagNameError(error: unknown): never {
       "communication_tag_department_normalized_name_unique"
     )
   ) {
-    throw createTagConflict("tag_name_exists");
+    throw createCommunicationError("tagNameConflict");
   }
   throw error;
 }
@@ -93,7 +95,7 @@ export function createCommunicationTagUseCases(db: Database) {
         access.userId,
         async (tx, currentAccess) => {
           const tag = await findTag(tx, id);
-          if (!tag) fail(404, "标签不存在。");
+          if (!tag) throw createCommunicationError("tagNotFound");
           return presentTag(tag, currentAccess);
         },
         db
@@ -104,7 +106,7 @@ export function createCommunicationTagUseCases(db: Database) {
         access.userId,
         async (tx, currentAccess) => {
           const tag = await findTag(tx, id);
-          if (!tag) fail(404, "标签不存在。");
+          if (!tag) throw createCommunicationError("tagNotFound");
           presentTag(tag, currentAccess);
           return { references: await countTagReferences(tx, id) };
         },
@@ -116,7 +118,9 @@ export function createCommunicationTagUseCases(db: Database) {
       input: { name: string; color?: string; departmentId?: string }
     ) {
       const departmentId = resolveDepartment(access, input.departmentId);
-      if (departmentId === undefined) fail(400, "请选择标签所属部门。");
+      if (departmentId === undefined) {
+        throw createCommunicationError("tagDepartmentRequired");
+      }
       return db
         .transaction(async (tx) => {
           await lockDepartment(tx, departmentId, "share");
@@ -141,7 +145,7 @@ export function createCommunicationTagUseCases(db: Database) {
       return db
         .transaction(async (tx) => {
           const current = await lockTag(tx, id, resolveDepartment(access));
-          if (!current) fail(404, "标签不存在。");
+          if (!current) throw createCommunicationError("tagNotFound");
 
           const currentAccess = await readAccountRecordAccess(
             tx,
@@ -162,8 +166,8 @@ export function createCommunicationTagUseCases(db: Database) {
             currentColor !== expectedColor.toLowerCase() ||
             (!colorOnly && currentName !== expectedName)
           ) {
-            throw createTagConflict(
-              colorOnly ? "tag_color_conflict" : "tag_conflict",
+            throw createCommunicationError(
+              colorOnly ? "tagColorConflict" : "tagConflict",
               existingTag
             );
           }
@@ -185,7 +189,7 @@ export function createCommunicationTagUseCases(db: Database) {
     ) {
       return db.transaction(async (tx) => {
         const current = await lockTag(tx, id, resolveDepartment(access));
-        if (!current) fail(404, "标签不存在。");
+        if (!current) throw createCommunicationError("tagNotFound");
 
         const currentAccess = await readAccountRecordAccess(tx, access.userId);
         const existingTag = presentTag(current, currentAccess);
@@ -193,17 +197,13 @@ export function createCommunicationTagUseCases(db: Database) {
           current.name.trim() !== expectedName ||
           current.color.toLowerCase() !== expectedColor.toLowerCase()
         ) {
-          throw createTagConflict("tag_conflict", existingTag);
+          throw createCommunicationError("tagConflict", existingTag);
         }
 
         // 锁住标签后再查询关联，外键会等待此事务结束才允许新增引用。
         const references = await countTagReferences(tx, id);
         if (references > 0) {
-          throw new ApplicationError(
-            409,
-            `此标签已被 ${references} 条记录引用，请先解除关联再删除。`,
-            { code: "tag_in_use", current: { references } }
-          );
+          throw createCommunicationTagInUseError(references);
         }
         await deleteTag(tx, id);
       });

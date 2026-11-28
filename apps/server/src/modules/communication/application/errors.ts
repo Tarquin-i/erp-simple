@@ -1,25 +1,54 @@
 import { HTTPException } from "hono/http-exception";
 
-import { ApplicationError } from "../../../errors";
 import { fail } from "../../../errors";
+import { ModuleError } from "../../shared/application-error";
 import { LocalAttachmentSizeError } from "../storage/local-files";
 
-const tagConflicts = {
-  tag_name_exists: "标签名称已存在。",
-  tag_color_conflict: "标签颜色已被更新，请查看当前颜色后再保存。",
-  tag_conflict: "标签已被更新，请查看最新资料后再试。",
+const communicationErrorMessages = {
+  writeTargetForbidden: "无权将业务数据写入该范围。",
+  tagsNotAssignable: "所选沟通标签不存在或不属于该沟通记录所在部门。",
+  assignedTagNotFound: "所选沟通标签不存在。",
+  recordConcurrentUpdate: "沟通记录有并发更新，请重试。",
+  recordNotFound: "沟通记录不存在。",
+  recordVersionConflict: "资料已被更新，请查看最新资料后确认是否覆盖。",
+  recordIdempotencyConflict: "该提交 ID 已用于不同的沟通内容。",
+  recordOwnerRequired: "请选择业务员。",
+  recordOwnerChangeForbidden: "只有部门主管或公司管理员可更换沟通业务员。",
+  recordCustomerNotFound: "客户不存在。",
+  tagNameConflict: "标签名称已存在。",
+  tagColorConflict: "标签颜色已被更新，请查看当前颜色后再保存。",
+  tagConflict: "标签已被更新，请查看最新资料后再试。",
+  tagNotFound: "标签不存在。",
+  tagDepartmentForbidden: "只能访问当前所属部门的标签。",
+  tagDepartmentRequired: "请选择标签所属部门。",
 } as const;
 
-/** 保留改色与重名接口既有的 JSON 响应。 */
-export function createTagConflict(
-  code: keyof typeof tagConflicts,
+export type CommunicationErrorReason =
+  | keyof typeof communicationErrorMessages
+  | "tagInUse";
+
+export function createCommunicationError(
+  reason: keyof typeof communicationErrorMessages,
   current?: unknown
 ) {
-  return new ApplicationError(409, tagConflicts[code], { code, current });
+  return new ModuleError(
+    "communication",
+    reason,
+    communicationErrorMessages[reason],
+    current
+  );
+}
+
+export function createCommunicationTagInUseError(references: number) {
+  return new ModuleError(
+    "communication",
+    "tagInUse",
+    `此标签已被 ${references} 条记录引用，请先解除关联再删除。`,
+    { references }
+  );
 }
 
 const communicationConflicts = {
-  idempotency_conflict: "该提交 ID 已用于不同的沟通内容。",
   archive_cleanup_pending: "后台正在清理剩余附件，请稍后继续归档。",
 } as const;
 

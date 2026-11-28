@@ -3,11 +3,9 @@ import { isConstraintError } from "@repo/db";
 import type { Database, DatabaseTransaction } from "@repo/db";
 import { HTTPException } from "hono/http-exception";
 
-import { failVersionConflict } from "../../../errors";
 import { withRecordReadSnapshot } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
 import { lockCustomerForWrite, requireAssignableOwner } from "../../customer";
-import { fail } from "../../../errors";
 import {
   closeCommunicationUploads,
   readCommunicationAttachmentsToClean,
@@ -34,6 +32,7 @@ import type { AttachmentCleanup } from "./attachment-cleanup";
 import {
   CommunicationArchiveInProgress,
   createCommunicationConflict,
+  createCommunicationError,
 } from "./errors";
 
 /**
@@ -41,7 +40,7 @@ import {
  * @param access 当前账号的业务范围。
  * @param target 目标部门和负责人，未指定负责人时传 `null`。
  * @returns 校验通过时无返回值。
- * @throws 目标超出当前账号的数据范围时抛出 HTTP 403。
+ * @throws 目标超出当前账号的数据范围时抛出 writeTargetForbidden。
  */
 function assertCommunicationWriteTarget(
   access: AccountRecordAccess,
@@ -53,7 +52,7 @@ function assertCommunicationWriteTarget(
     target.departmentId !== access.departmentId ||
     (access.scope === "own" && target.ownerUserId !== access.userId)
   ) {
-    fail(403, "无权将业务数据写入该范围。");
+    throw createCommunicationError("writeTargetForbidden");
   }
 }
 
@@ -69,7 +68,7 @@ async function requireAssignableTags(
     tagIds
   );
   if (tags.length !== tagIds.length) {
-    fail(400, "所选沟通标签不存在或不属于该沟通记录所在部门。");
+    throw createCommunicationError("tagsNotAssignable");
   }
 }
 
@@ -78,7 +77,7 @@ async function requireAssignableTags(
  * @param db 当前模块使用的数据库实例。
  * @param write 包含权限、版本核对和数据写入的事务回调。
  * @returns 成功提交的事务结果。
- * @throws 标签不存在时抛出 HTTP 400，死锁重试用尽时抛出 HTTP 409，其余错误原样抛出。
+ * @throws 标签不存在时抛出 assignedTagNotFound，死锁重试用尽时抛出 recordConcurrentUpdate，其余错误原样抛出。
  */
 async function writeCommunication<T>(
   db: Database,
@@ -95,7 +94,7 @@ async function writeCommunication<T>(
           "communication_tag_assignment_tag_id_communication_tag_id_fk"
         )
       ) {
-        fail(400, "所选沟通标签不存在。");
+        throw createCommunicationError("assignedTagNotFound");
       }
       const cause = error instanceof Error ? (error.cause ?? error) : error;
       if (
@@ -106,7 +105,8 @@ async function writeCommunication<T>(
       ) {
         throw error;
       }
-      if (attempt === 3) fail(409, "沟通记录有并发更新，请重试。");
+      if (attempt === 3)
+        throw createCommunicationError("recordConcurrentUpdate");
     }
   }
 }
@@ -150,9 +150,14 @@ async function lockCommunicationForArchive(
   const locked = await lockCommunicationForWrite(tx, access, id, true);
   const { freshAccess, record } = locked;
   if (record.archivedAt) {
-    if (record.version !== expectedVersion + 1) fail(404, "沟通记录不存在。");
+    if (record.version !== expectedVersion + 1) {
+      throw createCommunicationError("recordNotFound");
+    }
   } else if (record.version !== expectedVersion) {
-    failVersionConflict(await readCommunication(tx, freshAccess, id));
+    throw createCommunicationError(
+      "recordVersionConflict",
+      await readCommunication(tx, freshAccess, id)
+    );
   }
   return locked;
 }
@@ -212,7 +217,7 @@ export function createCommunicationRecordUseCases(
             existing
           );
           if (existing.requestHash !== requestHash) {
-            throw createCommunicationConflict("idempotency_conflict");
+            throw createCommunicationError("recordIdempotencyConflict");
           }
           return readCommunication(tx, freshAccess, visible.id);
         }
@@ -223,7 +228,7 @@ export function createCommunicationRecordUseCases(
           freshAccess.scope === "company" &&
           input.ownerUserId === undefined
         ) {
-          fail(400, "请选择业务员。");
+          throw createCommunicationError("recordOwnerRequired");
         }
         const departmentId = linkedCustomer.departmentId;
         const ownerUserId = input.ownerUserId ?? freshAccess.userId;
@@ -257,10 +262,13 @@ export function createCommunicationRecordUseCases(
         );
         if (record.archiveStartedAt) throw new CommunicationArchiveInProgress();
         if (input.ownerUserId !== undefined && freshAccess.scope === "own") {
-          fail(403, "只有部门主管或公司管理员可更换沟通业务员。");
+          throw createCommunicationError("recordOwnerChangeForbidden");
         }
         if (record.version !== expectedVersion) {
-          failVersionConflict(await readCommunication(tx, freshAccess, id));
+          throw createCommunicationError(
+            "recordVersionConflict",
+            await readCommunication(tx, freshAccess, id)
+          );
         }
         if (input.ownerUserId !== undefined) {
           await requireAssignableOwner(
