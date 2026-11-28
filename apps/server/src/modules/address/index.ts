@@ -1,4 +1,5 @@
 export { prepareDeliveryAddressCreateFields } from "./domain/delivery-address-fields";
+export { addressErrorResponses } from "./http/errors";
 export {
   createAddressRoutes,
   createCustomerAddressRoutes,

@@ -1,8 +1,9 @@
 import type { Database } from "@repo/db";
 import { Hono } from "hono";
 import { createServerErrorHandler } from "./errors";
+import type { BusinessErrorResponse } from "./errors";
 import { registerApiRoutes } from "./http/api-routes";
-import { createAddressModule } from "./modules/address";
+import { addressErrorResponses, createAddressModule } from "./modules/address";
 import { createCommunicationModule } from "./modules/communication";
 import { createCustomerModule } from "./modules/customer";
 import type { IdentityModule, RequireAccountId } from "./modules/identity";
@@ -34,7 +35,12 @@ export function createApp({ db, auth, requireAccountId }: AppDependencies) {
   });
 
   app.onError(
-    createServerErrorHandler(new Map([["payout", payoutErrorResponses]]))
+    createServerErrorHandler(
+      new Map<string, Readonly<Record<string, BusinessErrorResponse>>>([
+        ["address", addressErrorResponses],
+        ["payout", payoutErrorResponses],
+      ])
+    )
   );
   app.get("/", (c) => c.text("Hello Hono!"));
   registerIdentityRoutes(app, auth);

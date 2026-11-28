@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { isConstraintError } from "@repo/db";
 import type { Database, DatabaseTransaction } from "@repo/db";
 
-import { failVersionConflict } from "../../../errors";
 import { withRecordReadSnapshot } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
 import { lockCustomerForWrite } from "../../customer";
@@ -119,7 +118,7 @@ async function lockAddressAtVersion(
       throw createAddressError("addressNotFound");
     }
   } else if (address.version !== expectedVersion) {
-    failVersionConflict(addressView(address, record));
+    throw createAddressError("versionConflict", addressView(address, record));
   }
   return target;
 }
