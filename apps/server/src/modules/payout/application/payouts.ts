@@ -3,10 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 import { isConstraintError } from "@repo/db";
 import type { Database, DatabaseTransaction } from "@repo/db";
 
-import { failVersionConflict } from "../../../errors";
 import { withRecordReadSnapshot } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
-import { fail } from "../../../errors";
 import { lockProductPayoutSource } from "../../product";
 import { calculatePayoutMetrics } from "../domain/payout-calculations";
 import {
@@ -28,9 +26,7 @@ import type {
   PayoutSource,
 } from "../persistence/payouts";
 
-import { assertPayoutTicketCapacity, failPayoutConflict } from "./errors";
-
-const payoutNotFound = "Payout 不存在。";
+import { assertPayoutTicketCapacity, failPayout } from "./errors";
 
 function payoutSummary(row: PayoutRow, source: PayoutSource) {
   const { id, productNo, name, customerId, customerNo, companyName } = source;
@@ -70,7 +66,7 @@ async function writePayout<T>(
       if (
         isConstraintError(error, "23505", "payout_product_active_name_unique")
       ) {
-        failPayoutConflict("payout_name_conflict");
+        failPayout("name-conflict");
       }
       const cause = error instanceof Error ? (error.cause ?? error) : error;
       if (
@@ -81,7 +77,7 @@ async function writePayout<T>(
       ) {
         throw error;
       }
-      if (attempt >= 3) fail(409, "Payout 有并发更新，请重试。");
+      if (attempt >= 3) failPayout("concurrent-update");
     }
   }
 }
@@ -93,13 +89,13 @@ async function lockPayoutForWrite(
   operation: "replay" | "update" | "archive"
 ) {
   const productId = await findPayoutProductId(tx, id);
-  if (!productId) fail(404, payoutNotFound);
+  if (!productId) failPayout("not-found");
 
   const archiving = operation === "archive";
   const source = await lockProductPayoutSource(tx, access, productId, {
     includeArchived: archiving,
   });
-  if (!source) fail(404, payoutNotFound);
+  if (!source) failPayout("not-found");
   const record = await lockPayoutRow(
     tx,
     id,
@@ -107,7 +103,7 @@ async function lockPayoutForWrite(
     operation === "replay" ? "share" : "update"
   );
   if (!record || (!archiving && record.status !== "active")) {
-    fail(404, payoutNotFound);
+    failPayout("not-found");
   }
   return { record, source };
 }
@@ -140,7 +136,7 @@ export function createPayoutUseCases(db: Database) {
         access.userId,
         async (tx, freshAccess) => {
           const row = await selectPayoutDetail(tx, freshAccess, id);
-          if (!row) fail(404, payoutNotFound);
+          if (!row) failPayout("not-found");
           return payoutView(row.payout, row.source);
         },
         db
@@ -171,7 +167,7 @@ export function createPayoutUseCases(db: Database) {
             "replay"
           );
           if (record.creationRequestHash !== requestHash) {
-            failPayoutConflict("idempotency_conflict");
+            failPayout("idempotency-conflict");
           }
           return payoutView(record, source);
         }
@@ -181,7 +177,7 @@ export function createPayoutUseCases(db: Database) {
           access,
           input.productId
         );
-        if (!source) fail(404, "产品不存在。");
+        if (!source) failPayout("product-not-found");
         const record = await insertPayout(tx, input, {
           currencyCode: source.currencyCode,
           userId: access.userId,
@@ -206,7 +202,7 @@ export function createPayoutUseCases(db: Database) {
           "update"
         );
         if (record.version !== expectedVersion)
-          failVersionConflict(payoutView(record, source));
+          failPayout("version-conflict", payoutView(record, source));
         if (input.definition !== undefined) {
           assertPayoutTicketCapacity(input.definition, record.ticketCount);
         }
@@ -218,7 +214,7 @@ export function createPayoutUseCases(db: Database) {
           nameChanged &&
           (await hasConflictingPayoutName(tx, record.productId, id, name))
         ) {
-          failPayoutConflict("payout_name_conflict");
+          failPayout("name-conflict");
         }
 
         const changed =
@@ -248,11 +244,11 @@ export function createPayoutUseCases(db: Database) {
           "archive"
         );
         if (record.status === "archived") {
-          if (record.version !== expectedVersion + 1) fail(404, payoutNotFound);
+          if (record.version !== expectedVersion + 1) failPayout("not-found");
           return payoutView(record, source);
         }
         if (record.version !== expectedVersion)
-          failVersionConflict(payoutView(record, source));
+          failPayout("version-conflict", payoutView(record, source));
 
         const archived = await archivePayoutRow(tx, id, access.userId);
         return payoutView(archived, source);

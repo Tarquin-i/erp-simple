@@ -11,6 +11,7 @@ import {
 } from "../../../http/request-input";
 import type { PayoutModule } from "../module";
 
+import { handlePayoutError } from "./errors";
 import {
   payoutCreateFields,
   payoutPatchFields,
@@ -56,6 +57,7 @@ export function createPayoutRoutes(
 ) {
   const routes = new Hono<RecordAccessEnv>();
 
+  routes.onError(handlePayoutError);
   routes.use("*", requireRecordAccess);
 
   routes.get("/", async (c) => {
