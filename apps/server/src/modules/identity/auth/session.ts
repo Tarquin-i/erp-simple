@@ -1,4 +1,4 @@
-import { fail } from "../../../errors";
+import { ModuleError } from "../../shared/application-error";
 import type { createPublicAuth } from "./better-auth";
 
 export type RequireAccountId = (headers: Headers) => Promise<string>;
@@ -9,7 +9,8 @@ export function createRequireAccountId(
 ): RequireAccountId {
   return async function requireAccountId(headers: Headers) {
     const session = await auth.api.getSession({ headers });
-    if (!session) fail(401, "请先登录。");
+    if (!session)
+      throw new ModuleError("identity", "sessionRequired", "请先登录。");
     return session.user.id;
   };
 }

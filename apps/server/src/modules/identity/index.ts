@@ -4,6 +4,7 @@ export {
 } from "./application/initialize-company-admin";
 export { createAccountProvisioning } from "./auth/account-provisioning";
 export type { RequireAccountId } from "./auth/session";
+export { identityErrorResponses } from "./http/errors";
 export { createRecordAccessContext } from "./http/record-access-context";
 export type {
   RecordAccessEnv,

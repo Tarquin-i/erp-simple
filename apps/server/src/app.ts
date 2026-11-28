@@ -12,6 +12,7 @@ import {
 import type { IdentityModule, RequireAccountId } from "./modules/identity";
 import {
   createRecordAccessContext,
+  identityErrorResponses,
   registerIdentityRoutes,
 } from "./modules/identity";
 import { createOrganizationModule } from "./modules/organization";
@@ -42,6 +43,7 @@ export function createApp({ db, auth, requireAccountId }: AppDependencies) {
       new Map<string, Readonly<Record<string, ModuleErrorResponse>>>([
         ["address", addressErrorResponses],
         ["customer", customerErrorResponses],
+        ["identity", identityErrorResponses],
         ["payout", payoutErrorResponses],
         ["product", productErrorResponses],
       ])
