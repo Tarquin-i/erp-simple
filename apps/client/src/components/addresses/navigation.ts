@@ -16,6 +16,19 @@ declare module "@tanstack/react-router" {
   }
 }
 
+/** 从地址目录打开详情，并保留返回时需要的查询条件。 */
+export function addressDetailFromList(
+  addressId: string,
+  query: AddressListQuery
+) {
+  return {
+    to: "/addresses/$addressId",
+    params: { addressId },
+    search: {},
+    state: { addressListQuery: query },
+  } as const;
+}
+
 /** 解析侧栏地址目录的 URL 页码，第一页使用默认值。 */
 function readAddressPage({ page }: Record<string, unknown>): {
   page?: number;
