@@ -2,7 +2,7 @@ import type { DatabaseTransaction } from "@repo/db";
 import { product } from "@repo/db/schema";
 import type { customer } from "@repo/db/schema";
 
-import { readProductCreateInput } from "../../modules/product/http/write-requests";
+import { prepareProductCreateFields } from "../../modules/product";
 import {
   seedProductDefaults,
   seedProductTemplates,
@@ -23,8 +23,8 @@ export async function seedCustomerProducts(
     const fixtureNumber = customerIndex * 10 + index;
     const createdAt = new Date(record.createdAt.getTime() + index * 3600000);
     return {
-      ...readProductCreateInput({
-        customerId: record.id,
+      customerId: record.id,
+      ...prepareProductCreateFields({
         productType,
         name: `演示·${name}`,
         ...seedProductDefaults,
