@@ -14,23 +14,10 @@ import {
 import { recordScopeWhere } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
 import { lockCustomerForWrite } from "../../customer";
-
-export type AddressCreateInput = {
-  recipientName: string;
-  phone: string;
-  phoneNormalized: string;
-  countryCode: string;
-  province: string;
-  city: string;
-  district: string | null;
-  addressLine1: string;
-  addressLine2: string | null;
-  postalCode: string | null;
-  remark: string;
-  isDefault: boolean;
-};
-
-export type AddressPatch = Partial<AddressCreateInput>;
+import type {
+  AddressCreateInput,
+  AddressPatch,
+} from "../domain/delivery-address-fields";
 
 export type Address = typeof customerAddress.$inferSelect;
 export type AddressPagination = {

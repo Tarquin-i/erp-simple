@@ -6,6 +6,10 @@ import { failVersionConflict } from "../../../errors";
 import { withRecordReadSnapshot } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
 import { lockCustomerForWrite } from "../../customer";
+import type {
+  AddressCreateInput,
+  AddressPatch,
+} from "../domain/delivery-address-fields";
 import {
   formatAddress,
   resolvePostalAddressPatch,
@@ -26,11 +30,9 @@ import {
 } from "../persistence/delivery-addresses";
 import type {
   Address,
-  AddressCreateInput,
   AddressCustomer,
   AddressDirectoryQuery,
   AddressPagination,
-  AddressPatch,
 } from "../persistence/delivery-addresses";
 import { createAddressError } from "./errors";
 

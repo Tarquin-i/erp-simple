@@ -1,3 +1,4 @@
+export { prepareDeliveryAddressCreateFields } from "./domain/delivery-address-fields";
 export {
   createAddressRoutes,
   createCustomerAddressRoutes,

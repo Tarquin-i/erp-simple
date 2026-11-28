@@ -2,7 +2,7 @@ import type { DatabaseTransaction } from "@repo/db";
 import { customerAddress } from "@repo/db/schema";
 import { and, eq } from "drizzle-orm";
 
-import { readAddressCreateInput } from "../../modules/address/http/write-requests";
+import { prepareDeliveryAddressCreateFields } from "../../modules/address";
 import { seedAddresses } from "./address-definitions";
 import { seedId } from "./seed-ids";
 
@@ -34,7 +34,7 @@ export async function seedCustomerAddresses(
     const [created] = await tx
       .insert(customerAddress)
       .values({
-        ...readAddressCreateInput(input),
+        ...prepareDeliveryAddressCreateFields(input),
         id: seedId("address", index),
         customerId,
         isDefault: !hasDefault,
