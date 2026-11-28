@@ -1,7 +1,7 @@
-import { HTTPException } from "hono/http-exception";
 import sharp from "sharp";
 
-import { fail } from "../../../errors";
+import { ModuleError } from "../../shared/application-error";
+import { createCommunicationError } from "../application/errors";
 
 const imageFormats = new Map([
   ["image/bmp", "bmp"],
@@ -46,7 +46,7 @@ async function openImage(
 ) {
   signal.throwIfAborted();
   const source = await openSource();
-  if (!source) fail(404, "附件文件不存在。");
+  if (!source) throw createCommunicationError("attachmentFileNotFound");
   if (
     signal.aborted ||
     (source.contentLength !== null && source.contentLength !== fileSize)
@@ -100,7 +100,7 @@ async function resizeImage(bytes: Uint8Array, format: string) {
       sequentialRead: true,
     }).timeout({ seconds: 5 });
     if ((await image.metadata()).format !== format) {
-      fail(415, "图片内容与格式不匹配。");
+      throw createCommunicationError("attachmentImageFormatMismatch");
     }
     return await image
       .autoOrient()
@@ -111,8 +111,14 @@ async function resizeImage(bytes: Uint8Array, format: string) {
       .webp({ quality: 68 })
       .toBuffer();
   } catch (error) {
-    if (error instanceof HTTPException) throw error;
-    return fail(415, "无法生成该图片的缩略图。");
+    if (
+      error instanceof ModuleError &&
+      error.module === "communication" &&
+      error.reason === "attachmentImageFormatMismatch"
+    ) {
+      throw error;
+    }
+    throw createCommunicationError("attachmentThumbnailFailed");
   }
 }
 
@@ -123,7 +129,7 @@ async function resizeImage(bytes: Uint8Array, format: string) {
  * @param openSource 从当前存储打开正式对象的函数。
  * @param signal 请求取消信号。
  * @returns 不允许缓存的内联图片响应。
- * @throws 文件不存在时返回 404，无法处理的图片返回 415，生成任务繁忙时返回 503。
+ * @throws 文件不存在、图片无法处理或生成任务繁忙时抛出附件错误。
  */
 export async function attachmentImageResponse(
   file: { fileSize: number; mimeType: string },
@@ -133,7 +139,7 @@ export async function attachmentImageResponse(
 ) {
   const { fileSize, mimeType } = file;
   const format = imageFormats.get(mimeType);
-  if (!format) fail(415, "该附件类型不支持图片预览。");
+  if (!format) throw createCommunicationError("attachmentPreviewUnsupported");
   if (variant === "preview") {
     const source = await openImage(openSource, fileSize, signal);
     return new Response(source.body, {
@@ -145,15 +151,10 @@ export async function attachmentImageResponse(
   const maxSourceBytes =
     format === "bmp" ? maxBmpThumbnailBytes : maxThumbnailSourceBytes;
   if (fileSize === 0 || fileSize > maxSourceBytes) {
-    fail(415, "该图片大小超出缩略图处理范围，请查看原图或下载。");
+    throw createCommunicationError("attachmentThumbnailSourceTooLarge");
   }
   if (activeThumbnails >= maxActiveThumbnails) {
-    throw new HTTPException(503, {
-      res: Response.json(
-        { message: "缩略图生成繁忙，请稍后重试。" },
-        { status: 503 }
-      ),
-    });
+    throw createCommunicationError("attachmentThumbnailBusy");
   }
 
   // 限制同时读取与解码的输入，避免多个大文件并发耗尽内存。
@@ -170,7 +171,7 @@ export async function attachmentImageResponse(
     const thumbnail = await resizeImage(bytes, format);
     signal.throwIfAborted();
     if (thumbnail.byteLength > maxThumbnailOutputBytes) {
-      fail(415, "该图片的缩略图过大。");
+      throw createCommunicationError("attachmentThumbnailTooLarge");
     }
     return new Response(thumbnail, {
       headers: imageHeaders("image/webp", thumbnail.byteLength),

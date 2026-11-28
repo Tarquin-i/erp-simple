@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 
-import { fail } from "../../../errors";
+import { createCommunicationError } from "../application/errors";
 import { extensionOf } from "../domain/attachment-files";
 import type { AttachmentUploadInput } from "../domain/attachment-files";
 
@@ -70,11 +70,13 @@ function writeSuffix(buffer: Buffer, incoming: Uint8Array, offset: number) {
 }
 
 function validateText(decoder: TextDecoder, chunk?: Uint8Array) {
-  if (chunk?.includes(0)) fail(400, "附件文本包含不支持的空字符。");
+  if (chunk?.includes(0)) {
+    throw createCommunicationError("attachmentTextContainsNull");
+  }
   try {
     decoder.decode(chunk, { stream: chunk !== undefined });
   } catch {
-    fail(400, "附件文本编码无效，请另存为 UTF-8 编码后重新上传。");
+    throw createCommunicationError("attachmentTextInvalidEncoding");
   }
 }
 
@@ -88,7 +90,7 @@ type AttachmentContent = Pick<
  * @param file 初始化上传时记录的文件名、大小和预期 SHA-256。
  * @param body 从存储中读取到的流。
  * @returns 经服务器计算并核对的 SHA-256 摘要。
- * @throws 内容不符时抛出 HTTP 400；存储流的读取异常交给调用方处理。
+ * @throws 内容不符时抛出附件校验错误；存储流的读取异常交给调用方处理。
  */
 export async function verifyAttachmentContent(
   file: AttachmentContent,
@@ -116,7 +118,8 @@ export async function verifyAttachmentContent(
       if (done) break;
       const offset = bytesRead;
       bytesRead += value.byteLength;
-      if (bytesRead > file.fileSize) fail(400, "附件大小对不上，请重新上传。");
+      if (bytesRead > file.fileSize)
+        throw createCommunicationError("attachmentContentLengthMismatch");
       if (decoder) validateText(decoder, value);
       if (offset < head.length) {
         head.set(value.subarray(0, head.length - offset), offset);
@@ -132,9 +135,10 @@ export async function verifyAttachmentContent(
     reader.releaseLock();
   }
 
-  if (bytesRead !== file.fileSize) fail(400, "附件大小对不上，请重新上传。");
+  if (bytesRead !== file.fileSize)
+    throw createCommunicationError("attachmentContentLengthMismatch");
   if (!decoder && !hasFileSignature(extension, head)) {
-    fail(400, "附件实际内容与文件类型不匹配。");
+    throw createCommunicationError("attachmentContentTypeMismatch");
   }
   if (zipBased) {
     const end = tailOffset
@@ -151,12 +155,12 @@ export async function verifyAttachmentContent(
           (marker) => head.includes(marker) || end.includes(marker)
         ))
     ) {
-      fail(400, "附件实际内容与文件类型不匹配。");
+      throw createCommunicationError("attachmentContentTypeMismatch");
     }
   }
   const digest = hash.digest("hex");
   if (digest !== file.expectedContentSha256) {
-    fail(400, "附件内容与上传声明不一致，请重新选择文件。");
+    throw createCommunicationError("attachmentChecksumMismatch");
   }
   return digest;
 }

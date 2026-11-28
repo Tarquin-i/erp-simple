@@ -18,7 +18,7 @@ import {
 
 import { recordScopeWhere } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
-import { fail } from "../../../errors";
+import { createCommunicationError } from "../application/errors";
 import type { AttachmentUploadInput } from "../domain/attachment-files";
 
 export type Attachment = typeof communicationAttachment.$inferSelect;
@@ -72,7 +72,7 @@ export async function requireCommunication(
   const [record] = await (lockedDepartmentId === undefined
     ? query
     : query.for("share"));
-  if (!record) fail(404, "沟通记录不存在。");
+  if (!record) throw createCommunicationError("recordNotFound");
   return record;
 }
 
@@ -180,7 +180,7 @@ export async function readDownloadableAttachment(
         isNull(communicationAttachment.archivedAt)
       )
     );
-  if (!row) fail(404, "附件不存在或不可下载。");
+  if (!row) throw createCommunicationError("attachmentNotDownloadable");
   return row;
 }
 
@@ -196,7 +196,7 @@ export async function readAttachmentDeletion(
     })
     .from(communicationAttachment)
     .where(attachmentForCommunication(communicationId, attachmentId));
-  if (!attachment) fail(404, "附件不存在。");
+  if (!attachment) throw createCommunicationError("attachmentNotFound");
   if (attachment.objectDeletedAt) return { state: "deleted" } as const;
   if (attachment.archivedAt) return { state: "pending" } as const;
   return { state: "available" } as const;

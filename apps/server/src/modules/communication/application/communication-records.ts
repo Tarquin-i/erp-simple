@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { isConstraintError } from "@repo/db";
 import type { Database, DatabaseTransaction } from "@repo/db";
-import { HTTPException } from "hono/http-exception";
 
 import { withRecordReadSnapshot } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
 import { lockCustomerForWrite, requireAssignableOwner } from "../../customer";
+import type { ModuleError } from "../../shared/application-error";
 import {
   closeCommunicationUploads,
   readCommunicationAttachmentsToClean,
@@ -30,9 +30,8 @@ import type {
 import { selectAssignableCommunicationTagIds } from "../persistence/tags";
 import type { AttachmentCleanup } from "./attachment-cleanup";
 import {
-  CommunicationArchiveInProgress,
-  createCommunicationConflict,
   createCommunicationError,
+  isAttachmentCleanupRetryable,
 } from "./errors";
 
 /**
@@ -260,7 +259,8 @@ export function createCommunicationRecordUseCases(
           access,
           id
         );
-        if (record.archiveStartedAt) throw new CommunicationArchiveInProgress();
+        if (record.archiveStartedAt)
+          throw createCommunicationError("archiveInProgress");
         if (input.ownerUserId !== undefined && freshAccess.scope === "own") {
           throw createCommunicationError("recordOwnerChangeForbidden");
         }
@@ -327,12 +327,11 @@ export function createCommunicationRecordUseCases(
       });
       if (!started.attachments) return started.communication;
 
-      let cleanupError: HTTPException | undefined;
+      let cleanupError: ModuleError | undefined;
       try {
         await cleanup.cleanupCommunicationAttachments(started.attachments);
       } catch (error) {
-        if (!(error instanceof HTTPException) || error.status !== 503)
-          throw error;
+        if (!isAttachmentCleanupRetryable(error)) throw error;
         // 另一个归档请求可能已经清理成功，仍按当前权限和版本核对结果。
         cleanupError = error;
       }
@@ -354,7 +353,7 @@ export function createCommunicationRecordUseCases(
 
       cleanup.requestAttachmentUploadCleanup();
       if (cleanupError) throw cleanupError;
-      throw createCommunicationConflict("archive_cleanup_pending");
+      throw createCommunicationError("archiveCleanupPending");
     },
   };
 }

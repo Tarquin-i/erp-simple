@@ -1,6 +1,3 @@
-import { HTTPException } from "hono/http-exception";
-
-import { fail } from "../../../errors";
 import { ModuleError } from "../../shared/application-error";
 import { LocalAttachmentSizeError } from "../storage/local-files";
 
@@ -21,6 +18,39 @@ const communicationErrorMessages = {
   tagNotFound: "标签不存在。",
   tagDepartmentForbidden: "只能访问当前所属部门的标签。",
   tagDepartmentRequired: "请选择标签所属部门。",
+  archiveInProgress: "沟通记录正在归档，请在详情页继续处理。",
+  archiveCleanupPending: "后台正在清理剩余附件，请稍后继续归档。",
+  attachmentCleanupPending: "附件仍在清理，请稍后重试。",
+  attachmentStorageUnavailable: "附件存储暂不可用，请稍后重试。",
+  attachmentLimitInvalid: "附件大小限制配置无效。",
+  localAttachmentStorageDisabled: "本地附件存储未启用。",
+  localAttachmentTooLarge: "本地存储的单个附件不能超过 128 MiB。",
+  attachmentUploadConflict: "该上传 ID 已被使用，请重新选择文件。",
+  attachmentUploadConflictClosed: "该上传已关闭，请重新选择文件。",
+  attachmentDuplicate: "这条沟通已包含相同内容的附件。",
+  attachmentUploadChanged: "上传会话已变化，请重试。",
+  attachmentUploadClosed: "附件上传已关闭。",
+  attachmentUploadNotFound: "附件上传不存在。",
+  attachmentAlreadyReceived: "附件已收到，请完成校验。",
+  attachmentUploadTypeMismatch: "附件类型与初始化时声明的类型不一致。",
+  attachmentSizeMismatch: "附件实际大小与声明不一致。",
+  attachmentUploadIncomplete: "尚未收到附件，请先完成上传。",
+  attachmentNotFound: "附件不存在。",
+  attachmentNotDownloadable: "附件不存在或不可下载。",
+  attachmentFileNotFound: "附件文件不存在。",
+  attachmentTextContainsNull: "附件文本包含不支持的空字符。",
+  attachmentTextInvalidEncoding:
+    "附件文本编码无效，请另存为 UTF-8 编码后重新上传。",
+  attachmentContentLengthMismatch: "附件大小对不上，请重新上传。",
+  attachmentContentTypeMismatch: "附件实际内容与文件类型不匹配。",
+  attachmentChecksumMismatch: "附件内容与上传声明不一致，请重新选择文件。",
+  attachmentImageFormatMismatch: "图片内容与格式不匹配。",
+  attachmentThumbnailFailed: "无法生成该图片的缩略图。",
+  attachmentPreviewUnsupported: "该附件类型不支持图片预览。",
+  attachmentThumbnailSourceTooLarge:
+    "该图片大小超出缩略图处理范围，请查看原图或下载。",
+  attachmentThumbnailBusy: "缩略图生成繁忙，请稍后重试。",
+  attachmentThumbnailTooLarge: "该图片的缩略图过大。",
 } as const;
 
 export type CommunicationErrorReason =
@@ -48,58 +78,14 @@ export function createCommunicationTagInUseError(references: number) {
   );
 }
 
-const communicationConflicts = {
-  archive_cleanup_pending: "后台正在清理剩余附件，请稍后继续归档。",
-} as const;
-
-export function createCommunicationConflict(
-  code: keyof typeof communicationConflicts
-) {
-  return new HTTPException(409, {
-    res: Response.json(
-      { code, message: communicationConflicts[code] },
-      { status: 409 }
-    ),
-  });
-}
-
-export class CommunicationArchiveInProgress extends HTTPException {
-  constructor() {
-    super(409, {
-      res: Response.json(
-        {
-          code: "archive_in_progress",
-          message: "沟通记录正在归档，请在详情页继续处理。",
-        },
-        { status: 409 }
-      ),
-    });
-  }
-}
-
-export function attachmentError(
-  status: 409 | 503,
-  code: string,
-  message: string
-): never {
-  throw new HTTPException(status, {
-    res: Response.json({ code, message }, { status }),
-  });
-}
-
-export function duplicateAttachment(): never {
-  return attachmentError(
-    409,
-    "attachment_duplicate",
-    "这条沟通已包含相同内容的附件。"
-  );
-}
-
-export function storageUnavailable(): never {
-  return attachmentError(
-    503,
-    "attachment_storage_unavailable",
-    "附件存储暂不可用，请稍后重试。"
+export function isAttachmentCleanupRetryable(
+  error: unknown
+): error is ModuleError {
+  return (
+    error instanceof ModuleError &&
+    error.module === "communication" &&
+    (error.reason === "attachmentStorageUnavailable" ||
+      error.reason === "attachmentCleanupPending")
   );
 }
 
@@ -113,10 +99,10 @@ export async function useStorage<T>(run: () => T | Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
-    if (error instanceof HTTPException) throw error;
+    if (error instanceof ModuleError) throw error;
     if (error instanceof LocalAttachmentSizeError) {
-      fail(400, "附件实际大小与声明不一致。");
+      throw createCommunicationError("attachmentSizeMismatch");
     }
-    return storageUnavailable();
+    throw createCommunicationError("attachmentStorageUnavailable");
   }
 }

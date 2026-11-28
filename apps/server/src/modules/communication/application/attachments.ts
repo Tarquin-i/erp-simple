@@ -1,5 +1,4 @@
 import type { Database, DatabaseTransaction } from "@repo/db";
-import { HTTPException } from "hono/http-exception";
 
 import {
   lockDepartment,
@@ -7,7 +6,6 @@ import {
   withRecordReadSnapshot,
 } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
-import { fail } from "../../../errors";
 import { ModuleError } from "../../shared/application-error";
 import type { AttachmentUploadInput } from "../domain/attachment-files";
 import {
@@ -39,17 +37,19 @@ import type {
 } from "../storage/object-store";
 import { attachmentDownloadDisposition } from "../storage/oss-signing";
 import type { AttachmentCleanup } from "./attachment-cleanup";
-import {
-  CommunicationArchiveInProgress,
-  attachmentError,
-  duplicateAttachment,
-  storageUnavailable,
-  useStorage,
-} from "./errors";
+import { createCommunicationError, useStorage } from "./errors";
 
 const maxSingleUploadBytes = 5 * 1024 ** 3;
 // 本地单次上传受 Bun HTTP 请求体默认上限约束。
 const maxLocalUploadBytes = 128 * 1024 ** 2;
+const invalidAttachmentContentReasons = new Set([
+  "attachmentSizeMismatch",
+  "attachmentTextContainsNull",
+  "attachmentTextInvalidEncoding",
+  "attachmentContentLengthMismatch",
+  "attachmentContentTypeMismatch",
+  "attachmentChecksumMismatch",
+]);
 
 /** 读取可选的上传大小限制。无效的限制返回 503，避免静默放宽配置。 */
 export function attachmentUploadLimit() {
@@ -57,12 +57,7 @@ export function attachmentUploadLimit() {
   if (!configured) return maxSingleUploadBytes;
   const limit = Number(configured);
   if (!/^\d+$/u.test(configured) || limit < 1 || limit > maxSingleUploadBytes) {
-    throw new HTTPException(503, {
-      res: Response.json(
-        { message: "附件大小限制配置无效。" },
-        { status: 503 }
-      ),
-    });
+    throw createCommunicationError("attachmentLimitInvalid");
   }
   return limit;
 }
@@ -73,7 +68,9 @@ function attachmentPath(communicationId: string) {
 
 function requireLocalStorage(getStorage: GetAttachmentStorage) {
   const storage = getStorage();
-  if (storage.kind !== "local") fail(404, "本地附件存储未启用。");
+  if (storage.kind !== "local") {
+    throw createCommunicationError("localAttachmentStorageDisabled");
+  }
   return storage;
 }
 
@@ -90,7 +87,7 @@ export function createAttachmentUseCases(
   async function uploadStorage(fileSize: number) {
     const storage = await useStorage(getStorage);
     if (storage.kind === "local" && fileSize > maxLocalUploadBytes) {
-      fail(400, "本地存储的单个附件不能超过 128 MiB。");
+      throw createCommunicationError("localAttachmentTooLarge");
     }
     return storage;
   }
@@ -123,7 +120,7 @@ export function createAttachmentUseCases(
         departmentId
       );
       if (record.archiveStartedAt && !allowDuringArchive) {
-        throw new CommunicationArchiveInProgress();
+        throw createCommunicationError("archiveInProgress");
       }
       return write(tx);
     });
@@ -141,18 +138,10 @@ export function createAttachmentUseCases(
       row.mimeType !== file.mimeType ||
       row.expectedContentSha256 !== file.expectedContentSha256
     ) {
-      attachmentError(
-        409,
-        "attachment_upload_conflict",
-        "该上传 ID 已被使用，请重新选择文件。"
-      );
+      throw createCommunicationError("attachmentUploadConflict");
     }
     if (row.archivedAt) {
-      attachmentError(
-        409,
-        "attachment_upload_closed",
-        "该上传已关闭，请重新选择文件。"
-      );
+      throw createCommunicationError("attachmentUploadConflictClosed");
     }
   }
 
@@ -193,7 +182,7 @@ export function createAttachmentUseCases(
           communicationId,
           file.expectedContentSha256
         );
-        if (duplicate) duplicateAttachment();
+        if (duplicate) throw createCommunicationError("attachmentDuplicate");
         const storage = await uploadStorage(file.fileSize);
         const created = await insertAttachmentUpload(
           tx,
@@ -205,7 +194,7 @@ export function createAttachmentUseCases(
 
         // 同一上传 ID 同时命中会话和对象键的唯一索引，读取先写入的会话。
         const winner = await read();
-        if (!winner) fail(409, "上传会话已变化，请重试。");
+        if (!winner) throw createCommunicationError("attachmentUploadChanged");
         assertSameUpload(winner, access, file);
         return { row: winner, existing: true, storage };
       }
@@ -237,7 +226,8 @@ export function createAttachmentUseCases(
               row.uploadClientId,
               access.userId
             );
-            if (!current) fail(404, "附件上传已关闭。");
+            if (!current)
+              throw createCommunicationError("attachmentUploadClosed");
             assertSameUpload(current, access, file);
             if (current.uploadState === "ready") return null;
             return useStorage(() =>
@@ -268,7 +258,7 @@ export function createAttachmentUseCases(
       uploadClientId,
       access.userId
     );
-    if (!row) fail(404, "附件上传不存在。");
+    if (!row) throw createCommunicationError("attachmentUploadNotFound");
     return row;
   }
 
@@ -321,20 +311,22 @@ export function createAttachmentUseCases(
           communicationId,
           uploadClientId
         );
-        if (upload.archivedAt) fail(404, "附件上传已关闭。");
+        if (upload.archivedAt)
+          throw createCommunicationError("attachmentUploadClosed");
         return upload;
       }
     );
     const storage = await useStorage(() => requireLocalStorage(getStorage));
-    if (row.uploadState === "ready") fail(409, "附件已收到，请完成校验。");
+    if (row.uploadState === "ready")
+      throw createCommunicationError("attachmentAlreadyReceived");
     if (row.fileSize > maxLocalUploadBytes)
-      fail(400, "本地存储的单个附件不能超过 128 MiB。");
+      throw createCommunicationError("localAttachmentTooLarge");
     if (request.headers.get("content-type") !== row.mimeType) {
-      fail(415, "附件类型与初始化时声明的类型不一致。");
+      throw createCommunicationError("attachmentUploadTypeMismatch");
     }
     const length = request.headers.get("content-length");
     if (length !== null && length !== String(row.fileSize)) {
-      fail(400, "附件实际大小与声明不一致。");
+      throw createCommunicationError("attachmentSizeMismatch");
     }
     const result = await useStorage(() =>
       storage.writeSingleUpload(
@@ -344,7 +336,8 @@ export function createAttachmentUseCases(
         request.signal
       )
     );
-    if (result === "exists") fail(409, "附件已收到，请完成校验。");
+    if (result === "exists")
+      throw createCommunicationError("attachmentAlreadyReceived");
 
     try {
       await withAttachmentWrite(access, communicationId, async (tx) => {
@@ -354,7 +347,8 @@ export function createAttachmentUseCases(
           communicationId,
           uploadClientId
         );
-        if (current.archivedAt) fail(404, "附件上传已关闭。");
+        if (current.archivedAt)
+          throw createCommunicationError("attachmentUploadClosed");
       });
     } catch (error) {
       // 写文件期间可能发生改派或删除，回收已不可完成的这次上传。
@@ -378,7 +372,7 @@ export function createAttachmentUseCases(
         const staged = await storage.readSingleUploadMetadata(row.storageKey);
         if (staged) {
           if (staged.contentLength !== row.fileSize)
-            fail(400, "附件实际大小与声明不一致。");
+            throw createCommunicationError("attachmentSizeMismatch");
           beforePromotion();
           try {
             await storage.promoteSingleUpload(row.storageKey);
@@ -390,21 +384,18 @@ export function createAttachmentUseCases(
         } else {
           metadata = await storage.readMetadata(row.storageKey);
           if (!metadata)
-            attachmentError(
-              409,
-              "attachment_upload_incomplete",
-              "尚未收到附件，请先完成上传。"
-            );
+            throw createCommunicationError("attachmentUploadIncomplete");
         }
       }
       const content = await storage.openReadStream(row.storageKey);
-      if (!content) return storageUnavailable();
+      if (!content)
+        throw createCommunicationError("attachmentStorageUnavailable");
       if (
         content.contentLength !== null &&
         content.contentLength !== row.fileSize
       ) {
         await content.body.cancel().catch(() => {});
-        fail(400, "附件实际大小与声明不一致。");
+        throw createCommunicationError("attachmentSizeMismatch");
       }
       return verifyAttachmentContent(row, content.body);
     });
@@ -462,14 +453,16 @@ export function createAttachmentUseCases(
 
   function isUploadInaccessible(error: unknown) {
     return (
-      error instanceof CommunicationArchiveInProgress ||
-      (error instanceof HTTPException &&
-        [401, 403, 404].includes(error.status)) ||
-      (error instanceof ModuleError &&
-        error.module === "organization" &&
-        (error.reason === "accountNotFound" ||
-          error.reason === "departmentMembershipRequired" ||
-          error.reason === "departmentNotFound"))
+      error instanceof ModuleError &&
+      ((error.module === "communication" &&
+        (error.reason === "archiveInProgress" ||
+          error.reason === "recordNotFound" ||
+          error.reason === "attachmentUploadNotFound" ||
+          error.reason === "attachmentUploadClosed")) ||
+        (error.module === "organization" &&
+          (error.reason === "accountNotFound" ||
+            error.reason === "departmentMembershipRequired" ||
+            error.reason === "departmentNotFound")))
     );
   }
 
@@ -496,7 +489,8 @@ export function createAttachmentUseCases(
           communicationId,
           uploadClientId
         );
-        if (row.archivedAt) fail(404, "附件上传已关闭。");
+        if (row.archivedAt)
+          throw createCommunicationError("attachmentUploadClosed");
         return row.uploadState === "ready"
           ? { ready: await readPublishedAttachment(tx, row.id), row: null }
           : { row, ready: null };
@@ -521,7 +515,8 @@ export function createAttachmentUseCases(
             communicationId,
             uploadClientId
           );
-          if (current.archivedAt) fail(404, "附件上传已关闭。");
+          if (current.archivedAt)
+            throw createCommunicationError("attachmentUploadClosed");
           if (current.uploadState === "pending") {
             await publishAttachment(tx, current.id, verifiedHash);
           }
@@ -533,7 +528,10 @@ export function createAttachmentUseCases(
       return result;
     } catch (error) {
       const duplicate = isDuplicateAttachmentError(error);
-      const invalid = error instanceof HTTPException && error.status === 400;
+      const invalid =
+        error instanceof ModuleError &&
+        error.module === "communication" &&
+        invalidAttachmentContentReasons.has(error.reason);
       if (storage.kind === "local" && isUploadInaccessible(error)) {
         await cleanup
           .cleanupPendingLocalUpload(row, storage, mayHavePromoted)
@@ -547,7 +545,7 @@ export function createAttachmentUseCases(
           .cleanupArchivedUpload(row, storage, mayHavePromoted)
           .catch(() => {});
       }
-      if (duplicate) duplicateAttachment();
+      if (duplicate) throw createCommunicationError("attachmentDuplicate");
       throw error;
     }
   }
@@ -569,7 +567,7 @@ export function createAttachmentUseCases(
       communicationId,
       async (tx) => {
         const current = await lockAttachment(tx, communicationId, attachmentId);
-        if (!current) fail(404, "附件不存在。");
+        if (!current) throw createCommunicationError("attachmentNotFound");
         if (current.objectDeletedAt) return null;
         if (current.archivedAt) return current;
         return archiveAttachment(tx, attachmentId, access.userId);
@@ -661,7 +659,7 @@ export function createAttachmentUseCases(
       return useStorage(async () => {
         const storage = requireLocalStorage(getStorage);
         const file = await storage.openReadStream(row.storageKey);
-        if (!file) fail(404, "附件文件不存在。");
+        if (!file) throw createCommunicationError("attachmentFileNotFound");
 
         const headers = new Headers({
           "Cache-Control": "private, no-store",

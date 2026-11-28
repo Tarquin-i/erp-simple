@@ -1,6 +1,6 @@
 import type { Database } from "@repo/db";
-import { HTTPException } from "hono/http-exception";
 
+import type { ModuleError } from "../../shared/application-error";
 import {
   claimAttachmentCleanupBatch,
   closePendingLocalUpload,
@@ -15,7 +15,11 @@ import type {
   AttachmentStorage,
   GetAttachmentStorage,
 } from "../storage/object-store";
-import { attachmentError, useStorage } from "./errors";
+import {
+  createCommunicationError,
+  isAttachmentCleanupRetryable,
+  useStorage,
+} from "./errors";
 
 const cleanupTimerMs = 15 * 60 * 1000;
 const cleanupRuntime = globalThis as typeof globalThis & {
@@ -40,22 +44,17 @@ export function createAttachmentCleanup(
 
   /** 用户收到成功前，确认当前清理代次已经完成。 */
   async function confirmAttachmentCleanup(row: Attachment) {
-    let cleanupError: HTTPException | undefined;
+    let cleanupError: ModuleError | undefined;
     try {
       if (await cleanupArchived(row, await useStorage(getStorage))) return;
     } catch (error) {
-      if (!(error instanceof HTTPException) || error.status !== 503)
-        throw error;
+      if (!isAttachmentCleanupRetryable(error)) throw error;
       cleanupError = error;
     }
 
     if (await readAttachmentObjectDeletedAt(db, row.id)) return;
     if (cleanupError) throw cleanupError;
-    return attachmentError(
-      503,
-      "attachment_storage_unavailable",
-      "附件仍在清理，请稍后重试。"
-    );
+    throw createCommunicationError("attachmentCleanupPending");
   }
 
   const archiveCleanupBudgetMs = 2_000;
