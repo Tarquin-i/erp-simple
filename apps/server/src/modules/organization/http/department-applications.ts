@@ -1,18 +1,21 @@
 import { Hono } from "hono";
 
-import { requireAccountId } from "../../../auth";
 import { fail } from "../../../errors";
+import type { RequireAccountId } from "../../identity";
 import type { OrganizationModule } from "../module";
 import { readText } from "./write-requests";
 
 const applicationIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function createDepartmentApplicationRoutes({
-  listPendingApplications,
-  reviewApplication,
-  submitApplication,
-}: OrganizationModule["departmentApplications"]) {
+export function createDepartmentApplicationRoutes(
+  {
+    listPendingApplications,
+    reviewApplication,
+    submitApplication,
+  }: OrganizationModule["departmentApplications"],
+  requireAccountId: RequireAccountId
+) {
   const routes = new Hono();
 
   routes.post("/applications", async (c) => {

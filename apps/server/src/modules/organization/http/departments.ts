@@ -1,14 +1,14 @@
 import { Hono } from "hono";
 
-import { requireAccountId } from "../../../auth";
 import { fail } from "../../../errors";
+import type { RequireAccountId } from "../../identity";
 import type { OrganizationModule } from "../module";
 import { readText } from "./write-requests";
 
-export function createDepartmentRoutes({
-  departments,
-  members,
-}: Pick<OrganizationModule, "departments" | "members">) {
+export function createDepartmentRoutes(
+  { departments, members }: Pick<OrganizationModule, "departments" | "members">,
+  requireAccountId: RequireAccountId
+) {
   const routes = new Hono();
 
   async function requireCompanyAdministrator(headers: Headers) {

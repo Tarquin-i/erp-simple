@@ -1,16 +1,22 @@
 import { Hono } from "hono";
 
-import { requireAccountId } from "../../../auth";
+import type { RequireAccountId } from "../../identity";
 import type { OrganizationModule } from "../module";
 import { createDepartmentApplicationRoutes } from "./department-applications";
 import { createDepartmentRoutes } from "./departments";
 
-export function createOrganizationRoutes(module: OrganizationModule) {
+export function createOrganizationRoutes(
+  module: OrganizationModule,
+  requireAccountId: RequireAccountId
+) {
   const routes = new Hono();
-  routes.route("/", createDepartmentRoutes(module));
+  routes.route("/", createDepartmentRoutes(module, requireAccountId));
   routes.route(
     "/",
-    createDepartmentApplicationRoutes(module.departmentApplications)
+    createDepartmentApplicationRoutes(
+      module.departmentApplications,
+      requireAccountId
+    )
   );
 
   routes.get("/viewer", async (c) => {
