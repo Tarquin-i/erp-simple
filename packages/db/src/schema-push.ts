@@ -141,8 +141,12 @@ async function verifyForeignKey(
 }
 
 /** 生成并执行可自动同步的 DDL，重新核对差异后提交。 */
-export async function pushSchemaInTransaction(client: postgres.Sql) {
+export async function pushSchemaInTransaction(
+  client: postgres.Sql,
+  assertSyncSession: (tx: postgres.TransactionSql) => Promise<void>
+) {
   await client.begin(async (tx) => {
+    await assertSyncSession(tx);
     await tx`set local lock_timeout = '5s'`;
     await tx`set local search_path = public`;
     const { sqlStatements, hints } = await planSchema(tx);
