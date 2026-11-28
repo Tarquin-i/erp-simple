@@ -5,10 +5,10 @@ import type { RecordAccessEnv } from "../../identity";
 import { fail } from "../../../errors";
 import { createCustomerError } from "../application/errors";
 import type {
-  createProfileUseCases,
   CustomerFilters,
   CustomerWriteInput,
 } from "../application/profiles";
+import type { CustomerModule } from "../module";
 import {
   readExpectedVersion,
   readObject,
@@ -157,7 +157,7 @@ function readListBody(body: Record<string, unknown>) {
 }
 
 export function createCustomerProfileRoutes(
-  profiles: ReturnType<typeof createProfileUseCases>
+  profiles: CustomerModule["profiles"]
 ) {
   const routes = new Hono<RecordAccessEnv>();
 

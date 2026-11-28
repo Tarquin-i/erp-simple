@@ -2,11 +2,11 @@ import { Hono } from "hono";
 
 import type { RecordAccessEnv } from "../../identity";
 import { createCustomerError } from "../application/errors";
-import type { createOwnerOptionUseCases } from "../application/owner-options";
+import type { CustomerModule } from "../module";
 import { readString, readUuid } from "../../../http/request-input";
 
 export function createCustomerOwnerOptionRoutes(
-  options: ReturnType<typeof createOwnerOptionUseCases>
+  options: CustomerModule["ownerOptions"]
 ) {
   const routes = new Hono<RecordAccessEnv>();
 

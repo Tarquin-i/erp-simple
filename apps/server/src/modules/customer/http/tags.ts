@@ -2,7 +2,7 @@ import { Hono } from "hono";
 
 import { fail } from "../../../errors";
 import type { RecordAccessEnv } from "../../identity";
-import type { createTagUseCases } from "../application/tags";
+import type { CustomerModule } from "../module";
 import {
   readObject,
   readPositiveInteger,
@@ -18,9 +18,7 @@ function readTagColor(value: unknown, label = "标签颜色") {
   return color;
 }
 
-export function createCustomerTagRoutes(
-  tags: ReturnType<typeof createTagUseCases>
-) {
+export function createCustomerTagRoutes(tags: CustomerModule["tags"]) {
   const routes = new Hono<RecordAccessEnv>();
 
   routes.get("/tags", async (c) => {

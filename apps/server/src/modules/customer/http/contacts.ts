@@ -4,7 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import { fail } from "../../../errors";
 import { readUuid } from "../../../http/request-input";
 import type { RecordAccessEnv } from "../../identity";
-import type { createContactUseCases } from "../application/contacts";
+import type { CustomerModule } from "../module";
 
 import {
   readContactCreateRequest,
@@ -20,7 +20,7 @@ const contactBodyLimit = bodyLimit({
 });
 
 export function createCustomerContactRoutes(
-  contacts: ReturnType<typeof createContactUseCases>
+  contacts: CustomerModule["contacts"]
 ) {
   const routes = new Hono<RecordAccessEnv>();
 
