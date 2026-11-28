@@ -95,14 +95,14 @@ async function seedLocalData() {
         tx,
         departmentIds
       );
-      const business = await seedCustomers(
+      const customerSeedCounts = await seedCustomers(
         tx,
         departmentIds,
         tagIdsByDepartment
       );
       return {
         createdAccounts,
-        ...business,
+        ...customerSeedCounts,
         ...tagCounts,
         createdPayouts: await seedPayouts(tx),
       };
