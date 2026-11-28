@@ -10,5 +10,6 @@ export type {
   RecordAccessMiddleware,
 } from "./http/record-access-context";
 export { registerIdentityRoutes } from "./http/routes";
+export type { IdentityModule } from "./module";
 export { createIdentityModule } from "./module";
 export { lockCompanyAdminInitialization } from "./persistence/company-administrators";

@@ -5,7 +5,7 @@ import { registerApiRoutes } from "./http/api-routes";
 import { createAddressModule } from "./modules/address";
 import { createCommunicationModule } from "./modules/communication";
 import { createCustomerModule } from "./modules/customer";
-import type { RequireAccountId } from "./modules/identity";
+import type { IdentityModule, RequireAccountId } from "./modules/identity";
 import {
   createRecordAccessContext,
   registerIdentityRoutes,
@@ -16,7 +16,7 @@ import { createProductModule } from "./modules/product";
 
 type AppDependencies = {
   db: Database;
-  auth: Parameters<typeof registerIdentityRoutes>[1];
+  auth: IdentityModule["auth"];
   requireAccountId: RequireAccountId;
 };
 

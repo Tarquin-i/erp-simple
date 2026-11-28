@@ -6,3 +6,5 @@ export function createIdentityModule(db: Database) {
   const auth = createPublicAuth(db);
   return { auth, requireAccountId: createRequireAccountId(auth) };
 }
+
+export type IdentityModule = ReturnType<typeof createIdentityModule>;
