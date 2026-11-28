@@ -18,6 +18,7 @@ export class ApplicationError extends Error {
 export type ModuleErrorResponse = {
   status: ContentfulStatusCode;
   code?: string;
+  charset?: false;
 };
 
 export function createServerErrorHandler(
@@ -30,12 +31,12 @@ export function createServerErrorHandler(
     if (error instanceof ModuleError) {
       const responses = responseMappings.get(error.module);
       if (responses && Object.hasOwn(responses, error.reason)) {
-        const { status, code } = responses[error.reason];
+        const { status, code, charset } = responses[error.reason];
+        const body = { code, message: error.message, current: error.current };
+        if (charset === false) return context.json(body, status);
+
         // 保留已迁移接口原有的 JSON 类型和字符集。
-        const response = Response.json(
-          { code, message: error.message, current: error.current },
-          { status }
-        );
+        const response = Response.json(body, { status });
         return context.newResponse(response.body, response);
       }
     }

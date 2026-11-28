@@ -5,6 +5,7 @@ import { HTTPException } from "hono/http-exception";
 
 import type { AccountRecordAccess } from "../../organization";
 import { lockCustomerForWrite } from "../../customer";
+import { ModuleError } from "../../shared/application-error";
 import { findProductCustomerId } from "./products";
 
 /** 在调用方的事务中复核客户权限，再共享锁定产品供 Payout 使用。 */
@@ -24,7 +25,14 @@ export async function lockProductPayoutSource(
     "share",
     includeArchived
   ).catch((error: unknown) => {
-    if (error instanceof HTTPException && error.status === 404) return null;
+    if (
+      (error instanceof ModuleError &&
+        error.module === "customer" &&
+        error.reason === "profileWriteNotFound") ||
+      (error instanceof HTTPException && error.status === 404)
+    ) {
+      return null;
+    }
     throw error;
   });
   if (!lockedCustomer) return null;

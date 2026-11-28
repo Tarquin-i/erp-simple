@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { isConstraintError } from "@repo/db";
 import type { Database, DatabaseTransaction } from "@repo/db";
 
-import { ApplicationError, failVersionConflict } from "../../../errors";
 import {
   lockDepartment,
   readAccountRecordAccess,
@@ -59,7 +58,7 @@ async function requireAssignableTags(
   if (!tagIds?.length) return;
   const tags = await selectAssignableCustomerTagIds(tx, departmentId, tagIds);
   if (tags.length !== tagIds.length) {
-    throw new ApplicationError(400, "所选标签不存在或不属于该客户所在部门。");
+    throw createCustomerError("profileTagsNotAssignable");
   }
 }
 
@@ -76,7 +75,7 @@ function translateWriteError(error: unknown): never {
       "customer_channel_assignment_channel_code_fk"
     )
   ) {
-    throw new ApplicationError(400, "所选渠道不存在。");
+    throw createCustomerError("profileChannelNotFound");
   }
   if (
     isConstraintError(
@@ -85,7 +84,7 @@ function translateWriteError(error: unknown): never {
       "customer_tag_assignment_tag_id_customer_tag_id_fk"
     )
   ) {
-    throw new ApplicationError(400, "所选标签不存在。");
+    throw createCustomerError("profileTagNotFound");
   }
   throw error;
 }
@@ -117,10 +116,10 @@ export function createProfileUseCases(db: Database) {
       const departmentId =
         access.scope === "company" ? input.departmentId : access.departmentId;
       if (departmentId === undefined) {
-        throw new ApplicationError(400, "请选择客户所属部门。");
+        throw createCustomerError("profileDepartmentRequired");
       }
       if (access.scope === "company" && input.ownerUserId === undefined) {
-        throw new ApplicationError(400, "请选择业务员。");
+        throw createCustomerError("profileOwnerRequired");
       }
 
       const requestHash = requestId
@@ -155,11 +154,7 @@ export function createProfileUseCases(db: Database) {
                   "share"
                 );
                 if (existing.hash !== requestHash) {
-                  throw new ApplicationError(
-                    409,
-                    "该提交 ID 已用于不同的客户资料。",
-                    { code: "idempotency_conflict" }
-                  );
+                  throw createCustomerError("profileIdempotencyConflict");
                 }
                 return readCustomer(tx, freshAccess, existing.id);
               }
@@ -178,16 +173,13 @@ export function createProfileUseCases(db: Database) {
               freshAccess.scope === "company" ||
               freshAccess.departmentId !== departmentId
             ) {
-              throw new ApplicationError(403, "只能在当前所属部门新建客户。");
+              throw createCustomerError("profileCreateDepartmentForbidden");
             }
             if (
               input.ownerUserId !== undefined &&
               freshAccess.scope === "own"
             ) {
-              throw new ApplicationError(
-                403,
-                "只有部门主管或公司管理员可在新建时指定业务员。"
-              );
+              throw createCustomerError("profileCreateOwnerForbidden");
             }
             const ownerUserId = input.ownerUserId ?? freshAccess.userId;
             await requireAssignableOwner(tx, departmentId, ownerUserId);
@@ -215,7 +207,7 @@ export function createProfileUseCases(db: Database) {
             translateWriteError(error);
           }
           if (attempt === 5) {
-            throw new ApplicationError(409, "客户编号生成冲突，请重试。");
+            throw createCustomerError("profileNumberConflict");
           }
         }
       }
@@ -239,14 +231,14 @@ export function createProfileUseCases(db: Database) {
               input.ownerUserId !== undefined &&
               freshAccess.scope === "own"
             ) {
-              throw new ApplicationError(
-                403,
-                "只有部门主管或公司管理员可更换业务员。"
-              );
+              throw createCustomerError("profileChangeOwnerForbidden");
             }
             // 持有客户行锁时比较版本，避免通过检查后被并发修改。
             if (record.version !== expectedVersion) {
-              failVersionConflict(await readCustomer(tx, freshAccess, id));
+              throw createCustomerError(
+                "versionConflict",
+                await readCustomer(tx, freshAccess, id)
+              );
             }
             if (input.ownerUserId !== undefined) {
               await requireAssignableOwner(
@@ -283,7 +275,7 @@ export function createProfileUseCases(db: Database) {
             translateWriteError(error);
           }
           if (attempt === 3) {
-            throw new ApplicationError(409, "客户资料有并发更新，请重试。");
+            throw createCustomerError("profileConcurrentUpdate");
           }
         }
       }
@@ -309,15 +301,15 @@ export function createProfileUseCases(db: Database) {
           return readCustomer(tx, freshAccess, id, true);
         }
         if (record.version !== expectedVersion) {
-          failVersionConflict(await readCustomer(tx, freshAccess, id));
+          throw createCustomerError(
+            "versionConflict",
+            await readCustomer(tx, freshAccess, id)
+          );
         }
 
         // 加锁后检查产品，关联写入也要先取得同一客户锁。
         if (await hasActiveCustomerProduct(tx, id)) {
-          throw new ApplicationError(
-            409,
-            "该客户还有未归档产品，请先归档产品。"
-          );
+          throw createCustomerError("profileActiveProducts");
         }
         await archiveCustomerProfile(tx, id, freshAccess.userId, new Date());
         return readCustomer(tx, freshAccess, id, true);

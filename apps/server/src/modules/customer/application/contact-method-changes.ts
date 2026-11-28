@@ -1,11 +1,12 @@
 import { customerContactMethodType } from "@repo/db/schema";
 
-import { fail } from "../../../errors";
-import { readString, readUuid } from "../../../http/request-input";
+import { ModuleError } from "../../shared/application-error";
 import {
   INVALID_MOBILE_PHONE_MESSAGE,
   normalizeMobilePhone,
 } from "../../shared/phone-number";
+import { validateRequiredText } from "../../shared/required-text";
+import { normalizeUuid } from "../../shared/uuid";
 import {
   preparePrimaryMethods,
   rememberContactMethod,
@@ -23,17 +24,31 @@ const methodChangeFields = ["add", "update", "remove"] as const;
 const emailPattern =
   /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i;
 
+function invalidContactMethods(message: string): never {
+  throw new ModuleError("customer", "contactMethodsInvalid", message);
+}
+
+function invalidContactMethodValue(message: string): never {
+  throw new ModuleError("customer", "contactMethodValueInvalid", message);
+}
+
+function readMethodId(value: unknown) {
+  const id = normalizeUuid(value);
+  if (id === undefined) invalidContactMethods("联系方式 ID格式不正确。");
+  return id;
+}
+
 export function readMethodType(value: unknown): MethodType {
   const type = customerContactMethodType.enumValues.find(
     (type) => type === value
   );
-  if (!type) fail(400, "请选择有效的联系方式类型。");
+  if (!type) invalidContactMethods("请选择有效的联系方式类型。");
   return type;
 }
 
 export function readPrimary(value: unknown): boolean | undefined {
   if (value !== undefined && typeof value !== "boolean") {
-    fail(400, "主要联系方式标记必须是布尔值。");
+    invalidContactMethods("主要联系方式标记必须是布尔值。");
   }
   return value;
 }
@@ -43,28 +58,30 @@ export function readPrimary(value: unknown): boolean | undefined {
  * @param type 已校验的联系方式类型。
  * @param raw 原始联系信息。
  * @returns 去掉首尾空格的内容。电话和 WhatsApp 返回 E.164 格式的手机号。
- * @throws 联系信息无效或手机号、邮箱格式不符时抛出 HTTP 400。
+ * @throws 联系信息无效或手机号、邮箱格式不符时抛出联系方式值错误。
  */
 export function readMethodValue(type: MethodType, raw: unknown): string {
-  const value = readString(raw, "联系方式", 320);
+  const text = validateRequiredText(raw, "联系方式", 320);
+  if (!text.ok) invalidContactMethodValue(text.message);
+  const value = text.value;
   if (type === "phone" || type === "whatsapp") {
     const mobile = normalizeMobilePhone(value);
-    if (!mobile) fail(400, INVALID_MOBILE_PHONE_MESSAGE);
+    if (!mobile) invalidContactMethodValue(INVALID_MOBILE_PHONE_MESSAGE);
     return mobile;
   }
   if (type === "email" && !emailPattern.test(value)) {
-    fail(400, "请输入有效的邮箱地址。");
+    invalidContactMethodValue("请输入有效的邮箱地址。");
   }
   return value;
 }
 
 function readMethodFields(value: unknown, fields: readonly string[]) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    fail(400, "请检查填写的联系方式。");
+    invalidContactMethods("请检查填写的联系方式。");
   }
   const input = value as Record<string, unknown>;
   if (Object.keys(input).some((key) => !fields.includes(key))) {
-    fail(400, "联系方式含有不支持的字段。");
+    invalidContactMethods("联系方式含有不支持的字段。");
   }
   return input;
 }
@@ -79,9 +96,9 @@ export function readContactMethods(
   value: unknown,
   current?: ReadonlyMap<string, Method>
 ): SubmittedMethod[] {
-  if (!Array.isArray(value)) fail(400, "请检查填写的联系方式。");
+  if (!Array.isArray(value)) invalidContactMethods("请检查填写的联系方式。");
   if (!current && value.length === 0) {
-    fail(400, "请为联系人填写至少一种联系方式。");
+    invalidContactMethods("请为联系人填写至少一种联系方式。");
   }
 
   const fields: readonly string[] = current
@@ -91,12 +108,12 @@ export function readContactMethods(
   const seenKeys = new Set<string>();
   const methods = value.map((item: unknown) => {
     const input = readMethodFields(item, fields);
-    const id =
-      input.id === undefined ? undefined : readUuid(input.id, "联系方式 ID");
+    const id = input.id === undefined ? undefined : readMethodId(input.id);
     const existing = id === undefined ? undefined : current?.get(id);
     if (id !== undefined) {
-      if (!existing) fail(400, "包含不属于该联系人的联系方式。");
-      if (seenIds.has(id)) fail(400, "同一条联系方式不能重复提交。");
+      if (!existing) invalidContactMethods("包含不属于该联系人的联系方式。");
+      if (seenIds.has(id))
+        invalidContactMethods("同一条联系方式不能重复提交。");
       seenIds.add(id);
     }
     const type = readMethodType(input.type);
@@ -106,7 +123,7 @@ export function readContactMethods(
         : readMethodValue(type, input.value);
     const isPrimary = readPrimary(input.isPrimary);
     if (current && isPrimary === undefined) {
-      fail(400, "请标明每条联系方式是否为主要联系方式。");
+      invalidContactMethods("请标明每条联系方式是否为主要联系方式。");
     }
     const method = { id, type, value, isPrimary };
     const reason = rememberContactMethod(seenKeys, method);
@@ -120,7 +137,9 @@ export function readContactMethods(
 
 function readMethodChangeList(value: unknown): unknown[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value)) fail(400, "请提交有效的联系方式变更列表。");
+  if (!Array.isArray(value)) {
+    invalidContactMethods("请提交有效的联系方式变更列表。");
+  }
   return value;
 }
 
@@ -141,9 +160,11 @@ export function mergeMethodChanges(value: unknown, current: Method[]) {
   const changedIds = new Set<string>();
 
   function readChangedId(value: unknown) {
-    const id = readUuid(value, "联系方式 ID");
-    if (changedIds.has(id)) fail(400, "同一条联系方式不能重复提交。");
-    if (!methods.has(id)) fail(400, "包含不属于该联系人的联系方式。");
+    const id = readMethodId(value);
+    if (changedIds.has(id))
+      invalidContactMethods("同一条联系方式不能重复提交。");
+    if (!methods.has(id))
+      invalidContactMethods("包含不属于该联系人的联系方式。");
     changedIds.add(id);
     return id;
   }
@@ -152,7 +173,7 @@ export function mergeMethodChanges(value: unknown, current: Method[]) {
     const input = readMethodFields(item, aggregateMethodFields);
     const id = readChangedId(input.id);
     if (methodFields.every((field) => input[field] === undefined)) {
-      fail(400, "请填写要修改的联系方式字段。");
+      invalidContactMethods("请填写要修改的联系方式字段。");
     }
     methods.set(id, { ...methods.get(id), ...input, id });
   }

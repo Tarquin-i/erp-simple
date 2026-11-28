@@ -2,11 +2,10 @@ import { createHash } from "node:crypto";
 import { isConstraintError } from "@repo/db";
 import type { Database, DatabaseTransaction } from "@repo/db";
 import { customerContactMethodType } from "@repo/db/schema";
-import { HTTPException } from "hono/http-exception";
 
-import { ApplicationError, fail, failVersionConflict } from "../../../errors";
 import { withRecordReadSnapshot } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
+import { ModuleError } from "../../shared/application-error";
 import {
   findNextPrimaryMethod,
   hasConflictingMethodType,
@@ -75,7 +74,7 @@ export function createContactUseCases(db: Database) {
           expectedContactVersion !== undefined &&
           locked.version !== expectedContactVersion
         ) {
-          failVersionConflict({
+          throw createCustomerError("versionConflict", {
             ...locked,
             methods: await listMethods(tx, contactId),
           });
@@ -168,11 +167,7 @@ export function createContactUseCases(db: Database) {
         );
         if (existing) {
           if (existing.requestHash !== requestHash) {
-            throw new ApplicationError(
-              409,
-              "该提交 ID 已用于不同的联系人内容。",
-              { code: "idempotency_conflict" }
-            );
+            throw createCustomerError("contactIdempotencyConflict");
           }
           // 在取得客户锁后读取当前快照，兼容同一提交的重试。
           const contact = await findActiveContact(tx, existing.id);
@@ -270,7 +265,7 @@ export function createContactUseCases(db: Database) {
           throw createCustomerError("contactNotFound");
         }
         if (contact.version !== expectedVersion) {
-          failVersionConflict({
+          throw createCustomerError("versionConflict", {
             ...contact,
             methods: await listMethods(tx, contactId),
           });
@@ -334,7 +329,7 @@ export function createContactUseCases(db: Database) {
           const methods = await listMethods(tx, contactId);
           const current = methods.find((method) => method.id === methodId);
           let value: string | undefined;
-          let valueError: HTTPException | undefined;
+          let valueError: ModuleError | undefined;
           if (
             !strictVersion &&
             current &&
@@ -347,7 +342,11 @@ export function createContactUseCases(db: Database) {
             try {
               value = readMethodValue(current.type, rawValue);
             } catch (error) {
-              if (!(error instanceof HTTPException) || error.status !== 400) {
+              if (
+                !(error instanceof ModuleError) ||
+                error.module !== "customer" ||
+                error.reason !== "contactMethodValueInvalid"
+              ) {
                 throw error;
               }
               valueError = error;
@@ -358,34 +357,43 @@ export function createContactUseCases(db: Database) {
             expectedContactVersion !== undefined &&
             lockedContact.version !== expectedContactVersion
           ) {
-            failVersionConflict({ ...lockedContact, methods });
+            throw createCustomerError("versionConflict", {
+              ...lockedContact,
+              methods,
+            });
           }
           if (!current) {
-            throw new ApplicationError(404, "联系方式不存在。", {
-              code: "contact_method_not_found",
-              current: { ...lockedContact, methods },
+            throw createCustomerError("contactMethodNotFound", {
+              ...lockedContact,
+              methods,
             });
           }
           if (
             expectedMethodVersion !== undefined &&
             current.version !== expectedMethodVersion
           ) {
-            failVersionConflict({ ...lockedContact, methods });
+            throw createCustomerError("versionConflict", {
+              ...lockedContact,
+              methods,
+            });
           }
           if (
             type !== undefined &&
             hasConflictingMethodType(methods, methodId, type)
           ) {
             if (restorePrimaryMethodId) {
-              fail(409, "旧联系方式类型已被其他记录占用，无法写回。");
+              throw createCustomerError("contactRestoreTypeConflict");
             }
-            failVersionConflict({ ...lockedContact, methods });
+            throw createCustomerError("versionConflict", {
+              ...lockedContact,
+              methods,
+            });
           }
           const restoredPrimary = restorePrimaryMethodId
             ? methods.find((method) => method.id === restorePrimaryMethodId)
             : undefined;
           if (restorePrimaryMethodId && !restoredPrimary) {
-            fail(409, "原主要联系方式已被删除，无法写回旧值。");
+            throw createCustomerError("contactRestorePrimaryMissing");
           }
           if (valueError) throw valueError;
           if (
@@ -450,7 +458,7 @@ export function createContactUseCases(db: Database) {
         expectedVersion,
         async (tx) => {
           const deleted = await deleteContactMethod(tx, contactId, methodId);
-          if (!deleted) fail(404, "联系方式不存在。");
+          if (!deleted) throw createCustomerError("contactMethodMissing");
 
           if (deleted.isPrimary) {
             const next = findNextPrimaryMethod(

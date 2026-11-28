@@ -1,7 +1,6 @@
 import { isConstraintError } from "@repo/db";
 import type { Database } from "@repo/db";
 
-import { ApplicationError } from "../../../errors";
 import {
   lockDepartment,
   readAccountRecordAccess,
@@ -17,7 +16,7 @@ import {
   lockCustomerTag,
   updateCustomerTag,
 } from "../persistence/tags";
-import { createCustomerError } from "./errors";
+import { createCustomerError, createCustomerTagInUseError } from "./errors";
 
 type TagEdit = { color: string; expectedColor: string } & (
   | { name: string; expectedName: string }
@@ -114,7 +113,7 @@ export function createTagUseCases(db: Database) {
     ) {
       const departmentId = resolveDepartment(access, input.departmentId);
       if (departmentId === undefined) {
-        throw new ApplicationError(400, "请选择标签所属部门。");
+        throw createCustomerError("tagDepartmentRequired");
       }
       return db
         .transaction(async (tx) => {
@@ -200,11 +199,7 @@ export function createTagUseCases(db: Database) {
         // 锁住标签后再查询关联，外键会等待此事务结束才允许新增引用。
         const references = await countCustomerTagReferences(tx, id);
         if (references > 0) {
-          throw new ApplicationError(
-            409,
-            `此标签已被 ${references} 条记录引用，请先解除关联再删除。`,
-            { code: "tag_in_use", current: { references } }
-          );
+          throw createCustomerTagInUseError(references);
         }
         await deleteCustomerTag(tx, id);
       });

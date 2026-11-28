@@ -5,7 +5,10 @@ import type { ModuleErrorResponse } from "./errors";
 import { registerApiRoutes } from "./http/api-routes";
 import { addressErrorResponses, createAddressModule } from "./modules/address";
 import { createCommunicationModule } from "./modules/communication";
-import { createCustomerModule } from "./modules/customer";
+import {
+  createCustomerModule,
+  customerErrorResponses,
+} from "./modules/customer";
 import type { IdentityModule, RequireAccountId } from "./modules/identity";
 import {
   createRecordAccessContext,
@@ -38,6 +41,7 @@ export function createApp({ db, auth, requireAccountId }: AppDependencies) {
     createServerErrorHandler(
       new Map<string, Readonly<Record<string, ModuleErrorResponse>>>([
         ["address", addressErrorResponses],
+        ["customer", customerErrorResponses],
         ["payout", payoutErrorResponses],
         ["product", productErrorResponses],
       ])

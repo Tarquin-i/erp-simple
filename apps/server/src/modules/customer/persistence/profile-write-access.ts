@@ -8,7 +8,7 @@ import {
   recordScopeWhere,
 } from "../../organization";
 import type { AccountRecordAccess } from "../../organization";
-import { fail } from "../../../errors";
+import { createCustomerError } from "../application/errors";
 import { selectAssignableOwners } from "./owner-options";
 
 /**
@@ -19,7 +19,7 @@ import { selectAssignableOwners } from "./owner-options";
  * @param lockMode 客户行锁模式。创建关联记录时可使用共享锁，修改客户及联系方式仍使用默认写锁。
  * @param includeArchived 归档请求可锁定已归档记录以确认重试结果。
  * @returns 重新读取的业务权限和已锁定的客户记录。
- * @throws 客户不存在或超出可见范围时抛出 HTTP 404，重新核对权限失败时抛出 HTTP 401 或 403。
+ * @throws 客户不存在或超出可见范围时抛出 profileWriteNotFound，权限复核失败时透传原异常。
  */
 export async function lockCustomerForWrite(
   tx: DatabaseTransaction,
@@ -41,7 +41,7 @@ export async function lockCustomerForWrite(
         recordScopeWhere(access, customer)
       )
     );
-  if (!target) fail(404, "客户不存在。");
+  if (!target) throw createCustomerError("profileWriteNotFound");
 
   await lockDepartment(tx, target.departmentId, "share");
   // 等待部门锁期间，主管可能已失去部门级访问权限。
@@ -58,7 +58,7 @@ export async function lockCustomerForWrite(
       )
     )
     .for(lockMode);
-  if (!record) fail(404, "客户不存在。");
+  if (!record) throw createCustomerError("profileWriteNotFound");
   return { access: freshAccess, record };
 }
 
@@ -68,7 +68,7 @@ export async function lockCustomerForWrite(
  * @param departmentId 客户所属部门 ID。
  * @param ownerUserId 拟指派的业务员用户 ID。
  * @returns 校验通过后完成，无返回数据。
- * @throws 用户不在该部门或为公司管理员时抛出 HTTP 400。
+ * @throws 用户不在该部门或为公司管理员时抛出 profileOwnerNotAssignable。
  */
 export async function requireAssignableOwner(
   tx: DatabaseTransaction,
@@ -80,5 +80,5 @@ export async function requireAssignableOwner(
     departmentId,
     ownerUserId
   ).for("share", { of: member });
-  if (!owner) fail(400, "请选择客户所属部门的成员作为业务员。");
+  if (!owner) throw createCustomerError("profileOwnerNotAssignable");
 }
